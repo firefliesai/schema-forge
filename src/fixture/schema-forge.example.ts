@@ -1,4 +1,4 @@
-import { ToolDto, ToolDtoProp } from '../json-schema.utility';
+import { ToolMeta, ToolProp } from '../schema-forge';
 
 enum StatusType {
   Online = 'ONLINE',
@@ -19,70 +19,70 @@ enum RankType {
  * 1. for array type, you need to add @ToolDtoProp({items:{type}, or enum instead}. for string/number property, you can just use TypeScript type
  * 2. you can pass TypeScript Enum or [1, 2, 3] or ['a', 'b', 'c'] as enum
  */
-@ToolDto({
+@ToolMeta({
   name: 'Game Character Configuration',
   description: 'Configure a game character with various attributes',
 })
 export class GameCharacter {
   // Basic string and number properties
-  @ToolDtoProp({ description: 'Character name' })
+  @ToolProp({ description: 'Character name' })
   name: string;
 
-  @ToolDtoProp({ description: 'Character level' })
+  @ToolProp({ description: 'Character level' })
   level: number;
 
   // Basic arrays
-  @ToolDtoProp({ description: 'Character titles', items: { type: 'string' } })
+  @ToolProp({ description: 'Character titles', items: { type: 'string' } })
   titles: string[];
 
-  @ToolDtoProp({ description: 'Score history', items: { type: 'number' } })
+  @ToolProp({ description: 'Score history', items: { type: 'number' } })
   scores: number[];
 
   // String enum cases
-  @ToolDtoProp({
+  @ToolProp({
     description: 'Character current status',
     enum: StatusType,
   })
   status: StatusType;
 
-  @ToolDtoProp({
+  @ToolProp({
     description: 'Character allowed statuses',
     enum: StatusType,
   })
   allowedStatuses: StatusType[];
 
-  @ToolDtoProp({
+  @ToolProp({
     description: 'Character class type',
     enum: ['Warrior', 'Mage', 'Rogue', 'Priest'],
   })
   classType: string;
 
-  @ToolDtoProp({
+  @ToolProp({
     description: 'Character roles',
     enum: ['Tank', 'Healer', 'DPS', 'Support'],
   })
   roles: string[];
 
   // Number enum cases
-  @ToolDtoProp({
+  @ToolProp({
     description: 'Character rank',
     enum: RankType,
   })
   rank: RankType;
 
-  @ToolDtoProp({
+  @ToolProp({
     description: 'Character available ranks',
     enum: RankType,
   })
   availableRanks: RankType[];
 
-  @ToolDtoProp({
+  @ToolProp({
     description: 'Character tier',
     enum: [1, 2, 3, 4, 5],
   })
   tier: number;
 
-  @ToolDtoProp({
+  @ToolProp({
     description: 'Character unlocked tiers',
     enum: [1, 2, 3, 4, 5],
   })
@@ -193,71 +193,71 @@ export const expGameCharToolObj = {
 };
 
 class Location {
-  @ToolDtoProp({ description: 'country name' })
+  @ToolProp({ description: 'country name' })
   country: string;
 
-  @ToolDtoProp({ description: 'city name' })
+  @ToolProp({ description: 'city name' })
   city: string;
 }
 
 class Bank {
-  @ToolDtoProp({ description: 'bank name' })
+  @ToolProp({ description: 'bank name' })
   bankName: string;
 
-  @ToolDtoProp({ description: 'account number' })
+  @ToolProp({ description: 'account number' })
   account: number;
 }
 
-@ToolDto({
+@ToolMeta({
   name: 'game_character',
   description: 'Game character with location and bank information',
 })
 export class GameCharacterV2 {
   // Basic types
-  @ToolDtoProp({ description: 'Character name' })
+  @ToolProp({ description: 'Character name' })
   name: string;
 
-  @ToolDtoProp({ description: 'Character level' })
+  @ToolProp({ description: 'Character level' })
   level: number;
 
   // Arrays with explicit type
-  @ToolDtoProp({
+  @ToolProp({
     description: 'Character titles',
     items: { type: 'string' },
   })
   titles: string[];
 
-  @ToolDtoProp({
+  @ToolProp({
     description: 'Score history',
     items: { type: 'number' },
   })
   scores: number[];
 
   // Enums
-  @ToolDtoProp({
+  @ToolProp({
     description: 'Character status',
     enum: StatusType,
   })
   status: StatusType;
 
-  @ToolDtoProp({
+  @ToolProp({
     description: 'Character rank',
     enum: RankType,
   })
   rank: RankType;
 
   // Array of enums
-  @ToolDtoProp({
+  @ToolProp({
     description: 'Available statuses',
     enum: StatusType,
   })
   availableStatuses: StatusType[];
 
   // Nested objects
-  @ToolDtoProp({ description: 'Location info' })
+  @ToolProp({ description: 'Location info' })
   location: Location;
 
-  @ToolDtoProp({
+  @ToolProp({
     description: 'Bank info',
     items: { type: Bank },
   })
@@ -265,25 +265,25 @@ export class GameCharacterV2 {
 }
 
 export class ThirdLevelDto {
-  @ToolDtoProp({
+  @ToolProp({
     description: 'ThirdLevelDto name',
     enum: ['A', 'B', 'C', 'D'],
   })
   name: string;
 }
 export class SecondLevelDto {
-  @ToolDtoProp({
+  @ToolProp({
     description: 'Character name',
     items: { type: ThirdLevelDto },
   })
   thirdLevelObjs: ThirdLevelDto[];
 }
-@ToolDto({
+@ToolMeta({
   name: '3_level_dto',
   description: 'First level object',
 })
 export class FirstLevelDto {
-  @ToolDtoProp({ description: '2nd level object' })
+  @ToolProp({ description: '2nd level object' })
   secondLevelObj: SecondLevelDto;
 }
 export const firstLevelDtoToolObj = {

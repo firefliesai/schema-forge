@@ -1,15 +1,15 @@
-import { LLM } from '../json-schema.utility';
+import { Schema } from '../schema-forge';
 
 const toolName = 'simple_math';
 const toolDesc = 'please help to sum of the numbers';
 
-@LLM.ToolDto({
+@Schema.ToolMeta({
   /** or @ToolDto */
   name: toolName,
   description: toolDesc,
 })
 export class MathToolDto {
   // or @ToolDtoProp
-  @LLM.ToolDtoProp()
+  @Schema.ToolProp()
   sum: number;
 }

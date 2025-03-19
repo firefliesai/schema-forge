@@ -1,12 +1,12 @@
 import { isEqual } from 'lodash';
 
 import {
-  addProperty,
-  ToolDtoProp,
-  toolDtoToAPIParam,
-  toolDtoToSchema,
-  updateProperty,
-} from './json-schema.utility';
+  addSchemaProperty,
+  ToolProp,
+  classToLLMTool,
+  classToJsonSchema,
+  updateSchemaProperty,
+} from './schema-forge';
 import {
   expGameCharSchemaObj,
   expGameCharToolObj,
@@ -15,24 +15,27 @@ import {
   firstLevelDtoToolObj,
   GameCharacter,
   GameCharacterV2,
-} from './json-schma-examples/json-schema.example';
+} from './fixture/schema-forge.example';
 
-jest.setTimeout(60 * 1000);
-
-describe('client test', () => {
+/** TODO: 
+ * 1. add nested nested object case
+ * 2. add empty description case (`@ToolDtoProp()`)
+ * 3. turn these tests to snapshot tests & remove isEqual
+ */
+describe('schema test', () => {
   it('class to json schema test ', async () => {
     /** test-1:
      *   a. define simple class case in the block case
      *   b. inheritance case
-     *   c. toolDtoToSchema with passing temp updated property case
-     *   d. updateProperty (permanently) test case */
+     *   c. classToJsonSchema with passing temp updated property case
+     *   d. updateSchemaProperty (permanently) test case */
     class User {
-      @ToolDtoProp({
+      @ToolProp({
         description: 'The unique identifier of the user',
       })
       id: number;
 
-      @ToolDtoProp({
+      @ToolProp({
         description: 'The username of the user',
         isOptional: true,
       })
@@ -40,28 +43,28 @@ describe('client test', () => {
     }
 
     class User2 extends User {
-      @ToolDtoProp({
+      @ToolProp({
         description: 'The unique identifier2 of the user',
       })
       id2: number;
-      @ToolDtoProp({
+      @ToolProp({
         description: 'username field',
         isOptional: true,
       })
       username?: string;
     }
 
-    const user2JsonSchemaTempChangeID2 = toolDtoToSchema(User2, {
+    const user2JsonSchemaTempChangeID2 = classToJsonSchema(User2, {
       id2: { description: 'temp updated id2 description' },
     });
-    const user2JsonSchema = toolDtoToSchema(User2);
-    updateProperty(User2, 'id2', {
+    const user2JsonSchema = classToJsonSchema(User2);
+    updateSchemaProperty(User2, 'id2', {
       description: 'permanently updated id2 description',
     });
-    const user2JsonSchemaPersistChangeID2 = toolDtoToSchema(User2);
+    const user2JsonSchemaPersistChangeID2 = classToJsonSchema(User2);
 
     /** user check */
-    const userJsonSchema = toolDtoToSchema(User);
+    const userJsonSchema = classToJsonSchema(User);
 
     expect(
       isEqual(userJsonSchema, {
@@ -145,25 +148,25 @@ describe('client test', () => {
     );
 
     /** test-2 complex json schema case */
-    const gameCharSchema = toolDtoToSchema(GameCharacter);
+    const gameCharSchema = classToJsonSchema(GameCharacter);
     expect(isEqual(gameCharSchema, expGameCharSchemaObj));
 
-    const gameCharTool = toolDtoToAPIParam(GameCharacter);
+    const gameCharTool = classToLLMTool(GameCharacter);
     expect(isEqual(gameCharTool, expGameCharToolObj));
 
-    /** test-2-2: updateProperty:  enum, enum array */
-    updateProperty(GameCharacter, 'roles', {
+    /** test-2-2: updateSchemaProperty:  enum, enum array */
+    updateSchemaProperty(GameCharacter, 'roles', {
       // affect child class
       enum: ['hero'],
     });
-    updateProperty(GameCharacter, 'status', {
+    updateSchemaProperty(GameCharacter, 'status', {
       // affect child class
       enum: ['unknown'],
     });
-    updateProperty(GameCharacter, 'level', {
+    updateSchemaProperty(GameCharacter, 'level', {
       description: 'Updated level description',
     });
-    const gameCharUpdatedSchema = toolDtoToSchema(GameCharacter);
+    const gameCharUpdatedSchema = classToJsonSchema(GameCharacter);
     /** TODO: deepcopy expGameCharSchemaObj */
     expGameCharSchemaObj.properties.status.enum = ['unknown'];
     expGameCharSchemaObj.properties.roles.items.enum = ['hero'];
@@ -172,14 +175,14 @@ describe('client test', () => {
     expect(isEqual(gameCharUpdatedSchema, expGameCharSchemaObj));
 
     /** test-2-2 complex nested json schema case */
-    const gameCharV2Tool = toolDtoToAPIParam(GameCharacterV2);
+    const gameCharV2Tool = classToLLMTool(GameCharacterV2);
     expect(isEqual(gameCharV2Tool, expGameCharV2ToolObj));
 
-    updateProperty(GameCharacterV2, 'banks.bankName', {
+    updateSchemaProperty(GameCharacterV2, 'banks.bankName', {
       description: 'New bankname description',
     });
 
-    const gameCharV2Tool2 = toolDtoToAPIParam(GameCharacterV2, {
+    const gameCharV2Tool2 = classToLLMTool(GameCharacterV2, {
       location: {
         description: 'New location description',
       },
@@ -197,23 +200,23 @@ describe('client test', () => {
     expect(isEqual(gameCharV2Tool2, expGameCharV2ToolObj));
 
     /** test-2-3 three level object */
-    updateProperty(FirstLevelDto, 'secondLevelObj.thirdLevelObjs.name', {
+    updateSchemaProperty(FirstLevelDto, 'secondLevelObj.thirdLevelObjs.name', {
       enum: ['E', 'F', 'G', 'H'],
     });
-    const firstLevelDto = toolDtoToAPIParam(FirstLevelDto);
+    const firstLevelDto = classToLLMTool(FirstLevelDto);
     expect(isEqual(firstLevelDto, firstLevelDtoToolObj));
 
-    /** test-3: addProperty case */
+    /** test-3: addSchemaProperty case */
     class TicketLLMAnswer {}
-    addProperty(TicketLLMAnswer, 'ticketTitle1', {
+    addSchemaProperty(TicketLLMAnswer, 'ticketTitle1', {
       type: 'string',
       description: 'answer',
     });
-    addProperty(TicketLLMAnswer, 'ticketTitle2', {
+    addSchemaProperty(TicketLLMAnswer, 'ticketTitle2', {
       enum: ['optionName1', 'optionName2'],
       isOptional: true,
     });
-    const ticketLLMAnswerSchema = toolDtoToSchema(TicketLLMAnswer);
+    const ticketLLMAnswerSchema = classToJsonSchema(TicketLLMAnswer);
     expect(
       isEqual(ticketLLMAnswerSchema, {
         type: 'object',
