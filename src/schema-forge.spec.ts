@@ -5,6 +5,7 @@ import {
   classToJsonSchema,
   updateSchemaProperty,
   addSchemaProperty,
+  ToolProp,
 } from './schema-forge';
 import {
   GameCharacter,
@@ -13,12 +14,12 @@ import {
   GameCharacterToolDesc,
   FirstLevelDto,
 } from './fixture/complex-class.tool.dto';
-import { User, User2} from './fixture/simple-class.tool.dto';
+import { User, User2 } from './fixture/simple-class.tool.dto';
 
 /** TODO: 
  * 1. add empty description case (`@ToolProp()`)
  */
-describe('class to json schema test', () => {
+describe('schema-forge test', () => {
   it('1 simple classes: classToJsonSchema, inheritance, classToJsonSchema with temp updated property, updateSchemaProperty (permanently)', async () => {
     const user2JsonSchemaTempChangeID2 = classToJsonSchema(User2, {
       id2: { description: 'temp updated id2 description' },
@@ -112,4 +113,14 @@ describe('class to json schema test', () => {
     const ticketLLMAnswerSchema = classToJsonSchema(TicketLLMAnswer);
     expect(ticketLLMAnswerSchema).toMatchSnapshot('5-1 addSchemaProperty case');
   });  
+
+  it('6 class with ToolProp() case', async () => {  
+    class SimpleAnswer {
+      @ToolProp()
+      answer: string;
+    }
+
+    const schema = classToJsonSchema(SimpleAnswer);
+    expect(schema).toMatchSnapshot('6-1 class with ToolProp()');
+  }); 
 });

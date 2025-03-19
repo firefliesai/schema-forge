@@ -1,6 +1,6 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`class to json schema test 1 simple classes: classToJsonSchema, inheritance, classToJsonSchema with temp updated property, updateSchemaProperty (permanently): 1-1 inheritance class: classToJsonSchema with temp updated property 1`] = `
+exports[`schema-forge test 1 simple classes: classToJsonSchema, inheritance, classToJsonSchema with temp updated property, updateSchemaProperty (permanently): 1-1 inheritance class: classToJsonSchema with temp updated property 1`] = `
 {
   "properties": {
     "id": {
@@ -24,7 +24,7 @@ exports[`class to json schema test 1 simple classes: classToJsonSchema, inherita
 }
 `;
 
-exports[`class to json schema test 1 simple classes: classToJsonSchema, inheritance, classToJsonSchema with temp updated property, updateSchemaProperty (permanently): 1-2 inheritance class: classToJsonSchema and should not affected by temp updated property 1`] = `
+exports[`schema-forge test 1 simple classes: classToJsonSchema, inheritance, classToJsonSchema with temp updated property, updateSchemaProperty (permanently): 1-2 inheritance class: classToJsonSchema and should not affected by temp updated property 1`] = `
 {
   "properties": {
     "id": {
@@ -48,7 +48,7 @@ exports[`class to json schema test 1 simple classes: classToJsonSchema, inherita
 }
 `;
 
-exports[`class to json schema test 1 simple classes: classToJsonSchema, inheritance, classToJsonSchema with temp updated property, updateSchemaProperty (permanently): 1-3 inheritance class: updateSchemaProperty desc (permanently) and classToJsonSchema 1`] = `
+exports[`schema-forge test 1 simple classes: classToJsonSchema, inheritance, classToJsonSchema with temp updated property, updateSchemaProperty (permanently): 1-3 inheritance class: updateSchemaProperty desc (permanently) and classToJsonSchema 1`] = `
 {
   "properties": {
     "id": {
@@ -72,7 +72,7 @@ exports[`class to json schema test 1 simple classes: classToJsonSchema, inherita
 }
 `;
 
-exports[`class to json schema test 1 simple classes: classToJsonSchema, inheritance, classToJsonSchema with temp updated property, updateSchemaProperty (permanently): 1-4 parent class: classToJsonSchema (should not be affected by child class update) 1`] = `
+exports[`schema-forge test 1 simple classes: classToJsonSchema, inheritance, classToJsonSchema with temp updated property, updateSchemaProperty (permanently): 1-4 parent class: classToJsonSchema (should not be affected by child class update) 1`] = `
 {
   "properties": {
     "id": {
@@ -91,7 +91,7 @@ exports[`class to json schema test 1 simple classes: classToJsonSchema, inherita
 }
 `;
 
-exports[`class to json schema test 2 complex: array and enum class: classToJsonSchema, classToLLMTool, updateSchemaProperty (permanently) w/ enum, : 2-1 complex classToJsonSchema 1`] = `
+exports[`schema-forge test 2 complex: array and enum class: classToJsonSchema, classToLLMTool, updateSchemaProperty (permanently) w/ enum, : 2-1 complex classToJsonSchema 1`] = `
 {
   "properties": {
     "allowedStatuses": {
@@ -229,7 +229,7 @@ exports[`class to json schema test 2 complex: array and enum class: classToJsonS
 }
 `;
 
-exports[`class to json schema test 3 complex nested_object class: classToLLMTool, updateSchemaProperty (permanently) w/ enum, : 3-1 complex nested_object: classToLLMTool 1`] = `
+exports[`schema-forge test 3 complex nested_object class: classToLLMTool, updateSchemaProperty (permanently) w/ enum, : 3-1 complex nested_object: classToLLMTool 1`] = `
 {
   "function": {
     "description": "Game character with location and bank information",
@@ -349,7 +349,7 @@ exports[`class to json schema test 3 complex nested_object class: classToLLMTool
 }
 `;
 
-exports[`class to json schema test 4 complex nested nested three layer class: classToLLMTool,updateSchemaProperty (permanently) w/ enum : 4-1 complex nested nested three layer class: updateSchemaProperty and classToLLMTool 1`] = `
+exports[`schema-forge test 4 complex nested nested three layer class: classToLLMTool,updateSchemaProperty (permanently) w/ enum : 4-1 complex nested nested three layer class: updateSchemaProperty and classToLLMTool 1`] = `
 {
   "function": {
     "description": "First level object",
@@ -398,7 +398,7 @@ exports[`class to json schema test 4 complex nested nested three layer class: cl
 }
 `;
 
-exports[`class to json schema test 5 addSchemaProperty case: 5-1 addSchemaProperty case 1`] = `
+exports[`schema-forge test 5 addSchemaProperty case: 5-1 addSchemaProperty case 1`] = `
 {
   "properties": {
     "ticketTitle1": {
@@ -415,6 +415,20 @@ exports[`class to json schema test 5 addSchemaProperty case: 5-1 addSchemaProper
   },
   "required": [
     "ticketTitle1",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`schema-forge test 6 class with ToolProp() case: 6-1 class with ToolProp() 1`] = `
+{
+  "properties": {
+    "answer": {
+      "type": "string",
+    },
+  },
+  "required": [
+    "answer",
   ],
   "type": "object",
 }
