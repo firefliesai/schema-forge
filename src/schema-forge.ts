@@ -128,7 +128,7 @@ function applyPropertyUpdates(
         {};
     }
 
-    // Handle enum update for nested array property
+    // Handle enum update for nested property
     if (updates.enum) {
       const enumValues = extractEnumValues(updates.enum);
       const enumType = typeof enumValues[0] === 'string' ? 'string' : 'number';
@@ -145,16 +145,75 @@ function applyPropertyUpdates(
           if (!current[path]) {
             current[path] = { type: 'object', properties: {} };
           }
-          current = current[path].properties;
+          // If this is an array type property
+          if (current[path].type === 'array') {
+            if (!current[path].items.properties) {
+              current[path].items.properties = {};
+            }
+            current = current[path].items.properties;
+          } else {
+            // Object type property
+            if (!current[path].properties) {
+              current[path].properties = {};
+            }
+            current = current[path].properties;
+          }
         }
 
-        current[rest[rest.length - 1]] = {
-          description: currentMetadata.description,
-          type: 'array',
-          items: {
+        // Get the last path segment
+        const lastPath = rest[rest.length - 1];
+        
+        // Check if the target property should be an array of enums or just an enum
+        if (current[lastPath] && current[lastPath].type === 'array') {
+          // Update items of an array property
+          current[lastPath].items = {
             type: enumType,
             enum: enumValues,
-          },
+          };
+        } else {
+          // Direct enum property
+          current[lastPath] = {
+            ...(current[lastPath] || {}),
+            type: enumType,
+            enum: enumValues,
+            description: current[lastPath]?.description || currentMetadata.description,
+          };
+        }
+      } else if (targetProp.type === 'object') {
+        // Update in object properties
+        if (!targetProp.properties) {
+          targetProp.properties = {};
+        }
+        let current = targetProp.properties;
+        for (let i = 0; i < rest.length - 1; i++) {
+          const path = rest[i];
+          if (!current[path]) {
+            current[path] = { type: 'object', properties: {} };
+          }
+          // If this is an array type property
+          if (current[path].type === 'array') {
+            if (!current[path].items.properties) {
+              current[path].items.properties = {};
+            }
+            current = current[path].items.properties;
+          } else {
+            // Object type property
+            if (!current[path].properties) {
+              current[path].properties = {};
+            }
+            current = current[path].properties;
+          }
+        }
+        
+        // Get the last path segment
+        const lastPath = rest[rest.length - 1];
+        
+        // Update the enum property
+        current[lastPath] = {
+          ...(current[lastPath] || {}),
+          type: enumType,
+          enum: enumValues,
+          description: current[lastPath]?.description || currentMetadata.description,
         };
       }
     } else {
@@ -165,6 +224,18 @@ function applyPropertyUpdates(
         }
         applyPropertyUpdates(
           properties[current].items.properties,
+          rest,
+          updates,
+          target,
+        );
+      } 
+      // Handle nested object properties
+      else if (properties[current].type === 'object') {
+        if (!properties[current].properties) {
+          properties[current].properties = {};
+        }
+        applyPropertyUpdates(
+          properties[current].properties,
           rest,
           updates,
           target,

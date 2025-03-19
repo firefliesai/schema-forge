@@ -366,10 +366,10 @@ exports[`class to json schema test 4 complex nested nested three layer class: cl
                   "name": {
                     "description": "ThirdLevelDto name",
                     "enum": [
-                      "A",
-                      "B",
-                      "C",
-                      "D",
+                      "E",
+                      "F",
+                      "G",
+                      "H",
                     ],
                     "type": "string",
                   },
