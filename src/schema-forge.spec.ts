@@ -96,7 +96,7 @@ describe('class to json schema test', () => {
       enum: ['E', 'F', 'G', 'H'],
     });
     const firstLevelDto = classToLLMTool(FirstLevelDto);
-    expect(firstLevelDto).toMatchSnapshot('4-1');
+    expect(firstLevelDto).toMatchSnapshot('4-1 complex nested nested three layer class: updateSchemaProperty and classToLLMTool');
   });
 
   it('5 addSchemaProperty case', async () => {  
@@ -110,6 +110,6 @@ describe('class to json schema test', () => {
       isOptional: true,
     });
     const ticketLLMAnswerSchema = classToJsonSchema(TicketLLMAnswer);
-    expect(ticketLLMAnswerSchema).toMatchSnapshot('4-2');
-  });
+    expect(ticketLLMAnswerSchema).toMatchSnapshot('5-1 addSchemaProperty case');
+  });  
 });

@@ -349,7 +349,7 @@ exports[`class to json schema test 3 complex nested_object class: classToLLMTool
 }
 `;
 
-exports[`class to json schema test 4 complex nested nested three layer class: classToLLMTool,updateSchemaProperty (permanently) w/ enum : 4-1 1`] = `
+exports[`class to json schema test 4 complex nested nested three layer class: classToLLMTool,updateSchemaProperty (permanently) w/ enum : 4-1 complex nested nested three layer class: updateSchemaProperty and classToLLMTool 1`] = `
 {
   "function": {
     "description": "First level object",
@@ -398,7 +398,7 @@ exports[`class to json schema test 4 complex nested nested three layer class: cl
 }
 `;
 
-exports[`class to json schema test 5 addSchemaProperty case: 4-2 1`] = `
+exports[`class to json schema test 5 addSchemaProperty case: 5-1 addSchemaProperty case 1`] = `
 {
   "properties": {
     "ticketTitle1": {
