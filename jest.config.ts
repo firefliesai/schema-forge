@@ -4,7 +4,7 @@ import type { JestConfigWithTsJest } from 'ts-jest';
  * Centralized place to handle all the jest setup.
  * This is reusable for both `e2e` and `unit tests`.
  *
- * Simplifies the mainteneance of the configuration
+ * Simplifies the maintenance of the configuration
  * and makes it safer as now we can use TypeScript
  * powers for these configurations too.
  */

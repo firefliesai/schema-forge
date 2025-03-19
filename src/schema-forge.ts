@@ -210,7 +210,7 @@ function applyPropertyUpdates(
   }
 }
 
-export function ToolDtoProp(options: PropertyOptions = {}) {
+export function ToolProp(options: PropertyOptions = {}) {
   return function (target: any, propertyKey: string) {
     const type = Reflect.getMetadata('design:type', target, propertyKey);
     // Exclude isOptional, keep only other options
@@ -259,7 +259,7 @@ export function ToolDtoProp(options: PropertyOptions = {}) {
           `Array property "${propertyKey}" needs explicit type information.`,
         );
       } else if (isCustomClass(options.items.type)) {
-        const nestedSchema = toolDtoToSchema(
+        const nestedSchema = classToJsonSchema(
           options.items.type as Constructor<any>,
         );
         finalOptions.type = 'array';
@@ -274,7 +274,7 @@ export function ToolDtoProp(options: PropertyOptions = {}) {
       finalOptions.type = enumType;
       finalOptions.enum = enumValues;
     } else if (isCustomClass(type)) {
-      const nestedSchema = toolDtoToSchema(type);
+      const nestedSchema = classToJsonSchema(type);
       finalOptions.type = 'object';
       finalOptions.properties = nestedSchema.properties;
       finalOptions.required = nestedSchema.required;
@@ -305,7 +305,7 @@ export function ToolDtoProp(options: PropertyOptions = {}) {
   };
 }
 
-export function ToolDto(
+export function ToolMeta(
   options: {
     name?: string;
     description?: string;
@@ -316,7 +316,7 @@ export function ToolDto(
   };
 }
 
-export function updateProperty<T extends object>(
+export function updateSchemaProperty<T extends object>(
   target: new (...args: any[]) => T,
   propertyPath: PropertyPath<T>,
   updates: Partial<PropertyOptions>,
@@ -334,7 +334,7 @@ export function updateProperty<T extends object>(
   );
 }
 
-export function addProperty<T extends object>(
+export function addSchemaProperty<T extends object>(
   target: new (...args: any[]) => T,
   propertyPath: string,
   options: PropertyOptions,
@@ -442,7 +442,7 @@ export type InferSchema<T> = T extends new (...args: any[]) => any
   ? ReturnType<typeof inferType<T>>
   : never;
 
-export function toolDtoToSchema<T extends object>(
+export function classToJsonSchema<T extends object>(
   target: new (...args: any[]) => T,
   temporaryUpdates?: Partial<{
     [P in PropertyPath<T>]: Partial<PropertyOptions>;
@@ -475,14 +475,14 @@ export function toolDtoToSchema<T extends object>(
   return schema;
 }
 
-export function toolDtoToAPIParam<T extends object>(
+export function classToLLMTool<T extends object>(
   target: new (...args: any[]) => T,
   temporaryUpdates?: Partial<{
     [P in PropertyPath<T>]: Partial<PropertyOptions>;
   }>,
 ): ToolFunction {
   const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
-  const jsonSchema = toolDtoToSchema(target, temporaryUpdates);
+  const jsonSchema = classToJsonSchema(target, temporaryUpdates);
 
   return {
     type: 'function',
@@ -494,11 +494,11 @@ export function toolDtoToAPIParam<T extends object>(
   };
 }
 
-export const LLM = {
-  ToolDto,
-  ToolDtoProp,
-  toolDtoToSchema,
-  toolDtoToAPIParam,
-  updateProperty,
-  addProperty,
+export const Schema = {
+  ToolMeta,
+  ToolProp,
+  classToJsonSchema,
+  classToLLMTool,
+  updateSchemaProperty,
+  addSchemaProperty,
 } as const;
