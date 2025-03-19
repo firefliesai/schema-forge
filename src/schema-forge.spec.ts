@@ -16,9 +16,7 @@ import {
 import { User, User2} from './fixture/simple-class.tool.dto';
 
 /** TODO: 
- * 1. add nested nested object case
- * 2. add empty description case (`@ToolDtoProp()`)
- * 3. turn these tests to snapshot tests & remove isEqual
+ * 1. add empty description case (`@ToolProp()`)
  */
 describe('class to json schema test', () => {
   it('1 simple classes: classToJsonSchema, inheritance, classToJsonSchema with temp updated property, updateSchemaProperty (permanently)', async () => {
@@ -41,7 +39,6 @@ describe('class to json schema test', () => {
   });
 
   it('2 complex: array and enum class: classToJsonSchema, classToLLMTool, updateSchemaProperty (permanently) w/ enum, ', async () => {  
-    /** complex json schema case */
     const gameCharSchema = classToJsonSchema(GameCharacter);
     expect(gameCharSchema).toMatchSnapshot('2-1 complex classToJsonSchema');
 
@@ -70,7 +67,6 @@ describe('class to json schema test', () => {
   });
 
   it('3 complex nested_object class: classToLLMTool, updateSchemaProperty (permanently) w/ enum, ', async () => {  
-    /** complex nested json schema case */
     const gameCharV2Tool = classToLLMTool(GameCharacterV2);
     expect(gameCharV2Tool).toMatchSnapshot('3-1 complex nested_object: classToLLMTool');
 
@@ -82,7 +78,6 @@ describe('class to json schema test', () => {
       location: {
         description: 'New location description',
       },
-      /** FIXME: does not take an effect */
       'location.country': {
         description: 'New country description',
       },
@@ -93,7 +88,6 @@ describe('class to json schema test', () => {
       'New bankname description';
     gameCharV2Tool.function.parameters.properties.location.properties.country.description =
       'New country description';      
-    // expect(gameCharV2Tool2).toMatchSnapshot('3-2 complex nested_object: updateSchemaProperty and classToLLMTool with temp update');
     expect(isEqual(gameCharV2Tool2, gameCharV2Tool)).toBe(true);
   });
 
@@ -102,7 +96,6 @@ describe('class to json schema test', () => {
       enum: ['E', 'F', 'G', 'H'],
     });
     const firstLevelDto = classToLLMTool(FirstLevelDto);
-    /** FIXME: it should be ['E', 'F', 'G', 'H'] but it is ['A', 'B', 'C', 'D'] */
     expect(firstLevelDto).toMatchSnapshot('4-1');
   });
 
