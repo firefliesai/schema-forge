@@ -1,0 +1,435 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`schema-forge test 1 simple classes: classToJsonSchema, inheritance, classToJsonSchema with temp updated property, updateSchemaProperty (permanently): 1-1 inheritance class: classToJsonSchema with temp updated property 1`] = `
+{
+  "properties": {
+    "id": {
+      "description": "The unique identifier of the user",
+      "type": "number",
+    },
+    "id2": {
+      "description": "temp updated id2 description",
+      "type": "number",
+    },
+    "username": {
+      "description": "username field",
+      "type": "string",
+    },
+  },
+  "required": [
+    "id",
+    "id2",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`schema-forge test 1 simple classes: classToJsonSchema, inheritance, classToJsonSchema with temp updated property, updateSchemaProperty (permanently): 1-2 inheritance class: classToJsonSchema and should not affected by temp updated property 1`] = `
+{
+  "properties": {
+    "id": {
+      "description": "The unique identifier of the user",
+      "type": "number",
+    },
+    "id2": {
+      "description": "The unique identifier2 of the user",
+      "type": "number",
+    },
+    "username": {
+      "description": "username field",
+      "type": "string",
+    },
+  },
+  "required": [
+    "id",
+    "id2",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`schema-forge test 1 simple classes: classToJsonSchema, inheritance, classToJsonSchema with temp updated property, updateSchemaProperty (permanently): 1-3 inheritance class: updateSchemaProperty desc (permanently) and classToJsonSchema 1`] = `
+{
+  "properties": {
+    "id": {
+      "description": "The unique identifier of the user",
+      "type": "number",
+    },
+    "id2": {
+      "description": "permanently updated id2 description",
+      "type": "number",
+    },
+    "username": {
+      "description": "username field",
+      "type": "string",
+    },
+  },
+  "required": [
+    "id",
+    "id2",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`schema-forge test 1 simple classes: classToJsonSchema, inheritance, classToJsonSchema with temp updated property, updateSchemaProperty (permanently): 1-4 parent class: classToJsonSchema (should not be affected by child class update) 1`] = `
+{
+  "properties": {
+    "id": {
+      "description": "The unique identifier of the user",
+      "type": "number",
+    },
+    "username": {
+      "description": "The username of the user",
+      "type": "string",
+    },
+  },
+  "required": [
+    "id",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`schema-forge test 2 complex: array and enum class: classToJsonSchema, classToLLMTool, updateSchemaProperty (permanently) w/ enum, : 2-1 complex classToJsonSchema 1`] = `
+{
+  "properties": {
+    "allowedStatuses": {
+      "description": "Character allowed statuses",
+      "items": {
+        "enum": [
+          "ONLINE",
+          "OFFLINE",
+          "AWAY",
+          "BUSY",
+        ],
+        "type": "string",
+      },
+      "type": "array",
+    },
+    "availableRanks": {
+      "description": "Character available ranks",
+      "items": {
+        "enum": [
+          1,
+          2,
+          3,
+          4,
+        ],
+        "type": "number",
+      },
+      "type": "array",
+    },
+    "classType": {
+      "description": "Character class type",
+      "enum": [
+        "Warrior",
+        "Mage",
+        "Rogue",
+        "Priest",
+      ],
+      "type": "string",
+    },
+    "level": {
+      "description": "Character level",
+      "type": "number",
+    },
+    "name": {
+      "description": "Character name",
+      "type": "string",
+    },
+    "rank": {
+      "description": "Character rank",
+      "enum": [
+        1,
+        2,
+        3,
+        4,
+      ],
+      "type": "number",
+    },
+    "roles": {
+      "description": "Character roles",
+      "items": {
+        "enum": [
+          "Tank",
+          "Healer",
+          "DPS",
+          "Support",
+        ],
+        "type": "string",
+      },
+      "type": "array",
+    },
+    "scores": {
+      "description": "Score history",
+      "items": {
+        "type": "number",
+      },
+      "type": "array",
+    },
+    "status": {
+      "description": "Character current status",
+      "enum": [
+        "ONLINE",
+        "OFFLINE",
+        "AWAY",
+        "BUSY",
+      ],
+      "type": "string",
+    },
+    "tier": {
+      "description": "Character tier",
+      "enum": [
+        1,
+        2,
+        3,
+        4,
+        5,
+      ],
+      "type": "number",
+    },
+    "titles": {
+      "description": "Character titles",
+      "items": {
+        "type": "string",
+      },
+      "type": "array",
+    },
+    "unlockedTiers": {
+      "description": "Character unlocked tiers",
+      "items": {
+        "enum": [
+          1,
+          2,
+          3,
+          4,
+          5,
+        ],
+        "type": "number",
+      },
+      "type": "array",
+    },
+  },
+  "required": [
+    "name",
+    "level",
+    "titles",
+    "scores",
+    "status",
+    "allowedStatuses",
+    "classType",
+    "roles",
+    "rank",
+    "availableRanks",
+    "tier",
+    "unlockedTiers",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`schema-forge test 3 complex nested_object class: classToLLMTool, updateSchemaProperty (permanently) w/ enum, : 3-1 complex nested_object: classToLLMTool 1`] = `
+{
+  "function": {
+    "description": "Game character with location and bank information",
+    "name": "game_character",
+    "parameters": {
+      "properties": {
+        "availableStatuses": {
+          "description": "Available statuses",
+          "items": {
+            "enum": [
+              "ONLINE",
+              "OFFLINE",
+              "AWAY",
+              "BUSY",
+            ],
+            "type": "string",
+          },
+          "type": "array",
+        },
+        "banks": {
+          "description": "Bank info",
+          "items": {
+            "properties": {
+              "account": {
+                "description": "account number",
+                "type": "number",
+              },
+              "bankName": {
+                "description": "bank name",
+                "type": "string",
+              },
+            },
+            "required": [
+              "bankName",
+              "account",
+            ],
+            "type": "object",
+          },
+          "type": "array",
+        },
+        "level": {
+          "description": "Character level",
+          "type": "number",
+        },
+        "location": {
+          "description": "Location info",
+          "properties": {
+            "city": {
+              "description": "city name",
+              "type": "string",
+            },
+            "country": {
+              "description": "country name",
+              "type": "string",
+            },
+          },
+          "required": [
+            "country",
+            "city",
+          ],
+          "type": "object",
+        },
+        "name": {
+          "description": "Character name",
+          "type": "string",
+        },
+        "rank": {
+          "description": "Character rank",
+          "enum": [
+            1,
+            2,
+            3,
+            4,
+          ],
+          "type": "number",
+        },
+        "scores": {
+          "description": "Score history",
+          "items": {
+            "type": "number",
+          },
+          "type": "array",
+        },
+        "status": {
+          "description": "Character status",
+          "enum": [
+            "ONLINE",
+            "OFFLINE",
+            "AWAY",
+            "BUSY",
+          ],
+          "type": "string",
+        },
+        "titles": {
+          "description": "Character titles",
+          "items": {
+            "type": "string",
+          },
+          "type": "array",
+        },
+      },
+      "required": [
+        "name",
+        "level",
+        "titles",
+        "scores",
+        "status",
+        "rank",
+        "availableStatuses",
+        "location",
+        "banks",
+      ],
+      "type": "object",
+    },
+  },
+  "type": "function",
+}
+`;
+
+exports[`schema-forge test 4 complex nested nested three layer class: classToLLMTool,updateSchemaProperty (permanently) w/ enum : 4-1 complex nested nested three layer class: updateSchemaProperty and classToLLMTool 1`] = `
+{
+  "function": {
+    "description": "First level object",
+    "name": "3_level_dto",
+    "parameters": {
+      "properties": {
+        "secondLevelObj": {
+          "description": "2nd level object",
+          "properties": {
+            "thirdLevelObjs": {
+              "description": "Character name",
+              "items": {
+                "properties": {
+                  "name": {
+                    "description": "ThirdLevelDto name",
+                    "enum": [
+                      "E",
+                      "F",
+                      "G",
+                      "H",
+                    ],
+                    "type": "string",
+                  },
+                },
+                "required": [
+                  "name",
+                ],
+                "type": "object",
+              },
+              "type": "array",
+            },
+          },
+          "required": [
+            "thirdLevelObjs",
+          ],
+          "type": "object",
+        },
+      },
+      "required": [
+        "secondLevelObj",
+      ],
+      "type": "object",
+    },
+  },
+  "type": "function",
+}
+`;
+
+exports[`schema-forge test 5 addSchemaProperty case: 5-1 addSchemaProperty case 1`] = `
+{
+  "properties": {
+    "ticketTitle1": {
+      "description": "answer",
+      "type": "string",
+    },
+    "ticketTitle2": {
+      "enum": [
+        "optionName1",
+        "optionName2",
+      ],
+      "type": "string",
+    },
+  },
+  "required": [
+    "ticketTitle1",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`schema-forge test 6 class with ToolProp() case: 6-1 class with ToolProp() 1`] = `
+{
+  "properties": {
+    "answer": {
+      "type": "string",
+    },
+  },
+  "required": [
+    "answer",
+  ],
+  "type": "object",
+}
+`;
