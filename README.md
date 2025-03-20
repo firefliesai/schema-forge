@@ -91,6 +91,25 @@ console.log(schema);
   required: ['name', 'email', 'role']
 }
 */
+
+// Using the JSON Schema with OpenAI directly
+const jsonSchema = classToJsonSchema(UserInput);
+const completion = await openai.chat.completions.create({
+  model: "gpt-4-turbo",
+  messages: [...messages],
+  tools: [
+    {
+      type: 'function',
+      function: {
+        name: "create_user", // You need to manually provide name
+        description: "Create a new user in the system", // You need to manually provide description
+        parameters: jsonSchema,
+      },
+    }
+  ]
+});
+
+// This is why classToOpenAITool() is more convenient as it handles the metadata for you
 ```
 
 ### Generate LLM Function Definitions
