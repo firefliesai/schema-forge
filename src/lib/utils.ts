@@ -12,12 +12,12 @@ export function cloneMetadata(metadata: any): any {
 /**
  * Prepares a JSON Schema object for structured output compatibility with LLM APIs
  * by adding required fields and removing unsupported properties
- * 
+ *
  * @public
  * @param obj The JSON Schema object to enhance
  * @param isTopLevel Whether this is the top level object (affects processing)
  * @returns Enhanced JSON Schema object ready for structured output
- * 
+ *
  * @example
  * // Enhance a manually created JSON Schema
  * const schema = {
@@ -29,10 +29,7 @@ export function cloneMetadata(metadata: any): any {
  * };
  * const enhancedSchema = prepareForStructuredOutput(schema);
  */
-export function prepareForStructuredOutput(
-  obj: any,
-  isTopLevel = false,
-): any {
+export function prepareForStructuredOutput(obj: any, _isTopLevel = false): any {
   // If the input is not an object or is null, return the input value directly
   if (typeof obj !== 'object' || obj === null) {
     return obj;
@@ -60,24 +57,36 @@ export function prepareForStructuredOutput(
   // Remove unsupported properties based on type
   if (newObj.type === 'string') {
     // Remove unsupported string properties
-    ['minLength', 'maxLength', 'pattern', 'format'].forEach(prop => {
+    ['minLength', 'maxLength', 'pattern', 'format'].forEach((prop) => {
       if (prop in newObj) delete newObj[prop];
     });
   } else if (newObj.type === 'number') {
     // Remove unsupported number properties
-    ['minimum', 'maximum', 'multipleOf'].forEach(prop => {
+    ['minimum', 'maximum', 'multipleOf'].forEach((prop) => {
       if (prop in newObj) delete newObj[prop];
     });
   } else if (newObj.type === 'object') {
     // Remove unsupported object properties
-    ['patternProperties', 'unevaluatedProperties', 'propertyNames', 
-     'minProperties', 'maxProperties'].forEach(prop => {
+    [
+      'patternProperties',
+      'unevaluatedProperties',
+      'propertyNames',
+      'minProperties',
+      'maxProperties',
+    ].forEach((prop) => {
       if (prop in newObj) delete newObj[prop];
     });
   } else if (newObj.type === 'array') {
     // Remove unsupported array properties
-    ['unevaluatedItems', 'contains', 'minContains', 'maxContains',
-     'minItems', 'maxItems', 'uniqueItems'].forEach(prop => {
+    [
+      'unevaluatedItems',
+      'contains',
+      'minContains',
+      'maxContains',
+      'minItems',
+      'maxItems',
+      'uniqueItems',
+    ].forEach((prop) => {
       if (prop in newObj) delete newObj[prop];
     });
   }
@@ -95,7 +104,7 @@ export function prepareForStructuredOutput(
 /**
  * Type inference helper
  */
-export function inferType<T>(target: new (...args: any[]) => any): T {
+export function inferType<T>(_target: new (...args: any[]) => any): T {
   return null as any;
 }
 

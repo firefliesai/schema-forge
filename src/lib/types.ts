@@ -89,7 +89,7 @@ export interface JsonSchemaOptions<T> {
   propertyOverrides?: Partial<{
     [P in PropertyPath<T>]: Partial<PropertyOptions>;
   }>;
-  
+
   /**
    * Whether to prepare the schema for structured output
    */
@@ -114,19 +114,13 @@ export interface OpenAIResponseFormatOptions<T> extends JsonSchemaOptions<T> {
 }
 
 // Options for Gemini tool functions
-export interface GeminiToolOptions<T> extends JsonSchemaOptions<T> {
-  // Currently no additional options specific to Gemini tools
-}
+export type GeminiToolOptions<T> = JsonSchemaOptions<T>;
 
 // Options for Anthropic tool functions
-export interface AnthropicToolOptions<T> extends JsonSchemaOptions<T> {
-  // Currently no additional options specific to Anthropic tools
-}
+export type AnthropicToolOptions<T> = JsonSchemaOptions<T>;
 
 // Options for Gemini response schema
-export interface GeminiResponseSchemaOptions<T> extends JsonSchemaOptions<T> {
-  // Currently no additional options specific to Gemini response schema
-}
+export type GeminiResponseSchemaOptions<T> = JsonSchemaOptions<T>;
 
 // Type utilities to get all possible property paths
 export type Primitive = string | number | boolean;
@@ -137,12 +131,10 @@ export type PathImpl<T, Key extends keyof T> = Key extends string
   ? T[Key] extends Primitive
     ? `${Key}`
     : T[Key] extends Array<any>
-    ?
-        | `${Key}`
-        | `${Key}.${PathImpl<ArrayElement<T[Key]>, keyof ArrayElement<T[Key]>>}`
-    : T[Key] extends object
-    ? `${Key}` | `${Key}.${PathImpl<T[Key], keyof T[Key]>}`
-    : never
+      ? `${Key}` | `${Key}.${PathImpl<ArrayElement<T[Key]>, keyof ArrayElement<T[Key]>>}`
+      : T[Key] extends object
+        ? `${Key}` | `${Key}.${PathImpl<T[Key], keyof T[Key]>}`
+        : never
   : never;
 
 export type PropertyPath<T> = PathImpl<T, keyof T>;

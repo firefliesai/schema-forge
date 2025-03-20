@@ -4,8 +4,8 @@
 
 import 'reflect-metadata';
 
-import { 
-  JSONSchemaDefinition, 
+import {
+  JSONSchemaDefinition,
   JsonSchemaOptions,
   JSON_SCHEMA_METADATA_KEY,
   REQUIRED_PROPS_METADATA_KEY,
@@ -15,15 +15,15 @@ import { prepareForStructuredOutput } from './utils';
 
 /**
  * Converts a TypeScript class to a JSON Schema
- * 
+ *
  * @param target The class to convert
  * @param options Options for schema generation
  * @returns JSON Schema representation of the class
- * 
+ *
  * @example
  * // Basic usage
  * const schema = classToJsonSchema(User);
- * 
+ *
  * // With options
  * const schema = classToJsonSchema(User, {
  *   forStructuredOutput: true,
@@ -34,14 +34,13 @@ import { prepareForStructuredOutput } from './utils';
  */
 export function classToJsonSchema<T extends object>(
   target: new (...args: any[]) => T,
-  options?: JsonSchemaOptions<T>
+  options?: JsonSchemaOptions<T>,
 ): JSONSchemaDefinition {
   const properties = cloneMetadata(
     Reflect.getMetadata(JSON_SCHEMA_METADATA_KEY, target.prototype) || {},
   );
   const requiredProps = [
-    ...(Reflect.getMetadata(REQUIRED_PROPS_METADATA_KEY, target.prototype) ||
-      []),
+    ...(Reflect.getMetadata(REQUIRED_PROPS_METADATA_KEY, target.prototype) || []),
   ];
 
   if (options?.propertyOverrides) {
