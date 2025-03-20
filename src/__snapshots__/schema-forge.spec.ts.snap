@@ -455,11 +455,11 @@ exports[`schema-forge test 7 structured output enhancement: 7-1 enhanced JSON Sc
 }
 `;
 
-exports[`schema-forge test 7 structured output enhancement: 7-2 enhanced function calling format 1`] = `
+exports[`schema-forge test 7 structured output enhancement: 7-2 enhanced OpenAI function calling format 1`] = `
 {
   "function": {
-    "description": "",
-    "name": "",
+    "description": "A user entity with basic information",
+    "name": "user",
     "parameters": {
       "additionalProperties": false,
       "properties": {
@@ -484,10 +484,10 @@ exports[`schema-forge test 7 structured output enhancement: 7-2 enhanced functio
 }
 `;
 
-exports[`schema-forge test 7 structured output enhancement: 7-3 JSON Schema format for response_format 1`] = `
+exports[`schema-forge test 7 structured output enhancement: 7-3 OpenAI JSON Schema format for response_format 1`] = `
 {
   "json_schema": {
-    "name": "unnamed_schema",
+    "name": "user",
     "schema": {
       "additionalProperties": false,
       "properties": {
@@ -509,5 +509,72 @@ exports[`schema-forge test 7 structured output enhancement: 7-3 JSON Schema form
     "strict": true,
   },
   "type": "json_schema",
+}
+`;
+
+exports[`schema-forge test 8 different LLM formats: 8-1 Gemini tool format 1`] = `
+{
+  "description": "A user entity with basic information",
+  "name": "user",
+  "parameters": {
+    "description": "A user entity with basic information",
+    "properties": {
+      "id": {
+        "description": "The unique identifier of the user",
+        "type": "number",
+      },
+      "username": {
+        "description": "The username of the user",
+        "type": "string",
+      },
+    },
+    "required": [
+      "id",
+    ],
+    "type": "OBJECT",
+  },
+}
+`;
+
+exports[`schema-forge test 8 different LLM formats: 8-2 Anthropic tool format 1`] = `
+{
+  "description": "A user entity with basic information",
+  "input_schema": {
+    "properties": {
+      "id": {
+        "description": "The unique identifier of the user",
+        "type": "number",
+      },
+      "username": {
+        "description": "The username of the user",
+        "type": "string",
+      },
+    },
+    "required": [
+      "id",
+    ],
+    "type": "object",
+  },
+  "name": "user",
+}
+`;
+
+exports[`schema-forge test 8 different LLM formats: 8-3 Gemini response schema 1`] = `
+{
+  "description": "A user entity with basic information",
+  "properties": {
+    "id": {
+      "description": "The unique identifier of the user",
+      "type": "number",
+    },
+    "username": {
+      "description": "The username of the user",
+      "type": "string",
+    },
+  },
+  "required": [
+    "id",
+  ],
+  "type": "OBJECT",
 }
 `;

@@ -44,13 +44,37 @@ interface JSONSchemaDefinition extends Record<string, unknown> {
   required?: string[];
 }
 
-interface ToolFunction {
+// OpenAI Tool Function format
+interface OpenAIToolFunction {
   type: 'function';
   function: {
     name: string;
     description: string;
     parameters: any;
     strict?: boolean;
+  };
+}
+
+// Gemini Tool Function format
+interface GeminiToolFunction {
+  name: string;
+  description?: string;
+  parameters: {
+    type: 'OBJECT';
+    description?: string;
+    properties: Record<string, any>;
+    required?: string[];
+  };
+}
+
+// Anthropic Tool Function format
+interface AnthropicToolFunction {
+  name: string;
+  description: string;
+  input_schema: {
+    type: 'object';
+    properties: Record<string, any>;
+    required?: string[];
   };
 }
 
@@ -626,17 +650,29 @@ export function classToJsonSchema<T extends object>(
   return schema;
 }
 
+/**
+ * Creates an OpenAI-compatible tool function from a class
+ * 
+ * @example
+ * const tool = classToOpenAITool(UserClass, undefined, true);
+ * // Use with OpenAI API:
+ * const response = await openai.chat.completions.create({
+ *   model: "gpt-4-turbo",
+ *   messages: [...],
+ *   tools: [tool]
+ * });
+ */
 export function classToOpenAITool<T extends object>(
   target: new (...args: any[]) => T,
   temporaryUpdates?: Partial<{
     [P in PropertyPath<T>]: Partial<PropertyOptions>;
   }>,
   enhanceForStructuredOutput = false,
-): ToolFunction {
+): OpenAIToolFunction {
   const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
   const jsonSchema = classToJsonSchema(target, temporaryUpdates, enhanceForStructuredOutput);
 
-  const toolFunction: ToolFunction = {
+  const toolFunction: OpenAIToolFunction = {
     type: 'function',
     function: {
       name: classOptions.name || '',
@@ -654,7 +690,90 @@ export function classToOpenAITool<T extends object>(
 }
 
 /**
- * Creates a response_format compatible JSON schema from a class
+ * Creates a Gemini-compatible tool function from a class
+ * 
+ * @example
+ * const toolDeclaration = classToGeminiTool(UserClass);
+ * // Use with Google Generative AI:
+ * const model = genAI.getGenerativeModel({
+ *   model: "gemini-1.5-flash",
+ *   tools: { functionDeclarations: [toolDeclaration] },
+ * });
+ */
+export function classToGeminiTool<T extends object>(
+  target: new (...args: any[]) => T,
+  temporaryUpdates?: Partial<{
+    [P in PropertyPath<T>]: Partial<PropertyOptions>;
+  }>,
+): GeminiToolFunction {
+  const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
+  const jsonSchema = classToJsonSchema(target, temporaryUpdates);
+  
+  // Convert properties to Gemini format
+  return {
+    name: classOptions.name || '',
+    description: classOptions.description || '',
+    parameters: {
+      type: 'OBJECT',
+      description: classOptions.description || '',
+      properties: jsonSchema.properties,
+      required: jsonSchema.required || [],
+    },
+  };
+}
+
+/**
+ * Creates an Anthropic-compatible tool function from a class
+ * 
+ * @example
+ * const tool = classToAnthropicTool(UserClass);
+ * // Use with Anthropic API:
+ * const message = await anthropic.messages.create({
+ *   model: "claude-3-opus-20240229",
+ *   max_tokens: 1000,
+ *   messages: [...],
+ *   tools: [tool],
+ * });
+ */
+export function classToAnthropicTool<T extends object>(
+  target: new (...args: any[]) => T,
+  temporaryUpdates?: Partial<{
+    [P in PropertyPath<T>]: Partial<PropertyOptions>;
+  }>,
+): AnthropicToolFunction {
+  const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
+  const jsonSchema = classToJsonSchema(target, temporaryUpdates);
+  
+  return {
+    name: classOptions.name || '',
+    description: classOptions.description || '',
+    input_schema: {
+      type: 'object',
+      properties: jsonSchema.properties,
+      required: jsonSchema.required || [],
+    },
+  };
+}
+
+/**
+ * Creates an OpenAI response_format compatible JSON schema from a class.
+ * Can be used for both normal and structured outputs with OpenAI chat completions.
+ * 
+ * @param target - The class to convert to JSON schema
+ * @param temporaryUpdates - Optional temporary property updates
+ * @param enhanceForStructuredOutput - Whether to enhance the schema for structured outputs
+ *                                    Set to true when using with OpenAI's structured output.
+ *                                    This affects both the schema format and the 'strict' flag.
+ * 
+ * @example
+ * // For structured output (common case):
+ * const responseFormat = classToOpenAIResponseFormatJsonSchema(UserResponseClass, undefined, true);
+ * // Use with OpenAI API:
+ * const completion = await openai.chat.completions.create({
+ *   model: "gpt-4-turbo",
+ *   messages: [...],
+ *   response_format: responseFormat,
+ * });
  */
 export function classToOpenAIResponseFormatJsonSchema<T extends object>(
   target: new (...args: any[]) => T,
@@ -671,15 +790,62 @@ export function classToOpenAIResponseFormatJsonSchema<T extends object>(
   };
 } {
   const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
-  const jsonSchema = classToJsonSchema(target, temporaryUpdates, true);
+  const jsonSchema = classToJsonSchema(target, temporaryUpdates, enhanceForStructuredOutput);
 
   return {
     type: 'json_schema',
     json_schema: {
-      name: classOptions.name || 'unnamed_schema',
+      name: classOptions.name || '',
       schema: jsonSchema,
       strict: enhanceForStructuredOutput,
     },
+  };
+}
+
+/**
+ * Creates a Gemini response schema for structured output
+ * 
+ * Note: Gemini's structured output supports top-level arrays unlike OpenAI.
+ * This function always generates an object-type schema (from a class),
+ * but Gemini also supports array schemas like:
+ * ```
+ * {
+ *   type: "ARRAY",
+ *   items: {
+ *     type: "OBJECT",
+ *     properties: {...}
+ *   }
+ * }
+ * ```
+ * If you need an array schema, you would need to manually wrap the result
+ * or create a dedicated helper function.
+ * 
+ * @example
+ * const schema = classToGeminiResponseSchema(RecipeClass);
+ * // Use with Google Generative AI:
+ * const model = genAI.getGenerativeModel({
+ *   model: "gemini-1.5-pro",
+ *   generationConfig: {
+ *     responseMimeType: "application/json",
+ *     responseSchema: schema,
+ *   },
+ * });
+ */
+export function classToGeminiResponseSchema<T extends object>(
+  target: new (...args: any[]) => T,
+  temporaryUpdates?: Partial<{
+    [P in PropertyPath<T>]: Partial<PropertyOptions>;
+  }>,
+): any {
+  const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
+  const jsonSchema = classToJsonSchema(target, temporaryUpdates);
+  
+  // For Gemini, we convert to their format with uppercase type names
+  return {
+    description: classOptions.description || '',
+    type: 'OBJECT',
+    properties: jsonSchema.properties,
+    required: jsonSchema.required || [],
   };
 }
 
@@ -687,11 +853,11 @@ export const Schema = {
   ToolMeta,
   ToolProp,
   classToJsonSchema,
-  /** add Anthropic tool format support 
-   * Gemini tool format is the same as Open */
   classToOpenAITool,
-  /** add Gemini format support which also does not need strict */
   classToOpenAIResponseFormatJsonSchema,
+  classToGeminiTool,
+  classToGeminiResponseSchema,
+  classToAnthropicTool,
   updateSchemaProperty,
   addSchemaProperty,
 } as const;

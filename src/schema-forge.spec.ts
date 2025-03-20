@@ -2,6 +2,9 @@ import { isEqual } from 'lodash';
 
 import {
   classToOpenAITool,
+  classToGeminiTool,
+  classToAnthropicTool,
+  classToGeminiResponseSchema,
   classToJsonSchema,
   classToOpenAIResponseFormatJsonSchema,
   updateSchemaProperty,
@@ -127,12 +130,26 @@ describe('schema-forge test', () => {
     const userSchemaEnhanced = classToJsonSchema(User, undefined, true);
     expect(userSchemaEnhanced).toMatchSnapshot('7-1 enhanced JSON Schema');
     
-    // Test function calling format
+    // Test OpenAI function calling format
     const userToolEnhanced = classToOpenAITool(User, undefined, true);
-    expect(userToolEnhanced).toMatchSnapshot('7-2 enhanced function calling format');
+    expect(userToolEnhanced).toMatchSnapshot('7-2 enhanced OpenAI function calling format');
     
-    // Test response_format
+    // Test OpenAI response_format
     const userJsonSchemaFormat = classToOpenAIResponseFormatJsonSchema(User, undefined, true);
-    expect(userJsonSchemaFormat).toMatchSnapshot('7-3 JSON Schema format for response_format');
+    expect(userJsonSchemaFormat).toMatchSnapshot('7-3 OpenAI JSON Schema format for response_format');
+  });
+
+  it('8 different LLM formats', async () => {
+    // Test Gemini tool format
+    const geminiTool = classToGeminiTool(User);
+    expect(geminiTool).toMatchSnapshot('8-1 Gemini tool format');
+    
+    // Test Anthropic tool format
+    const anthropicTool = classToAnthropicTool(User);
+    expect(anthropicTool).toMatchSnapshot('8-2 Anthropic tool format');
+    
+    // Test Gemini response schema
+    const geminiResponseSchema = classToGeminiResponseSchema(User);
+    expect(geminiResponseSchema).toMatchSnapshot('8-3 Gemini response schema');
   });
 });
