@@ -3,18 +3,13 @@
  */
 
 import 'reflect-metadata';
-import { 
-  JSON_SCHEMA_METADATA_KEY, 
-  REQUIRED_PROPS_METADATA_KEY, 
+import {
+  JSON_SCHEMA_METADATA_KEY,
+  REQUIRED_PROPS_METADATA_KEY,
   PropertyOptions,
-  PropertyPath
+  PropertyPath,
 } from './types';
-import { 
-  cloneMetadata, 
-  extractEnumValues, 
-  getJsonSchemaType,
-  isCustomClass
-} from './utils';
+import { cloneMetadata, extractEnumValues, getJsonSchemaType, isCustomClass } from './utils';
 import { classToJsonSchema } from './core';
 
 /**
@@ -35,8 +30,7 @@ export function applyPropertyUpdates(
     }
 
     // Get all metadata along the target property's full path
-    const originalMetadata =
-      Reflect.getMetadata(JSON_SCHEMA_METADATA_KEY, target.prototype) || {};
+    const originalMetadata = Reflect.getMetadata(JSON_SCHEMA_METADATA_KEY, target.prototype) || {};
 
     let currentMetadata = originalMetadata;
     for (const path of paths) {
@@ -81,7 +75,7 @@ export function applyPropertyUpdates(
 
         // Get the last path segment
         const lastPath = rest[rest.length - 1];
-        
+
         // Check if the target property should be an array of enums or just an enum
         if (current[lastPath] && current[lastPath].type === 'array') {
           // Update items of an array property
@@ -123,10 +117,10 @@ export function applyPropertyUpdates(
             current = current[path].properties;
           }
         }
-        
+
         // Get the last path segment
         const lastPath = rest[rest.length - 1];
-        
+
         // Update the enum property
         current[lastPath] = {
           ...(current[lastPath] || {}),
@@ -141,24 +135,14 @@ export function applyPropertyUpdates(
         if (!properties[current].items.properties) {
           properties[current].items.properties = {};
         }
-        applyPropertyUpdates(
-          properties[current].items.properties,
-          rest,
-          updates,
-          target,
-        );
-      } 
+        applyPropertyUpdates(properties[current].items.properties, rest, updates, target);
+      }
       // Handle nested object properties
       else if (properties[current].type === 'object') {
         if (!properties[current].properties) {
           properties[current].properties = {};
         }
-        applyPropertyUpdates(
-          properties[current].properties,
-          rest,
-          updates,
-          target,
-        );
+        applyPropertyUpdates(properties[current].properties, rest, updates, target);
       }
     }
     return;
@@ -207,12 +191,10 @@ export function ToolProp(options: PropertyOptions = {}) {
   return function (target: any, propertyKey: string) {
     const type = Reflect.getMetadata('design:type', target, propertyKey);
     // Exclude isOptional, keep only other options
-    const { isOptional, ...finalOptions } = options;
+    const { isOptional: _isOptional, ...finalOptions } = options;
 
-    const ownProperties =
-      Reflect.getMetadata(JSON_SCHEMA_METADATA_KEY, target) || {};
-    const ownRequiredProps =
-      Reflect.getMetadata(REQUIRED_PROPS_METADATA_KEY, target) || [];
+    const ownProperties = Reflect.getMetadata(JSON_SCHEMA_METADATA_KEY, target) || {};
+    const ownRequiredProps = Reflect.getMetadata(REQUIRED_PROPS_METADATA_KEY, target) || [];
 
     const parentTarget = Object.getPrototypeOf(target);
     let currentProperties = {};
@@ -223,8 +205,7 @@ export function ToolProp(options: PropertyOptions = {}) {
         Reflect.getMetadata(JSON_SCHEMA_METADATA_KEY, parentTarget) || {},
       );
       const parentRequiredProps = [
-        ...(Reflect.getMetadata(REQUIRED_PROPS_METADATA_KEY, parentTarget) ||
-          []),
+        ...(Reflect.getMetadata(REQUIRED_PROPS_METADATA_KEY, parentTarget) || []),
       ];
 
       currentProperties = { ...parentProperties };
@@ -232,15 +213,12 @@ export function ToolProp(options: PropertyOptions = {}) {
     }
 
     currentProperties = { ...currentProperties, ...ownProperties };
-    currentRequiredProps = [
-      ...new Set([...currentRequiredProps, ...ownRequiredProps]),
-    ];
+    currentRequiredProps = [...new Set([...currentRequiredProps, ...ownRequiredProps])];
 
     if (type === Array) {
       if (options.enum) {
         const enumValues = extractEnumValues(options.enum);
-        const enumType =
-          typeof enumValues[0] === 'string' ? 'string' : 'number';
+        const enumType = typeof enumValues[0] === 'string' ? 'string' : 'number';
         finalOptions.type = 'array';
         finalOptions.items = {
           type: enumType,
@@ -248,13 +226,9 @@ export function ToolProp(options: PropertyOptions = {}) {
         };
         delete finalOptions.enum;
       } else if (!options.items) {
-        throw new Error(
-          `Array property "${propertyKey}" needs explicit type information.`,
-        );
+        throw new Error(`Array property "${propertyKey}" needs explicit type information.`);
       } else if (isCustomClass(options.items.type)) {
-        const nestedSchema = classToJsonSchema(
-          options.items.type as any,
-        );
+        const nestedSchema = classToJsonSchema(options.items.type as any);
         finalOptions.type = 'array';
         finalOptions.items = nestedSchema;
       } else {
@@ -284,17 +258,11 @@ export function ToolProp(options: PropertyOptions = {}) {
         currentRequiredProps.push(propertyKey);
       }
     } else {
-      currentRequiredProps = currentRequiredProps.filter(
-        (prop) => prop !== propertyKey,
-      );
+      currentRequiredProps = currentRequiredProps.filter((prop) => prop !== propertyKey);
     }
 
     Reflect.defineMetadata(JSON_SCHEMA_METADATA_KEY, currentProperties, target);
-    Reflect.defineMetadata(
-      REQUIRED_PROPS_METADATA_KEY,
-      currentRequiredProps,
-      target,
-    );
+    Reflect.defineMetadata(REQUIRED_PROPS_METADATA_KEY, currentRequiredProps, target);
   };
 }
 
@@ -321,16 +289,11 @@ export function updateSchemaProperty<T extends object>(
   updates: Partial<PropertyOptions>,
 ): void {
   const paths = (propertyPath as string).split('.');
-  const existingProperties =
-    Reflect.getMetadata(JSON_SCHEMA_METADATA_KEY, target.prototype) || {};
+  const existingProperties = Reflect.getMetadata(JSON_SCHEMA_METADATA_KEY, target.prototype) || {};
 
   applyPropertyUpdates(existingProperties, paths, updates, target);
 
-  Reflect.defineMetadata(
-    JSON_SCHEMA_METADATA_KEY,
-    existingProperties,
-    target.prototype,
-  );
+  Reflect.defineMetadata(JSON_SCHEMA_METADATA_KEY, existingProperties, target.prototype);
 }
 
 /**
@@ -351,8 +314,7 @@ export function addSchemaProperty<T extends object>(
   }
 
   const paths = propertyPath.split('.');
-  const existingProperties =
-    Reflect.getMetadata(JSON_SCHEMA_METADATA_KEY, target.prototype) || {};
+  const existingProperties = Reflect.getMetadata(JSON_SCHEMA_METADATA_KEY, target.prototype) || {};
 
   let current = existingProperties;
   for (let i = 0; i < paths.length - 1; i++) {
@@ -392,22 +354,13 @@ export function addSchemaProperty<T extends object>(
     };
   }
 
-  Reflect.defineMetadata(
-    JSON_SCHEMA_METADATA_KEY,
-    existingProperties,
-    target.prototype,
-  );
+  Reflect.defineMetadata(JSON_SCHEMA_METADATA_KEY, existingProperties, target.prototype);
 
   if (!finalOptions.isOptional) {
-    const requiredProps =
-      Reflect.getMetadata(REQUIRED_PROPS_METADATA_KEY, target.prototype) || [];
+    const requiredProps = Reflect.getMetadata(REQUIRED_PROPS_METADATA_KEY, target.prototype) || [];
     if (!requiredProps.includes(propertyKey)) {
       requiredProps.push(propertyKey);
-      Reflect.defineMetadata(
-        REQUIRED_PROPS_METADATA_KEY,
-        requiredProps,
-        target.prototype,
-      );
+      Reflect.defineMetadata(REQUIRED_PROPS_METADATA_KEY, requiredProps, target.prototype);
     }
   }
 }

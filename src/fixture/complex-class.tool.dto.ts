@@ -14,12 +14,12 @@ enum RankType {
   Master = 4,
 }
 
-export const GameCharacterToolName  = 'Game Character Configuration';
-export const GameCharacterToolDesc  = 'Configure a game character with various attributes';
+export const GameCharacterToolName = 'Game Character Configuration';
+export const GameCharacterToolDesc = 'Configure a game character with various attributes';
 
 /**
  * tips:
- * 1. for array or enum type, you need to add @ToolProp({items:{type}, or enum instead}. 
+ * 1. for array or enum type, you need to add @ToolProp({items:{type}, or enum instead}.
  *    for string/number property, you can just use TypeScript type
  * 2. you can pass TypeScript Enum or [1, 2, 3] or ['a', 'b', 'c'] as enum
  */
@@ -187,5 +187,3 @@ export class FirstLevelDto {
   @ToolProp({ description: '2nd level object' })
   secondLevelObj: SecondLevelDto;
 }
-
-

@@ -1,11 +1,8 @@
-import {
-  ToolProp,
-  ToolMeta,
-} from '../schema-forge';
+import { ToolProp, ToolMeta } from '../schema-forge';
 
 @ToolMeta({
   name: 'user',
-  description: 'A user entity with basic information'
+  description: 'A user entity with basic information',
 })
 export class User {
   @ToolProp({
@@ -22,7 +19,7 @@ export class User {
 
 @ToolMeta({
   name: 'user2',
-  description: 'An extended user entity with additional information'
+  description: 'An extended user entity with additional information',
 })
 export class User2 extends User {
   @ToolProp({

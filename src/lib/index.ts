@@ -1,6 +1,6 @@
 /**
  * Schema Forge - TypeScript to JSON Schema conversion
- * 
+ *
  * Main exports for schema-forge library
  */
 
@@ -11,12 +11,7 @@ export * from './types';
 export { classToJsonSchema } from './core';
 
 // Re-export decorator functions
-export { 
-  ToolProp, 
-  ToolMeta,
-  updateSchemaProperty,
-  addSchemaProperty
-} from './decorators';
+export { ToolProp, ToolMeta, updateSchemaProperty, addSchemaProperty } from './decorators';
 
 // Re-export LLM-specific functions
 export {
@@ -24,7 +19,7 @@ export {
   classToOpenAIResponseFormatJsonSchema,
   classToGeminiTool,
   classToGeminiResponseSchema,
-  classToAnthropicTool
+  classToAnthropicTool,
 } from './llm-formats';
 
 // Re-export utility functions
@@ -36,12 +31,12 @@ export { classToOpenAITool as classToLLMTool } from './llm-formats';
 // Namespace for all exports (backwards compatibility)
 import { ToolProp, ToolMeta, updateSchemaProperty, addSchemaProperty } from './decorators';
 import { classToJsonSchema } from './core';
-import { 
+import {
   classToOpenAITool,
   classToOpenAIResponseFormatJsonSchema,
   classToGeminiTool,
   classToGeminiResponseSchema,
-  classToAnthropicTool
+  classToAnthropicTool,
 } from './llm-formats';
 import { prepareForStructuredOutput } from './utils';
 
@@ -49,22 +44,22 @@ export const Schema = {
   // Decorators
   ToolMeta,
   ToolProp,
-  
+
   // Core JSON Schema generation
   classToJsonSchema,
   prepareForStructuredOutput,
-  
+
   // Schema modification
   updateSchemaProperty,
   addSchemaProperty,
-  
+
   // LLM-specific formats
   classToOpenAITool,
   classToOpenAIResponseFormatJsonSchema,
   classToGeminiTool,
   classToGeminiResponseSchema,
   classToAnthropicTool,
-  
+
   // Legacy name
   classToLLMTool: classToOpenAITool,
 } as const;
