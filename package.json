@@ -1,7 +1,8 @@
 {
   "name": "schema-forge",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "dist/lib/index.js",
+  "types": "dist/lib/index.d.ts",
   "scripts": {
     "test": "npm run jest",
     "jest": "jest",
