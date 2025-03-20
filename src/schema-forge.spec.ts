@@ -1,8 +1,9 @@
 import { isEqual } from 'lodash';
 
 import {
-  classToLLMTool,
+  classToOpenAITool,
   classToJsonSchema,
+  classToOpenAIResponseFormatJsonSchema,
   updateSchemaProperty,
   addSchemaProperty,
   ToolProp,
@@ -16,9 +17,6 @@ import {
 } from './fixture/complex-class.tool.dto';
 import { User, User2 } from './fixture/simple-class.tool.dto';
 
-/** TODO: 
- * 1. add empty description case (`@ToolProp()`)
- */
 describe('schema-forge test', () => {
   it('1 simple classes: classToJsonSchema, inheritance, classToJsonSchema with temp updated property, updateSchemaProperty (permanently)', async () => {
     const user2JsonSchemaTempChangeID2 = classToJsonSchema(User2, {
@@ -39,11 +37,11 @@ describe('schema-forge test', () => {
     expect(userJsonSchema).toMatchSnapshot('1-4 parent class: classToJsonSchema (should not be affected by child class update)');
   });
 
-  it('2 complex: array and enum class: classToJsonSchema, classToLLMTool, updateSchemaProperty (permanently) w/ enum, ', async () => {  
+  it('2 complex: array and enum class: classToJsonSchema, classToOpenAITool, updateSchemaProperty (permanently) w/ enum, ', async () => {  
     const gameCharSchema = classToJsonSchema(GameCharacter);
     expect(gameCharSchema).toMatchSnapshot('2-1 complex classToJsonSchema');
 
-    const gameCharTool = classToLLMTool(GameCharacter);
+    const gameCharTool = classToOpenAITool(GameCharacter);
     expect(gameCharTool.type).toBe('function');
     expect(gameCharTool.function.name).toBe(GameCharacterToolName);
     expect(gameCharTool.function.description).toBe(GameCharacterToolDesc);
@@ -67,15 +65,15 @@ describe('schema-forge test', () => {
     expect(isEqual(gameCharUpdatedSchema, gameCharSchema)).toBe(true);
   });
 
-  it('3 complex nested_object class: classToLLMTool, updateSchemaProperty (permanently) w/ enum, ', async () => {  
-    const gameCharV2Tool = classToLLMTool(GameCharacterV2);
-    expect(gameCharV2Tool).toMatchSnapshot('3-1 complex nested_object: classToLLMTool');
+  it('3 complex nested_object class: classToOpenAITool, updateSchemaProperty (permanently) w/ enum, ', async () => {  
+    const gameCharV2Tool = classToOpenAITool(GameCharacterV2);
+    expect(gameCharV2Tool).toMatchSnapshot('3-1 complex nested_object: classToOpenAITool');
 
     updateSchemaProperty(GameCharacterV2, 'banks.bankName', {
       description: 'New bankname description',
     });
 
-    const gameCharV2Tool2 = classToLLMTool(GameCharacterV2, {
+    const gameCharV2Tool2 = classToOpenAITool(GameCharacterV2, {
       location: {
         description: 'New location description',
       },
@@ -92,12 +90,12 @@ describe('schema-forge test', () => {
     expect(isEqual(gameCharV2Tool2, gameCharV2Tool)).toBe(true);
   });
 
-  it('4 complex nested nested three layer class: classToLLMTool,updateSchemaProperty (permanently) w/ enum ', async () => {  
+  it('4 complex nested nested three layer class: classToOpenAITool,updateSchemaProperty (permanently) w/ enum ', async () => {  
     updateSchemaProperty(FirstLevelDto, 'secondLevelObj.thirdLevelObjs.name', {
       enum: ['E', 'F', 'G', 'H'],
     });
-    const firstLevelDto = classToLLMTool(FirstLevelDto);
-    expect(firstLevelDto).toMatchSnapshot('4-1 complex nested nested three layer class: updateSchemaProperty and classToLLMTool');
+    const firstLevelDto = classToOpenAITool(FirstLevelDto);
+    expect(firstLevelDto).toMatchSnapshot('4-1 complex nested nested three layer class: updateSchemaProperty and classToOpenAITool');
   });
 
   it('5 addSchemaProperty case', async () => {  
@@ -123,4 +121,18 @@ describe('schema-forge test', () => {
     const schema = classToJsonSchema(SimpleAnswer);
     expect(schema).toMatchSnapshot('6-1 class with ToolProp()');
   }); 
+
+  it('7 structured output enhancement', async () => {
+    // Test enhanced JSON Schema
+    const userSchemaEnhanced = classToJsonSchema(User, undefined, true);
+    expect(userSchemaEnhanced).toMatchSnapshot('7-1 enhanced JSON Schema');
+    
+    // Test function calling format
+    const userToolEnhanced = classToOpenAITool(User, undefined, true);
+    expect(userToolEnhanced).toMatchSnapshot('7-2 enhanced function calling format');
+    
+    // Test response_format
+    const userJsonSchemaFormat = classToOpenAIResponseFormatJsonSchema(User, undefined, true);
+    expect(userJsonSchemaFormat).toMatchSnapshot('7-3 JSON Schema format for response_format');
+  });
 });

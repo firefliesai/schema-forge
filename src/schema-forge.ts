@@ -50,6 +50,7 @@ interface ToolFunction {
     name: string;
     description: string;
     parameters: any;
+    strict?: boolean;
   };
 }
 
@@ -504,6 +505,79 @@ function cloneMetadata(metadata: any): any {
   return JSON.parse(JSON.stringify(metadata));
 }
 
+/**
+ * Enhances a JSON Schema object for structured output compatibility with LLM APIs
+ * by adding required fields and removing unsupported properties
+ */
+function enhanceSchemaForStructuredOutput(
+  obj: any,
+  isTopLevel = false,
+): any {
+  // If the input is not an object or is null, return the input value directly
+  if (typeof obj !== 'object' || obj === null) {
+    return obj;
+  }
+
+  // If the input is an array, recursively call this function for each element
+  if (Array.isArray(obj)) {
+    return obj.map((item) => enhanceSchemaForStructuredOutput(item));
+  }
+
+  // Create a new object to avoid modifying the original object
+  const newObj: any = { ...obj };
+
+  // If it's the top level object, add 'strict: true'
+  // since the strict is not supported in the json schema itself, and it is a LLM specific property
+  // if (isTopLevel) {
+  //   newObj.strict = true;
+  // }
+
+  // Check if the "properties" property exists
+  if ('properties' in newObj) {
+    // Add "additionalProperties": false
+    newObj.additionalProperties = false;
+
+    // Get all keys of the properties object as the required property
+    if (Object.keys(newObj.properties).length > 0) {
+      newObj.required = Object.keys(newObj.properties);
+    }
+  }
+
+  // Remove unsupported properties based on type
+  if (newObj.type === 'string') {
+    // Remove unsupported string properties
+    ['minLength', 'maxLength', 'pattern', 'format'].forEach(prop => {
+      if (prop in newObj) delete newObj[prop];
+    });
+  } else if (newObj.type === 'number') {
+    // Remove unsupported number properties
+    ['minimum', 'maximum', 'multipleOf'].forEach(prop => {
+      if (prop in newObj) delete newObj[prop];
+    });
+  } else if (newObj.type === 'object') {
+    // Remove unsupported object properties
+    ['patternProperties', 'unevaluatedProperties', 'propertyNames', 
+     'minProperties', 'maxProperties'].forEach(prop => {
+      if (prop in newObj) delete newObj[prop];
+    });
+  } else if (newObj.type === 'array') {
+    // Remove unsupported array properties
+    ['unevaluatedItems', 'contains', 'minContains', 'maxContains',
+     'minItems', 'maxItems', 'uniqueItems'].forEach(prop => {
+      if (prop in newObj) delete newObj[prop];
+    });
+  }
+
+  // Recursively process all object properties
+  for (const key in newObj) {
+    if (typeof newObj[key] === 'object' && newObj[key] !== null) {
+      newObj[key] = enhanceSchemaForStructuredOutput(newObj[key], false);
+    }
+  }
+
+  return newObj;
+}
+
 // Type inference helper
 function inferType<T>(target: new (...args: any[]) => any): T {
   return null as any;
@@ -518,6 +592,7 @@ export function classToJsonSchema<T extends object>(
   temporaryUpdates?: Partial<{
     [P in PropertyPath<T>]: Partial<PropertyOptions>;
   }>,
+  enhanceForStructuredOutput = false,
 ): JSONSchemaDefinition {
   const properties = cloneMetadata(
     Reflect.getMetadata(JSON_SCHEMA_METADATA_KEY, target.prototype) || {},
@@ -543,24 +618,67 @@ export function classToJsonSchema<T extends object>(
     schema.required = requiredProps;
   }
 
+  // If enhanceForStructuredOutput is true, enhance the schema
+  if (enhanceForStructuredOutput) {
+    return enhanceSchemaForStructuredOutput(schema, false);
+  }
+
   return schema;
 }
 
-export function classToLLMTool<T extends object>(
+export function classToOpenAITool<T extends object>(
   target: new (...args: any[]) => T,
   temporaryUpdates?: Partial<{
     [P in PropertyPath<T>]: Partial<PropertyOptions>;
   }>,
+  enhanceForStructuredOutput = false,
 ): ToolFunction {
   const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
-  const jsonSchema = classToJsonSchema(target, temporaryUpdates);
+  const jsonSchema = classToJsonSchema(target, temporaryUpdates, enhanceForStructuredOutput);
 
-  return {
+  const toolFunction: ToolFunction = {
     type: 'function',
     function: {
       name: classOptions.name || '',
       description: classOptions.description || '',
       parameters: jsonSchema,
+    },
+  };
+
+  // Add strict property at the function level if needed
+  if (enhanceForStructuredOutput) {
+    toolFunction.function.strict = true;
+  }
+
+  return toolFunction;
+}
+
+/**
+ * Creates a response_format compatible JSON schema from a class
+ */
+export function classToOpenAIResponseFormatJsonSchema<T extends object>(
+  target: new (...args: any[]) => T,
+  temporaryUpdates?: Partial<{
+    [P in PropertyPath<T>]: Partial<PropertyOptions>;
+  }>,
+  enhanceForStructuredOutput = false,
+): {
+  type: 'json_schema';
+  json_schema: {
+    name: string;
+    schema: any;
+    strict: boolean;
+  };
+} {
+  const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
+  const jsonSchema = classToJsonSchema(target, temporaryUpdates, true);
+
+  return {
+    type: 'json_schema',
+    json_schema: {
+      name: classOptions.name || 'unnamed_schema',
+      schema: jsonSchema,
+      strict: enhanceForStructuredOutput,
     },
   };
 }
@@ -569,7 +687,11 @@ export const Schema = {
   ToolMeta,
   ToolProp,
   classToJsonSchema,
-  classToLLMTool,
+  /** add Anthropic tool format support 
+   * Gemini tool format is the same as Open */
+  classToOpenAITool,
+  /** add Gemini format support which also does not need strict */
+  classToOpenAIResponseFormatJsonSchema,
   updateSchemaProperty,
   addSchemaProperty,
 } as const;

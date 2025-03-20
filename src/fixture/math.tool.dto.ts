@@ -9,7 +9,7 @@ const toolDesc = 'please help to sum of the numbers';
   description: toolDesc,
 })
 export class MathToolDto {
-  // or @MathToolDto
+  // or @ToolProp
   @Schema.ToolProp()
   sum: number;
 }

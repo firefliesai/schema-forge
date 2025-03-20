@@ -91,7 +91,7 @@ exports[`schema-forge test 1 simple classes: classToJsonSchema, inheritance, cla
 }
 `;
 
-exports[`schema-forge test 2 complex: array and enum class: classToJsonSchema, classToLLMTool, updateSchemaProperty (permanently) w/ enum, : 2-1 complex classToJsonSchema 1`] = `
+exports[`schema-forge test 2 complex: array and enum class: classToJsonSchema, classToOpenAITool, updateSchemaProperty (permanently) w/ enum, : 2-1 complex classToJsonSchema 1`] = `
 {
   "properties": {
     "allowedStatuses": {
@@ -229,7 +229,7 @@ exports[`schema-forge test 2 complex: array and enum class: classToJsonSchema, c
 }
 `;
 
-exports[`schema-forge test 3 complex nested_object class: classToLLMTool, updateSchemaProperty (permanently) w/ enum, : 3-1 complex nested_object: classToLLMTool 1`] = `
+exports[`schema-forge test 3 complex nested_object class: classToOpenAITool, updateSchemaProperty (permanently) w/ enum, : 3-1 complex nested_object: classToOpenAITool 1`] = `
 {
   "function": {
     "description": "Game character with location and bank information",
@@ -349,7 +349,7 @@ exports[`schema-forge test 3 complex nested_object class: classToLLMTool, update
 }
 `;
 
-exports[`schema-forge test 4 complex nested nested three layer class: classToLLMTool,updateSchemaProperty (permanently) w/ enum : 4-1 complex nested nested three layer class: updateSchemaProperty and classToLLMTool 1`] = `
+exports[`schema-forge test 4 complex nested nested three layer class: classToOpenAITool,updateSchemaProperty (permanently) w/ enum : 4-1 complex nested nested three layer class: updateSchemaProperty and classToOpenAITool 1`] = `
 {
   "function": {
     "description": "First level object",
@@ -431,5 +431,83 @@ exports[`schema-forge test 6 class with ToolProp() case: 6-1 class with ToolProp
     "answer",
   ],
   "type": "object",
+}
+`;
+
+exports[`schema-forge test 7 structured output enhancement: 7-1 enhanced JSON Schema 1`] = `
+{
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "description": "The unique identifier of the user",
+      "type": "number",
+    },
+    "username": {
+      "description": "The username of the user",
+      "type": "string",
+    },
+  },
+  "required": [
+    "id",
+    "username",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`schema-forge test 7 structured output enhancement: 7-2 enhanced function calling format 1`] = `
+{
+  "function": {
+    "description": "",
+    "name": "",
+    "parameters": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "The unique identifier of the user",
+          "type": "number",
+        },
+        "username": {
+          "description": "The username of the user",
+          "type": "string",
+        },
+      },
+      "required": [
+        "id",
+        "username",
+      ],
+      "type": "object",
+    },
+    "strict": true,
+  },
+  "type": "function",
+}
+`;
+
+exports[`schema-forge test 7 structured output enhancement: 7-3 JSON Schema format for response_format 1`] = `
+{
+  "json_schema": {
+    "name": "unnamed_schema",
+    "schema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "The unique identifier of the user",
+          "type": "number",
+        },
+        "username": {
+          "description": "The username of the user",
+          "type": "string",
+        },
+      },
+      "required": [
+        "id",
+        "username",
+      ],
+      "type": "object",
+    },
+    "strict": true,
+  },
+  "type": "json_schema",
 }
 `;
