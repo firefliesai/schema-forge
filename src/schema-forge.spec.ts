@@ -23,7 +23,9 @@ import { User, User2 } from './fixture/simple-class.tool.dto';
 describe('schema-forge test', () => {
   it('1 simple classes: classToJsonSchema, inheritance, classToJsonSchema with temp updated property, updateSchemaProperty (permanently)', async () => {
     const user2JsonSchemaTempChangeID2 = classToJsonSchema(User2, {
-      id2: { description: 'temp updated id2 description' },
+      propertyOverrides: {
+        id2: { description: 'temp updated id2 description' }
+      }
     });
     expect(user2JsonSchemaTempChangeID2).toMatchSnapshot('1-1 inheritance class: classToJsonSchema with temp updated property');
 
@@ -77,12 +79,14 @@ describe('schema-forge test', () => {
     });
 
     const gameCharV2Tool2 = classToOpenAITool(GameCharacterV2, {
-      location: {
-        description: 'New location description',
-      },
-      'location.country': {
-        description: 'New country description',
-      },
+      propertyOverrides: {
+        location: {
+          description: 'New location description',
+        },
+        'location.country': {
+          description: 'New country description',
+        }
+      }
     });
     gameCharV2Tool.function.parameters.properties.location.description =
       'New location description';
@@ -127,15 +131,15 @@ describe('schema-forge test', () => {
 
   it('7 structured output enhancement', async () => {
     // Test enhanced JSON Schema
-    const userSchemaEnhanced = classToJsonSchema(User, undefined, true);
+    const userSchemaEnhanced = classToJsonSchema(User, { forStructuredOutput: true });
     expect(userSchemaEnhanced).toMatchSnapshot('7-1 enhanced JSON Schema');
     
     // Test OpenAI function calling format
-    const userToolEnhanced = classToOpenAITool(User, undefined, true);
+    const userToolEnhanced = classToOpenAITool(User, { forStructuredOutput: true, strict: true });
     expect(userToolEnhanced).toMatchSnapshot('7-2 enhanced OpenAI function calling format');
     
     // Test OpenAI response_format
-    const userJsonSchemaFormat = classToOpenAIResponseFormatJsonSchema(User, undefined, true);
+    const userJsonSchemaFormat = classToOpenAIResponseFormatJsonSchema(User, { forStructuredOutput: true, strict: true });
     expect(userJsonSchemaFormat).toMatchSnapshot('7-3 OpenAI JSON Schema format for response_format');
   });
 

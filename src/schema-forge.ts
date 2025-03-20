@@ -530,10 +530,26 @@ function cloneMetadata(metadata: any): any {
 }
 
 /**
- * Enhances a JSON Schema object for structured output compatibility with LLM APIs
+ * Prepares a JSON Schema object for structured output compatibility with LLM APIs
  * by adding required fields and removing unsupported properties
+ * 
+ * @public
+ * @param obj The JSON Schema object to enhance
+ * @param isTopLevel Whether this is the top level object (affects processing)
+ * @returns Enhanced JSON Schema object ready for structured output
+ * 
+ * @example
+ * // Enhance a manually created JSON Schema
+ * const schema = {
+ *   type: 'object',
+ *   properties: {
+ *     name: { type: 'string' },
+ *     age: { type: 'number' }
+ *   }
+ * };
+ * const enhancedSchema = prepareForStructuredOutput(schema);
  */
-function enhanceSchemaForStructuredOutput(
+export function prepareForStructuredOutput(
   obj: any,
   isTopLevel = false,
 ): any {
@@ -544,7 +560,7 @@ function enhanceSchemaForStructuredOutput(
 
   // If the input is an array, recursively call this function for each element
   if (Array.isArray(obj)) {
-    return obj.map((item) => enhanceSchemaForStructuredOutput(item));
+    return obj.map((item) => prepareForStructuredOutput(item));
   }
 
   // Create a new object to avoid modifying the original object
@@ -595,7 +611,7 @@ function enhanceSchemaForStructuredOutput(
   // Recursively process all object properties
   for (const key in newObj) {
     if (typeof newObj[key] === 'object' && newObj[key] !== null) {
-      newObj[key] = enhanceSchemaForStructuredOutput(newObj[key], false);
+      newObj[key] = prepareForStructuredOutput(newObj[key], false);
     }
   }
 
@@ -611,12 +627,45 @@ export type InferSchema<T> = T extends new (...args: any[]) => any
   ? ReturnType<typeof inferType<T>>
   : never;
 
+/**
+ * Options for classToJsonSchema function
+ */
+export interface JsonSchemaOptions<T> {
+  /**
+   * Property overrides to apply to the schema
+   */
+  propertyOverrides?: Partial<{
+    [P in PropertyPath<T>]: Partial<PropertyOptions>;
+  }>;
+  
+  /**
+   * Whether to prepare the schema for structured output
+   */
+  forStructuredOutput?: boolean;
+}
+
+/**
+ * Converts a TypeScript class to a JSON Schema
+ * 
+ * @param target The class to convert
+ * @param options Options for schema generation
+ * @returns JSON Schema representation of the class
+ * 
+ * @example
+ * // Basic usage
+ * const schema = classToJsonSchema(User);
+ * 
+ * // With options
+ * const schema = classToJsonSchema(User, {
+ *   forStructuredOutput: true,
+ *   propertyOverrides: {
+ *     'username': { description: 'Custom description' }
+ *   }
+ * });
+ */
 export function classToJsonSchema<T extends object>(
   target: new (...args: any[]) => T,
-  temporaryUpdates?: Partial<{
-    [P in PropertyPath<T>]: Partial<PropertyOptions>;
-  }>,
-  enhanceForStructuredOutput = false,
+  options?: JsonSchemaOptions<T>
 ): JSONSchemaDefinition {
   const properties = cloneMetadata(
     Reflect.getMetadata(JSON_SCHEMA_METADATA_KEY, target.prototype) || {},
@@ -626,8 +675,8 @@ export function classToJsonSchema<T extends object>(
       []),
   ];
 
-  if (temporaryUpdates) {
-    Object.entries(temporaryUpdates).forEach(([path, updates]) => {
+  if (options?.propertyOverrides) {
+    Object.entries(options.propertyOverrides).forEach(([path, updates]) => {
       const paths = path.split('.');
       applyPropertyUpdates(properties, paths, updates, target);
     });
@@ -642,19 +691,37 @@ export function classToJsonSchema<T extends object>(
     schema.required = requiredProps;
   }
 
-  // If enhanceForStructuredOutput is true, enhance the schema
-  if (enhanceForStructuredOutput) {
-    return enhanceSchemaForStructuredOutput(schema, false);
+  // If forStructuredOutput is true, prepare the schema
+  if (options?.forStructuredOutput) {
+    return prepareForStructuredOutput(schema, false);
   }
 
   return schema;
 }
 
 /**
+ * Options for OpenAI tool functions
+ */
+export interface OpenAIToolOptions<T> extends JsonSchemaOptions<T> {
+  /**
+   * Whether to add strict:true to the function object
+   */
+  strict?: boolean;
+}
+
+/**
  * Creates an OpenAI-compatible tool function from a class
  * 
  * @example
- * const tool = classToOpenAITool(UserClass, undefined, true);
+ * // Using options object
+ * const tool = classToOpenAITool(UserClass, {
+ *   forStructuredOutput: true,
+ *   strict: true,
+ *   propertyOverrides: {
+ *     'username': { description: 'Override description' }
+ *   }
+ * });
+ * 
  * // Use with OpenAI API:
  * const response = await openai.chat.completions.create({
  *   model: "gpt-4-turbo",
@@ -664,13 +731,17 @@ export function classToJsonSchema<T extends object>(
  */
 export function classToOpenAITool<T extends object>(
   target: new (...args: any[]) => T,
-  temporaryUpdates?: Partial<{
-    [P in PropertyPath<T>]: Partial<PropertyOptions>;
-  }>,
-  enhanceForStructuredOutput = false,
+  options?: OpenAIToolOptions<T>
 ): OpenAIToolFunction {
   const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
-  const jsonSchema = classToJsonSchema(target, temporaryUpdates, enhanceForStructuredOutput);
+  
+  // Create a modified options object where forStructuredOutput is set if strict is true
+  const jsonSchemaOptions: JsonSchemaOptions<T> = { ...options };
+  if (options?.strict && !options.forStructuredOutput) {
+    jsonSchemaOptions.forStructuredOutput = true;
+  }
+  
+  const jsonSchema = classToJsonSchema(target, jsonSchemaOptions);
 
   const toolFunction: OpenAIToolFunction = {
     type: 'function',
@@ -681,8 +752,8 @@ export function classToOpenAITool<T extends object>(
     },
   };
 
-  // Add strict property at the function level if needed
-  if (enhanceForStructuredOutput) {
+  // Add strict property if specified or if we're preparing for structured output
+  if (options?.strict || options?.forStructuredOutput) {
     toolFunction.function.strict = true;
   }
 
@@ -690,10 +761,22 @@ export function classToOpenAITool<T extends object>(
 }
 
 /**
+ * Options for Gemini tool functions
+ */
+export interface GeminiToolOptions<T> extends JsonSchemaOptions<T> {
+  // Currently no additional options specific to Gemini tools
+}
+
+/**
  * Creates a Gemini-compatible tool function from a class
  * 
  * @example
- * const toolDeclaration = classToGeminiTool(UserClass);
+ * const toolDeclaration = classToGeminiTool(UserClass, {
+ *   propertyOverrides: {
+ *     'username': { description: 'Custom description' }
+ *   }
+ * });
+ * 
  * // Use with Google Generative AI:
  * const model = genAI.getGenerativeModel({
  *   model: "gemini-1.5-flash",
@@ -702,12 +785,10 @@ export function classToOpenAITool<T extends object>(
  */
 export function classToGeminiTool<T extends object>(
   target: new (...args: any[]) => T,
-  temporaryUpdates?: Partial<{
-    [P in PropertyPath<T>]: Partial<PropertyOptions>;
-  }>,
+  options?: GeminiToolOptions<T>
 ): GeminiToolFunction {
   const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
-  const jsonSchema = classToJsonSchema(target, temporaryUpdates);
+  const jsonSchema = classToJsonSchema(target, options);
   
   // Convert properties to Gemini format
   return {
@@ -723,10 +804,22 @@ export function classToGeminiTool<T extends object>(
 }
 
 /**
+ * Options for Anthropic tool functions
+ */
+export interface AnthropicToolOptions<T> extends JsonSchemaOptions<T> {
+  // Currently no additional options specific to Anthropic tools
+}
+
+/**
  * Creates an Anthropic-compatible tool function from a class
  * 
  * @example
- * const tool = classToAnthropicTool(UserClass);
+ * const tool = classToAnthropicTool(UserClass, {
+ *   propertyOverrides: {
+ *     'username': { description: 'Custom description' }
+ *   }
+ * });
+ * 
  * // Use with Anthropic API:
  * const message = await anthropic.messages.create({
  *   model: "claude-3-opus-20240229",
@@ -737,12 +830,10 @@ export function classToGeminiTool<T extends object>(
  */
 export function classToAnthropicTool<T extends object>(
   target: new (...args: any[]) => T,
-  temporaryUpdates?: Partial<{
-    [P in PropertyPath<T>]: Partial<PropertyOptions>;
-  }>,
+  options?: AnthropicToolOptions<T>
 ): AnthropicToolFunction {
   const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
-  const jsonSchema = classToJsonSchema(target, temporaryUpdates);
+  const jsonSchema = classToJsonSchema(target, options);
   
   return {
     name: classOptions.name || '',
@@ -756,18 +847,27 @@ export function classToAnthropicTool<T extends object>(
 }
 
 /**
+ * Options for OpenAI response format
+ */
+export interface OpenAIResponseFormatOptions<T> extends JsonSchemaOptions<T> {
+  /**
+   * Whether to set strict:true on the json_schema
+   * Usually you want this to be true when using structured output
+   */
+  strict?: boolean;
+}
+
+/**
  * Creates an OpenAI response_format compatible JSON schema from a class.
  * Can be used for both normal and structured outputs with OpenAI chat completions.
  * 
- * @param target - The class to convert to JSON schema
- * @param temporaryUpdates - Optional temporary property updates
- * @param enhanceForStructuredOutput - Whether to enhance the schema for structured outputs
- *                                    Set to true when using with OpenAI's structured output.
- *                                    This affects both the schema format and the 'strict' flag.
- * 
  * @example
  * // For structured output (common case):
- * const responseFormat = classToOpenAIResponseFormatJsonSchema(UserResponseClass, undefined, true);
+ * const responseFormat = classToOpenAIResponseFormatJsonSchema(UserClass, {
+ *   forStructuredOutput: true,
+ *   strict: true
+ * });
+ * 
  * // Use with OpenAI API:
  * const completion = await openai.chat.completions.create({
  *   model: "gpt-4-turbo",
@@ -777,10 +877,7 @@ export function classToAnthropicTool<T extends object>(
  */
 export function classToOpenAIResponseFormatJsonSchema<T extends object>(
   target: new (...args: any[]) => T,
-  temporaryUpdates?: Partial<{
-    [P in PropertyPath<T>]: Partial<PropertyOptions>;
-  }>,
-  enhanceForStructuredOutput = false,
+  options?: OpenAIResponseFormatOptions<T>
 ): {
   type: 'json_schema';
   json_schema: {
@@ -790,16 +887,33 @@ export function classToOpenAIResponseFormatJsonSchema<T extends object>(
   };
 } {
   const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
-  const jsonSchema = classToJsonSchema(target, temporaryUpdates, enhanceForStructuredOutput);
+  
+  // Create a modified options object where forStructuredOutput is set if strict is true
+  const jsonSchemaOptions: JsonSchemaOptions<T> = { ...options };
+  if (options?.strict && !options.forStructuredOutput) {
+    jsonSchemaOptions.forStructuredOutput = true;
+  }
+  
+  const jsonSchema = classToJsonSchema(target, jsonSchemaOptions);
+  
+  // Default to options.strict if provided, otherwise use forStructuredOutput value
+  const strict = options?.strict !== undefined ? options.strict : !!options?.forStructuredOutput;
 
   return {
     type: 'json_schema',
     json_schema: {
       name: classOptions.name || '',
       schema: jsonSchema,
-      strict: enhanceForStructuredOutput,
+      strict,
     },
   };
+}
+
+/**
+ * Options for Gemini response schema
+ */
+export interface GeminiResponseSchemaOptions<T> extends JsonSchemaOptions<T> {
+  // Currently no additional options specific to Gemini response schema
 }
 
 /**
@@ -821,7 +935,12 @@ export function classToOpenAIResponseFormatJsonSchema<T extends object>(
  * or create a dedicated helper function.
  * 
  * @example
- * const schema = classToGeminiResponseSchema(RecipeClass);
+ * const schema = classToGeminiResponseSchema(RecipeClass, {
+ *   propertyOverrides: {
+ *     'ingredients': { description: 'List of recipe ingredients' }
+ *   }
+ * });
+ * 
  * // Use with Google Generative AI:
  * const model = genAI.getGenerativeModel({
  *   model: "gemini-1.5-pro",
@@ -833,12 +952,10 @@ export function classToOpenAIResponseFormatJsonSchema<T extends object>(
  */
 export function classToGeminiResponseSchema<T extends object>(
   target: new (...args: any[]) => T,
-  temporaryUpdates?: Partial<{
-    [P in PropertyPath<T>]: Partial<PropertyOptions>;
-  }>,
+  options?: GeminiResponseSchemaOptions<T>
 ): any {
   const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
-  const jsonSchema = classToJsonSchema(target, temporaryUpdates);
+  const jsonSchema = classToJsonSchema(target, options);
   
   // For Gemini, we convert to their format with uppercase type names
   return {
@@ -850,14 +967,22 @@ export function classToGeminiResponseSchema<T extends object>(
 }
 
 export const Schema = {
+  // Decorators
   ToolMeta,
   ToolProp,
+  
+  // Core JSON Schema generation
   classToJsonSchema,
+  prepareForStructuredOutput,
+  
+  // Schema modification
+  updateSchemaProperty,
+  addSchemaProperty,
+  
+  // LLM-specific formats
   classToOpenAITool,
   classToOpenAIResponseFormatJsonSchema,
   classToGeminiTool,
   classToGeminiResponseSchema,
   classToAnthropicTool,
-  updateSchemaProperty,
-  addSchemaProperty,
 } as const;
