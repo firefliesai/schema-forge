@@ -419,6 +419,39 @@ roles: string[];
 
 ISC
 
+## Common Issues and Solutions
+
+### Property has no initializer and is not definitely assigned
+
+If you're using TypeScript with strict property initialization checks (`--strict` or `--strictPropertyInitialization`), you might encounter this kind of error:
+
+```
+Property 'sum' has no initializer and is not definitely assigned in the constructor.ts(2564)
+```
+
+**Solution**: Use the definite assignment assertion operator (`!:`) on your properties:
+
+```typescript
+class MathToolDto {
+  @ToolProp()
+  sum!: number; // Use the ! operator to tell TypeScript this will be assigned
+}
+```
+
+### Optional Properties
+
+For optional properties, use both the `isOptional` decorator option and TypeScript's optional property syntax:
+
+```typescript
+class UserData {
+  @ToolProp()
+  name!: string; // Required property with definite assignment
+  
+  @ToolProp({ isOptional: true })
+  age?: number; // Optional property using both ? syntax and isOptional
+}
+```
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
