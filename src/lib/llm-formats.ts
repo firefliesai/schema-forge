@@ -70,6 +70,26 @@ export function classToOpenAITool<T extends object>(
   return toolFunction;
 }
 
+/**
+ * Creates an OpenAI-compatible tool function for the Response API from a class
+ * 
+ * Note: This is for use with OpenAI's newer Response API, which has a slightly
+ * different format than the Chat Completions API.
+ *
+ * @example
+ * // Create a tool for OpenAI Response API
+ * const tool = classToOpenAIToolInResponseAPI(UserClass, {
+ *   forStructuredOutput: true,
+ *   strict: true
+ * });
+ *
+ * // Use with OpenAI Response API:
+ * const response = await openai.responses.create({
+ *   model: "gpt-4o",
+ *   input: "Create a user with name John Doe",
+ *   tools: [tool]
+ * });
+ */
 export function classToOpenAIToolInResponseAPI<T extends object>(
   target: new (...args: any[]) => T,
   options?: OpenAIToolOptions<T>,
@@ -146,6 +166,31 @@ export function classToOpenAIResponseFormatJsonSchema<T extends object>(
   };
 }
 
+/**
+ * Creates a JSON schema for structured output with OpenAI's Response API
+ *
+ * This function is specifically designed for OpenAI's new Response API, which has
+ * a slightly different format for JSON schema structured output compared to
+ * the Chat Completions API.
+ *
+ * @example
+ * // Create a response format for OpenAI Response API
+ * const responseFormat = classToOpenAIResponseFormatTextJsonSchemaInResponseAPI(UserOutput, {
+ *   forStructuredOutput: true
+ * });
+ *
+ * // Use with OpenAI Response API:
+ * const result = await openai.responses.create({
+ *   model: "gpt-4o",
+ *   input: "Give me user information for John Doe",
+ *   text: { 
+ *     format: responseFormat 
+ *   }
+ * });
+ * 
+ * // Parse the response
+ * const data = JSON.parse(result.output[0].content[0].text);
+ */
 export function classToOpenAIResponseFormatTextJsonSchemaInResponseAPI<T extends object>(
   target: new (...args: any[]) => T,
   options?: OpenAIResponseFormatOptions<T>,
