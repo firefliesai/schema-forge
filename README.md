@@ -390,6 +390,43 @@ addSchemaProperty(User, 'metadata.tags', {
 });
 ```
 
+### Using Direct JSON Schema Converters
+
+If you already have a JSON Schema definition (perhaps from another source or manually created), you can convert it directly to LLM-specific formats:
+
+```typescript
+import { jsonSchemaToOpenAITool } from 'schema-forge';
+
+// Custom JSON Schema
+const myJsonSchema = {
+  type: 'object',
+  properties: {
+    name: { type: 'string', description: 'User name' },
+    age: { type: 'number', description: 'Age in years' }
+  },
+  required: ['name']
+};
+
+// Convert to OpenAI tool format
+const openaiTool = jsonSchemaToOpenAITool(
+  myJsonSchema,
+  { name: 'user_info', description: 'Get user information' },
+  { strict: true }
+);
+
+// Use with OpenAI
+const completion = await openai.chat.completions.create({
+  model: "gpt-4-turbo",
+  messages: [...messages],
+  tools: [openaiTool],
+});
+```
+
+This approach is particularly useful when:
+- You have existing JSON Schemas that you want to use with LLMs
+- You're migrating from another schema system
+- You need to manually craft complex schemas that are difficult to express with decorators
+
 ### Common Options Pattern
 
 All schema generation functions accept a consistent options pattern:
@@ -405,9 +442,16 @@ const options = {
 // Use the same options across different LLM formats
 const jsonSchema = classToJsonSchema(MyClass, options);
 const openaiTool = classToOpenAITool(MyClass, { ...options, strict: true });
-const openaiToolInResponseAPI = classToOpenAITool(MyClass, { ...options, strict: true });
+const responseApiTool = classToOpenAIResponseApiTool(MyClass, { ...options, strict: true });
 const anthropicTool = classToAnthropicTool(MyClass, options);
 const geminiTool = classToGeminiTool(MyClass, options);
+
+// You can also use the JSON Schema directly with converter functions
+const directOpenAITool = jsonSchemaToOpenAITool(
+  jsonSchema, 
+  { name: 'my_function', description: 'Function description' },
+  { strict: true }
+);
 ```
 
 ## API Reference
@@ -467,13 +511,25 @@ roles: string[];
 
 ### LLM Format Functions
 
-- `classToOpenAITool(target, options?)`: Generates OpenAI function calling format for chat completion API
-- `classToOpenAIResponseApiTool(target, options?)`: Generates OpenAI function calling format for new response API
+#### Class to LLM Format Converters
+
+- `classToOpenAITool(target, options?)`: Generates OpenAI function calling format for Chat Completions API
+- `classToOpenAIResponseApiTool(target, options?)`: Generates OpenAI tool format for Response API
+- `classToOpenAIResponseFormatJsonSchema(target, options?)`: Generates OpenAI response format for Chat Completions API
+- `classToOpenAIResponseApiTextSchema(target, options?)`: Generates OpenAI text format for Response API
 - `classToAnthropicTool(target, options?)`: Generates Anthropic Claude tool format
 - `classToGeminiTool(target, options?)`: Generates Google Gemini tool format
-- `classToOpenAIResponseFormatJsonSchema(target, options?)`: Generates OpenAI response format
-- `classToOpenAIResponseApiTextSchema (target, options?)` Generates OpenAI response format for new response API
 - `classToGeminiResponseSchema(target, options?)`: Generates Gemini response schema
+
+#### JSON Schema to LLM Format Converters
+
+- `jsonSchemaToOpenAITool(schema, metadata, options?)`: Converts JSON Schema to OpenAI tool format for Chat Completions API
+- `jsonSchemaToOpenAIResponseApiTool(schema, metadata, options?)`: Converts JSON Schema to OpenAI tool format for Response API
+- `jsonSchemaToOpenAIResponseFormat(schema, metadata, options?)`: Converts JSON Schema to OpenAI response format for Chat Completions API
+- `jsonSchemaToOpenAIResponseApiTextSchema(schema, metadata, options?)`: Converts JSON Schema to OpenAI text format for Response API
+- `jsonSchemaToAnthropicTool(schema, metadata)`: Converts JSON Schema to Anthropic Claude tool format
+- `jsonSchemaToGeminiTool(schema, metadata)`: Converts JSON Schema to Google Gemini tool format
+- `jsonSchemaToGeminiResponseSchema(schema, metadata)`: Converts JSON Schema to Gemini response schema format
 
 ### Schema Modification
 

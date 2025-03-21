@@ -34,6 +34,12 @@ const anthropic = new Anthropic();
 
 describe('llm tool test', () => {
   it('OpenAI chat completion api - function calling w/ json schema', async () => {
+    // Using the new helper function to convert JSON schema to OpenAI tool
+    const tool = jsonSchemaToOpenAITool(
+      jsonSchema,
+      { name: findCapitalToolName, description: findCapitalToolDesc }
+    );
+    
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
@@ -42,16 +48,7 @@ describe('llm tool test', () => {
           content: userMessage,
         },
       ],
-      tools: [
-        {
-          type: 'function',
-          function: {
-            name: findCapitalToolName,
-            description: findCapitalToolDesc, // You need to manually provide description
-            parameters: jsonSchema,
-          },
-        },
-      ],
+      tools: [tool],
       tool_choice: 'required',
     });
 
@@ -156,6 +153,12 @@ describe('llm tool test', () => {
   });
 
   it('Anthropic chat completion api - tool use w/ json schema', async () => {
+    // Using the new helper function to convert JSON schema to Anthropic tool
+    const tool = jsonSchemaToAnthropicTool(
+      jsonSchema,
+      { name: findCapitalToolName, description: findCapitalToolDesc }
+    );
+
     const message = await anthropic.messages.create({
       model: 'claude-3-7-sonnet-20250219',
       max_tokens: 1000,
@@ -165,17 +168,7 @@ describe('llm tool test', () => {
           content: userMessage,
         },
       ],
-      tools: [
-        {
-          name: findCapitalToolName,
-          description: findCapitalToolDesc,
-          input_schema: {
-            type: 'object',
-            properties: jsonSchema.properties,
-            required: jsonSchema.required,
-          },
-        },
-      ],
+      tools: [tool],
       tool_choice: { type: 'any' },
     });
 
