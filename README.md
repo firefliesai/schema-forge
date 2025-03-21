@@ -421,7 +421,7 @@ const openaiTool = jsonSchemaToOpenAITool(
 
 // Use with OpenAI Chat Completions API
 const completion = await openai.chat.completions.create({
-  model: "gpt-4-turbo",
+  model: "gpt-4o-mini",
   messages: [...messages],
   tools: [openaiTool],
 });
@@ -436,7 +436,7 @@ const responseApiTool = jsonSchemaToOpenAIResponseApiTool(
 
 // Use with OpenAI Response API
 const response = await openai.responses.create({
-  model: "gpt-4o",
+  model: "gpt-4o-mini",
   input: "What's the user information?",
   tools: [responseApiTool]
 });
@@ -470,7 +470,7 @@ const anthropicTool = jsonSchemaToAnthropicTool(schema, metadata);
 
 // Use with Anthropic
 const message = await anthropic.messages.create({
-  model: "claude-3-opus-20240229",
+  model: "claude-3-7-sonnet-20250219",
   messages: [...],
   tools: [anthropicTool],
 });

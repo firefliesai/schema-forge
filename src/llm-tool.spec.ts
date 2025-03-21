@@ -14,8 +14,8 @@ import {
   classToOpenAITool,
   jsonSchemaToAnthropicTool,
   jsonSchemaToOpenAITool,
-  openAIToolToJsonSchema,
   openAIResponseApiToolToJsonSchema,
+  openAIToolToJsonSchema,
 } from './schema-forge';
 
 const findCapitalToolName = 'find_capital';
@@ -215,17 +215,17 @@ describe('llm tool test', () => {
   it('Convert OpenAI tool to JSON Schema then to Anthropic tool', async () => {
     // First create an OpenAI tool
     const openaiTool = classToOpenAITool(CapitalTool);
-    
+
     // Convert OpenAI tool to JSON Schema
     const { schema, metadata } = openAIToolToJsonSchema(openaiTool);
-    
+
     // Convert JSON Schema to Anthropic tool
     const anthropicTool = jsonSchemaToAnthropicTool(schema, metadata);
-    
+
     // Verify the conversion maintains all necessary information
     expect(anthropicTool.name).toBe(findCapitalToolName);
     expect(anthropicTool.description).toBe(findCapitalToolDesc);
-    
+
     // Test the converted tool with Anthropic API
     const message = await anthropic.messages.create({
       model: 'claude-3-7-sonnet-20250219',
@@ -252,17 +252,17 @@ describe('llm tool test', () => {
   it('Convert OpenAI Response API tool to JSON Schema then to Anthropic tool', async () => {
     // First create an OpenAI Response API tool
     const responseApiTool = classToOpenAIResponseApiTool(CapitalTool);
-    
+
     // Convert OpenAI Response API tool to JSON Schema
     const { schema, metadata } = openAIResponseApiToolToJsonSchema(responseApiTool);
-    
+
     // Convert JSON Schema to Anthropic tool
     const anthropicTool = jsonSchemaToAnthropicTool(schema, metadata);
-    
+
     // Verify the conversion maintains all necessary information
     expect(anthropicTool.name).toBe(findCapitalToolName);
     expect(anthropicTool.description).toBe(findCapitalToolDesc);
-    
+
     // Test the converted tool with Anthropic API
     const message = await anthropic.messages.create({
       model: 'claude-3-7-sonnet-20250219',

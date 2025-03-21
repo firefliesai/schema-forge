@@ -254,7 +254,7 @@ export function jsonSchemaToGeminiResponseSchema(
  *
  * // Use with OpenAI API:
  * const response = await openai.chat.completions.create({
- *   model: "gpt-4-turbo",
+ *   model: "gpt-4o-mini",
  *   messages: [...],
  *   tools: [tool]
  * });
@@ -301,7 +301,7 @@ export function classToOpenAITool<T extends object>(
  *
  * // Use with OpenAI Response API:
  * const response = await openai.responses.create({
- *   model: "gpt-4o",
+ *   model: "gpt-4o-mini",
  *   input: "Create a user with name John Doe",
  *   tools: [tool]
  * });
@@ -351,7 +351,7 @@ export function classToOpenAIResponseApiTool<T extends object>(
  *
  * // Use with OpenAI API:
  * const completion = await openai.chat.completions.create({
- *   model: "gpt-4-turbo",
+ *   model: "gpt-4o-mini",
  *   messages: [...],
  *   response_format: responseFormat,
  * });
@@ -401,7 +401,7 @@ export function classToOpenAIResponseFormatJsonSchema<T extends object>(
  *
  * // Use with OpenAI Response API:
  * const result = await openai.responses.create({
- *   model: "gpt-4o",
+ *   model: "gpt-4o-mini",
  *   input: "Give me user information for John Doe",
  *   text: {
  *     format: responseFormat
@@ -483,7 +483,7 @@ export function classToGeminiTool<T extends object>(
  *
  * // Use with Anthropic API:
  * const message = await anthropic.messages.create({
- *   model: "claude-3-opus-20240229",
+ *   model: "claude-3-7-sonnet-20250219",
  *   max_tokens: 1000,
  *   messages: [...],
  *   tools: [tool],
