@@ -14,6 +14,8 @@ import {
   classToOpenAITool,
   jsonSchemaToAnthropicTool,
   jsonSchemaToOpenAITool,
+  openAIToolToJsonSchema,
+  openAIResponseApiToolToJsonSchema,
 } from './schema-forge';
 
 const findCapitalToolName = 'find_capital';
@@ -198,6 +200,80 @@ describe('llm tool test', () => {
         },
       ],
       tools: [claudeTool],
+      tool_choice: { type: 'any' },
+    });
+
+    if (message.content[0].type === 'tool_use') {
+      expect(message.content[0].name).toBe(findCapitalToolName);
+      const data = message.content[0].input as CapitalTool;
+      expect(data.name).toBeDefined();
+    } else {
+      throw new Error('Tool use not found');
+    }
+  });
+
+  it('Convert OpenAI tool to JSON Schema then to Anthropic tool', async () => {
+    // First create an OpenAI tool
+    const openaiTool = classToOpenAITool(CapitalTool);
+    
+    // Convert OpenAI tool to JSON Schema
+    const { schema, metadata } = openAIToolToJsonSchema(openaiTool);
+    
+    // Convert JSON Schema to Anthropic tool
+    const anthropicTool = jsonSchemaToAnthropicTool(schema, metadata);
+    
+    // Verify the conversion maintains all necessary information
+    expect(anthropicTool.name).toBe(findCapitalToolName);
+    expect(anthropicTool.description).toBe(findCapitalToolDesc);
+    
+    // Test the converted tool with Anthropic API
+    const message = await anthropic.messages.create({
+      model: 'claude-3-7-sonnet-20250219',
+      max_tokens: 1000,
+      messages: [
+        {
+          role: 'user',
+          content: userMessage,
+        },
+      ],
+      tools: [anthropicTool],
+      tool_choice: { type: 'any' },
+    });
+
+    if (message.content[0].type === 'tool_use') {
+      expect(message.content[0].name).toBe(findCapitalToolName);
+      const data = message.content[0].input as CapitalTool;
+      expect(data.name).toBeDefined();
+    } else {
+      throw new Error('Tool use not found');
+    }
+  });
+
+  it('Convert OpenAI Response API tool to JSON Schema then to Anthropic tool', async () => {
+    // First create an OpenAI Response API tool
+    const responseApiTool = classToOpenAIResponseApiTool(CapitalTool);
+    
+    // Convert OpenAI Response API tool to JSON Schema
+    const { schema, metadata } = openAIResponseApiToolToJsonSchema(responseApiTool);
+    
+    // Convert JSON Schema to Anthropic tool
+    const anthropicTool = jsonSchemaToAnthropicTool(schema, metadata);
+    
+    // Verify the conversion maintains all necessary information
+    expect(anthropicTool.name).toBe(findCapitalToolName);
+    expect(anthropicTool.description).toBe(findCapitalToolDesc);
+    
+    // Test the converted tool with Anthropic API
+    const message = await anthropic.messages.create({
+      model: 'claude-3-7-sonnet-20250219',
+      max_tokens: 1000,
+      messages: [
+        {
+          role: 'user',
+          content: userMessage,
+        },
+      ],
+      tools: [anthropicTool],
       tool_choice: { type: 'any' },
     });
 

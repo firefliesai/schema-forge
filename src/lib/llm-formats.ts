@@ -549,3 +549,82 @@ export function classToGeminiResponseSchema<T extends object>(
     description: classOptions.description,
   });
 }
+
+/**
+ * Extracts JSON Schema and metadata from an OpenAI Chat Completions API tool format
+ *
+ * This function is useful when you want to convert an existing OpenAI tool definition
+ * to another LLM format (e.g., Anthropic or Gemini) or when you need to extract
+ * the JSON Schema for other purposes.
+ *
+ * @example
+ * // Extract JSON Schema from an OpenAI tool
+ * const openaiTool = {
+ *   type: 'function',
+ *   function: {
+ *     name: 'get_user',
+ *     description: 'Get user information',
+ *     parameters: {
+ *       type: 'object',
+ *       properties: { id: { type: 'string' } },
+ *       required: ['id']
+ *     }
+ *   }
+ * };
+ *
+ * const { schema, metadata } = openAIToolToJsonSchema(openaiTool);
+ *
+ * // Convert to Anthropic format
+ * const anthropicTool = jsonSchemaToAnthropicTool(schema, metadata);
+ */
+export function openAIToolToJsonSchema(openAITool: OpenAIToolFunction): {
+  schema: JSONSchemaDefinition;
+  metadata: { name: string; description?: string };
+} {
+  return {
+    schema: openAITool.function.parameters,
+    metadata: {
+      name: openAITool.function.name,
+      ...(openAITool.function.description && { description: openAITool.function.description }),
+    },
+  };
+}
+
+/**
+ * Extracts JSON Schema and metadata from an OpenAI Response API tool format
+ *
+ * This function is useful when you want to convert an existing OpenAI Response API tool
+ * definition to another LLM format (e.g., Anthropic or Gemini) or when you need to extract
+ * the JSON Schema for other purposes.
+ *
+ * @example
+ * // Extract JSON Schema from an OpenAI Response API tool
+ * const responseApiTool = {
+ *   type: 'function',
+ *   name: 'get_user',
+ *   description: 'Get user information',
+ *   parameters: {
+ *     type: 'object',
+ *     properties: { id: { type: 'string' } },
+ *     required: ['id']
+ *   },
+ *   strict: true
+ * };
+ *
+ * const { schema, metadata } = openAIResponseApiToolToJsonSchema(responseApiTool);
+ *
+ * // Convert to Gemini format
+ * const geminiTool = jsonSchemaToGeminiTool(schema, metadata);
+ */
+export function openAIResponseApiToolToJsonSchema(openAITool: OpenAIResponseApiToolFunction): {
+  schema: JSONSchemaDefinition;
+  metadata: { name: string; description?: string };
+} {
+  return {
+    schema: openAITool.parameters,
+    metadata: {
+      name: openAITool.name,
+      ...(openAITool.description && { description: openAITool.description }),
+    },
+  };
+}

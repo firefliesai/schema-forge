@@ -30,6 +30,9 @@ export {
   jsonSchemaToOpenAIResponseApiTool,
   jsonSchemaToOpenAIResponseFormat,
   jsonSchemaToOpenAITool,
+  // Extract JSON Schema from LLM formats
+  openAIToolToJsonSchema,
+  openAIResponseApiToolToJsonSchema,
 } from './llm-formats';
 
 // Re-export utility functions
@@ -56,6 +59,8 @@ import {
   jsonSchemaToOpenAIResponseApiTool,
   jsonSchemaToOpenAIResponseFormat,
   jsonSchemaToOpenAITool,
+  openAIToolToJsonSchema,
+  openAIResponseApiToolToJsonSchema,
 } from './llm-formats';
 import { prepareForStructuredOutput } from './utils';
 
@@ -89,6 +94,10 @@ export const Schema = {
   jsonSchemaToGeminiTool,
   jsonSchemaToGeminiResponseSchema,
   jsonSchemaToAnthropicTool,
+
+  // Extract JSON Schema from LLM formats
+  openAIToolToJsonSchema,
+  openAIResponseApiToolToJsonSchema,
 
   // Legacy name
   classToLLMTool: classToOpenAITool,

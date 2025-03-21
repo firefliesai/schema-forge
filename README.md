@@ -10,6 +10,7 @@ Schema Forge is a powerful TypeScript library that transforms your TypeScript cl
 - 🔄 Convert TypeScript classes to JSON Schema with a simple decorator API
 - 🤖 Generate LLM-compatible function definitions for different AI platforms
 - 🔨 Direct JSON Schema to LLM format converters (use your own JSON Schema without TypeScript classes)
+- 🔄 Convert between LLM formats (e.g., OpenAI to Anthropic, Response API to Chat Completions)
 - 🔧 Customize schemas with property overrides and metadata
 - 🧩 Support for nested objects and complex property paths
 - 📝 Built-in structured output formatting for various LLM providers
@@ -446,6 +447,40 @@ This approach is particularly useful when:
 - You're migrating from another schema system
 - You need to manually craft complex schemas that are difficult to express with decorators
 
+### Converting Between LLM Formats
+
+You can easily migrate between different LLM formats by extracting the JSON Schema and then converting it to another format:
+
+```typescript
+import { 
+  openAIToolToJsonSchema,
+  jsonSchemaToAnthropicTool,
+  classToOpenAITool
+} from 'schema-forge';
+
+// First, create or get an OpenAI tool format
+const openaiTool = classToOpenAITool(MyClass);
+// Or you might already have an existing openAITool from another source
+
+// Extract JSON Schema and metadata from OpenAI tool
+const { schema, metadata } = openAIToolToJsonSchema(openaiTool);
+
+// Convert to Anthropic Claude format
+const anthropicTool = jsonSchemaToAnthropicTool(schema, metadata);
+
+// Use with Anthropic
+const message = await anthropic.messages.create({
+  model: "claude-3-opus-20240229",
+  messages: [...],
+  tools: [anthropicTool],
+});
+```
+
+This is especially useful for:
+- Migrating from one LLM provider to another
+- Testing the same tool definition across multiple LLMs
+- Supporting multiple LLM providers with a single codebase
+
 ### Common Options Pattern
 
 All schema generation functions accept a consistent options pattern:
@@ -549,6 +584,11 @@ roles: string[];
 - `jsonSchemaToAnthropicTool(schema, metadata)`: Converts JSON Schema to Anthropic Claude tool format
 - `jsonSchemaToGeminiTool(schema, metadata)`: Converts JSON Schema to Google Gemini tool format
 - `jsonSchemaToGeminiResponseSchema(schema, metadata)`: Converts JSON Schema to Gemini response schema format
+
+#### LLM Format to JSON Schema Converters
+
+- `openAIToolToJsonSchema(openAITool)`: Extracts JSON Schema and metadata from an OpenAI Chat Completions API tool
+- `openAIResponseApiToolToJsonSchema(openAITool)`: Extracts JSON Schema and metadata from an OpenAI Response API tool
 
 ### Schema Modification
 
