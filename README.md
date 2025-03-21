@@ -227,6 +227,7 @@ When you need structured output from LLMs, Schema Forge can prepare JSON schemas
 ```typescript
 import { classToOpenAIResponseFormatJsonSchema } from 'schema-forge';
 
+/** chat completion api example **/
 // Create a response format for OpenAI structured output
 const responseFormat = classToOpenAIResponseFormatJsonSchema(UserOutput, {
   forStructuredOutput: true,
@@ -242,6 +243,29 @@ const result = await openai.chat.completions.create({
 
 // Parse the response directly to your TypeScript class type
 const data: UserInput = JSON.parse(result.choices[0].message.content);
+
+/** new response api example **/
+const responseFormat = classToOpenAIResponseFormatTextJsonSchemaInResponseAPI(CapitalTool, {
+  forStructuredOutput: true,
+});
+
+const response = await openai.responses.create({
+  model: 'gpt-4o-mini',
+  /** it is equal to deprecated system role message */
+  instructions: 'You are a helpful assistant',
+  input: userMessage,
+  text: {
+    format: responseFormat,
+  },
+});
+
+if (
+  response.output[0].type === 'message' &&
+  response.output[0].content[0].type === 'output_text'
+) {
+  const data: CapitalTool = JSON.parse(response.output[0].content[0].text);
+  expect(data.name).toBeDefined();
+}
 ```
 
 For Gemini:
@@ -448,6 +472,7 @@ roles: string[];
 - `classToAnthropicTool(target, options?)`: Generates Anthropic Claude tool format
 - `classToGeminiTool(target, options?)`: Generates Google Gemini tool format
 - `classToOpenAIResponseFormatJsonSchema(target, options?)`: Generates OpenAI response format
+- `classToOpenAIResponseFormatTextJsonSchemaInResponseAPI(target, options?)` Generates OpenAI response format for new response API
 - `classToGeminiResponseSchema(target, options?)`: Generates Gemini response schema
 
 ### Schema Modification
