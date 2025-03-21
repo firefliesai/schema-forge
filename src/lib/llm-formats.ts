@@ -13,16 +13,16 @@ import {
   JSONSchemaDefinition,
   JsonSchemaOptions,
   OpenAIResponseApiTextSchema,
+  OpenAIResponseApiToolFunction,
   OpenAIResponseFormatJsonSchema,
   OpenAIResponseFormatOptions,
   OpenAIToolFunction,
-  OpenAIToolFunctionInResponseAPI,
   OpenAIToolOptions,
 } from './types';
 
 /**
  * Converts a JSON Schema to OpenAI tool format for Chat Completions API
- * 
+ *
  * @example
  * // Convert a JSON schema to OpenAI tool format
  * const schema = {
@@ -30,7 +30,7 @@ import {
  *   properties: { name: { type: 'string' } },
  *   required: ['name']
  * };
- * 
+ *
  * const tool = jsonSchemaToOpenAITool(
  *   schema,
  *   { name: 'create_user', description: 'Creates a new user' },
@@ -40,22 +40,22 @@ import {
 export function jsonSchemaToOpenAITool(
   schema: JSONSchemaDefinition,
   metadata: { name: string; description?: string },
-  options?: { strict?: boolean }
+  options?: { strict?: boolean },
 ): OpenAIToolFunction {
   return {
     type: 'function',
     function: {
       name: metadata.name,
-      description: metadata.description || '',
+      ...(metadata.description && { description: metadata.description }),
       parameters: schema,
-      strict: options?.strict,
+      ...(options?.strict && { strict: options.strict }),
     },
   };
 }
 
 /**
  * Converts a JSON Schema to OpenAI tool format for Response API
- * 
+ *
  * @example
  * // Convert a JSON schema to OpenAI Response API tool format
  * const schema = {
@@ -63,7 +63,7 @@ export function jsonSchemaToOpenAITool(
  *   properties: { name: { type: 'string' } },
  *   required: ['name']
  * };
- * 
+ *
  * const tool = jsonSchemaToOpenAIResponseApiTool(
  *   schema,
  *   { name: 'create_user', description: 'Creates a new user' },
@@ -73,20 +73,20 @@ export function jsonSchemaToOpenAITool(
 export function jsonSchemaToOpenAIResponseApiTool(
   schema: JSONSchemaDefinition,
   metadata: { name: string; description?: string },
-  options?: { strict?: boolean }
-): OpenAIToolFunctionInResponseAPI {
+  options: { strict: boolean },
+): OpenAIResponseApiToolFunction {
   return {
     type: 'function',
     name: metadata.name,
-    description: metadata.description,
+    ...(metadata.description && { description: metadata.description }),
     parameters: schema,
-    strict: options?.strict ?? true,
+    strict: options.strict,
   };
 }
 
 /**
  * Converts a JSON Schema to OpenAI response format for Chat Completions API
- * 
+ *
  * @example
  * // Convert a JSON schema to OpenAI response format
  * const schema = {
@@ -94,7 +94,7 @@ export function jsonSchemaToOpenAIResponseApiTool(
  *   properties: { name: { type: 'string' } },
  *   required: ['name']
  * };
- * 
+ *
  * const format = jsonSchemaToOpenAIResponseFormat(
  *   schema,
  *   { name: 'user_profile', description: 'User profile information' },
@@ -104,22 +104,22 @@ export function jsonSchemaToOpenAIResponseApiTool(
 export function jsonSchemaToOpenAIResponseFormat(
   schema: JSONSchemaDefinition,
   metadata: { name: string; description?: string },
-  options?: { strict?: boolean }
+  options?: { strict?: boolean },
 ): OpenAIResponseFormatJsonSchema {
   return {
     type: 'json_schema',
     json_schema: {
       name: metadata.name,
-      description: metadata.description,
+      ...(metadata.description && { description: metadata.description }),
       schema: schema,
-      strict: options?.strict ?? true,
+      ...(options?.strict && { strict: options.strict }),
     },
   };
 }
 
 /**
  * Converts a JSON Schema to OpenAI text format for Response API
- * 
+ *
  * @example
  * // Convert a JSON schema to OpenAI Response API text format
  * const schema = {
@@ -127,7 +127,7 @@ export function jsonSchemaToOpenAIResponseFormat(
  *   properties: { name: { type: 'string' } },
  *   required: ['name']
  * };
- * 
+ *
  * const format = jsonSchemaToOpenAIResponseApiTextSchema(
  *   schema,
  *   { name: 'user_profile', description: 'User profile information' },
@@ -137,20 +137,20 @@ export function jsonSchemaToOpenAIResponseFormat(
 export function jsonSchemaToOpenAIResponseApiTextSchema(
   schema: JSONSchemaDefinition,
   metadata: { name: string; description?: string },
-  options?: { strict?: boolean }
+  options?: { strict?: boolean },
 ): OpenAIResponseApiTextSchema {
   return {
     type: 'json_schema',
     name: metadata.name,
-    description: metadata.description,
+    ...(metadata.description && { description: metadata.description }),
     schema: schema,
-    strict: options?.strict ?? true,
+    ...(options?.strict && { strict: options.strict }),
   };
 }
 
 /**
  * Converts a JSON Schema to Anthropic tool format
- * 
+ *
  * @example
  * // Convert a JSON schema to Anthropic tool format
  * const schema = {
@@ -158,7 +158,7 @@ export function jsonSchemaToOpenAIResponseApiTextSchema(
  *   properties: { name: { type: 'string' } },
  *   required: ['name']
  * };
- * 
+ *
  * const tool = jsonSchemaToAnthropicTool(
  *   schema,
  *   { name: 'create_user', description: 'Creates a new user' }
@@ -166,11 +166,11 @@ export function jsonSchemaToOpenAIResponseApiTextSchema(
  */
 export function jsonSchemaToAnthropicTool(
   schema: JSONSchemaDefinition,
-  metadata: { name: string; description?: string }
+  metadata: { name: string; description?: string },
 ): AnthropicToolFunction {
   return {
     name: metadata.name,
-    description: metadata.description || '',
+    ...(metadata.description && { description: metadata.description }),
     input_schema: {
       type: 'object',
       properties: schema.properties,
@@ -181,7 +181,7 @@ export function jsonSchemaToAnthropicTool(
 
 /**
  * Converts a JSON Schema to Gemini tool format
- * 
+ *
  * @example
  * // Convert a JSON schema to Gemini tool format
  * const schema = {
@@ -189,7 +189,7 @@ export function jsonSchemaToAnthropicTool(
  *   properties: { name: { type: 'string' } },
  *   required: ['name']
  * };
- * 
+ *
  * const tool = jsonSchemaToGeminiTool(
  *   schema,
  *   { name: 'create_user', description: 'Creates a new user' }
@@ -197,14 +197,14 @@ export function jsonSchemaToAnthropicTool(
  */
 export function jsonSchemaToGeminiTool(
   schema: JSONSchemaDefinition,
-  metadata: { name: string; description?: string }
+  metadata: { name: string; description?: string },
 ): GeminiToolFunction {
   return {
     name: metadata.name,
-    description: metadata.description,
+    ...(metadata.description && { description: metadata.description }),
     parameters: {
       type: 'OBJECT',
-      description: metadata.description,
+      ...(metadata.description && { description: metadata.description }),
       properties: schema.properties,
       required: schema.required || [],
     },
@@ -213,7 +213,7 @@ export function jsonSchemaToGeminiTool(
 
 /**
  * Converts a JSON Schema to Gemini response schema format
- * 
+ *
  * @example
  * // Convert a JSON schema to Gemini response schema
  * const schema = {
@@ -221,7 +221,7 @@ export function jsonSchemaToGeminiTool(
  *   properties: { name: { type: 'string' } },
  *   required: ['name']
  * };
- * 
+ *
  * const responseSchema = jsonSchemaToGeminiResponseSchema(
  *   schema,
  *   { description: 'User profile information' }
@@ -229,11 +229,11 @@ export function jsonSchemaToGeminiTool(
  */
 export function jsonSchemaToGeminiResponseSchema(
   schema: JSONSchemaDefinition,
-  metadata: { description?: string }
+  metadata: { description?: string },
 ): GeminiResponseSchema {
   return {
     type: 'OBJECT',
-    description: metadata.description || '',
+    ...(metadata.description && { description: metadata.description }),
     properties: schema.properties,
     required: schema.required || [],
   };
@@ -267,22 +267,22 @@ export function classToOpenAITool<T extends object>(
 
   // Create a modified options object where forStructuredOutput is set if strict is true
   const jsonSchemaOptions: JsonSchemaOptions<T> = { ...options };
-  if (options?.strict && !options.forStructuredOutput) {
+  if (options?.strict && !options?.forStructuredOutput) {
     jsonSchemaOptions.forStructuredOutput = true;
   }
 
   const jsonSchema = classToJsonSchema(target, jsonSchemaOptions);
-  
+
   // Use the helper function to convert JSON schema to OpenAI tool
   return jsonSchemaToOpenAITool(
     jsonSchema,
-    { 
-      name: classOptions.name || '', 
-      description: classOptions.description 
+    {
+      name: classOptions.name || '',
+      description: classOptions.description,
     },
-    { 
-      strict: options?.strict || options?.forStructuredOutput 
-    }
+    {
+      strict: options?.strict || options?.forStructuredOutput,
+    },
   );
 }
 
@@ -309,12 +309,17 @@ export function classToOpenAITool<T extends object>(
 export function classToOpenAIResponseApiTool<T extends object>(
   target: new (...args: any[]) => T,
   options?: OpenAIToolOptions<T>,
-): OpenAIToolFunctionInResponseAPI {
+): OpenAIResponseApiToolFunction {
   const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
+
+  //  [function calling](https://platform.openai.com/docs/guides/function-calling).
+  //  export interface FunctionTool {
+  //  default to true
+  const strict = (options?.strict || options?.forStructuredOutput) ?? true;
 
   // Create a modified options object where forStructuredOutput is set if strict is true
   const jsonSchemaOptions: JsonSchemaOptions<T> = { ...options };
-  if (options?.strict && !options.forStructuredOutput) {
+  if (strict && !options?.forStructuredOutput) {
     jsonSchemaOptions.forStructuredOutput = true;
   }
 
@@ -323,13 +328,13 @@ export function classToOpenAIResponseApiTool<T extends object>(
   // Use the helper function to convert JSON schema to OpenAI Response API tool
   return jsonSchemaToOpenAIResponseApiTool(
     jsonSchema,
-    { 
-      name: classOptions.name || '', 
-      description: classOptions.description 
+    {
+      name: classOptions.name || '',
+      description: classOptions.description,
     },
-    { 
-      strict: options?.strict || options?.forStructuredOutput 
-    }
+    {
+      strict,
+    },
   );
 }
 
@@ -359,7 +364,7 @@ export function classToOpenAIResponseFormatJsonSchema<T extends object>(
 
   // Create a modified options object where forStructuredOutput is set if strict is true
   const jsonSchemaOptions: JsonSchemaOptions<T> = { ...options };
-  if (options?.strict && !options.forStructuredOutput) {
+  if (options?.strict && !options?.forStructuredOutput) {
     jsonSchemaOptions.forStructuredOutput = true;
   }
 
@@ -373,11 +378,11 @@ export function classToOpenAIResponseFormatJsonSchema<T extends object>(
     jsonSchema,
     {
       name: classOptions.name || '',
-      description: classOptions.description
+      description: classOptions.description,
     },
     {
-      strict: strict
-    }
+      strict: strict,
+    },
   );
 }
 
@@ -414,7 +419,7 @@ export function classToOpenAIResponseApiTextSchema<T extends object>(
 
   // Create a modified options object where forStructuredOutput is set if strict is true
   const jsonSchemaOptions: JsonSchemaOptions<T> = { ...options };
-  if (options?.strict && !options.forStructuredOutput) {
+  if (options?.strict && !options?.forStructuredOutput) {
     jsonSchemaOptions.forStructuredOutput = true;
   }
 
@@ -428,11 +433,11 @@ export function classToOpenAIResponseApiTextSchema<T extends object>(
     jsonSchema,
     {
       name: classOptions.name || '',
-      description: classOptions.description
+      description: classOptions.description,
     },
     {
-      strict: strict
-    }
+      strict: strict,
+    },
   );
 }
 
@@ -460,13 +465,10 @@ export function classToGeminiTool<T extends object>(
   const jsonSchema = classToJsonSchema(target, options);
 
   // Use the helper function to convert JSON schema to Gemini tool format
-  return jsonSchemaToGeminiTool(
-    jsonSchema,
-    {
-      name: classOptions.name || '',
-      description: classOptions.description
-    }
-  );
+  return jsonSchemaToGeminiTool(jsonSchema, {
+    name: classOptions.name || '',
+    description: classOptions.description,
+  });
 }
 
 /**
@@ -495,13 +497,10 @@ export function classToAnthropicTool<T extends object>(
   const jsonSchema = classToJsonSchema(target, options);
 
   // Use the helper function to convert JSON schema to Anthropic tool format
-  return jsonSchemaToAnthropicTool(
-    jsonSchema,
-    {
-      name: classOptions.name || '',
-      description: classOptions.description
-    }
-  );
+  return jsonSchemaToAnthropicTool(jsonSchema, {
+    name: classOptions.name || '',
+    description: classOptions.description,
+  });
 }
 
 /**
@@ -546,10 +545,7 @@ export function classToGeminiResponseSchema<T extends object>(
   const jsonSchema = classToJsonSchema(target, options);
 
   // Use the helper function to convert JSON schema to Gemini response schema format
-  return jsonSchemaToGeminiResponseSchema(
-    jsonSchema,
-    {
-      description: classOptions.description
-    }
-  );
+  return jsonSchemaToGeminiResponseSchema(jsonSchema, {
+    description: classOptions.description,
+  });
 }

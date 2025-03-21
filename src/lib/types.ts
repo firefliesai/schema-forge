@@ -52,7 +52,7 @@ export interface OpenAIToolFunction {
   type: 'function';
   function: {
     name: string;
-    description: string;
+    description?: string;
     parameters: any; // json schema
     strict?: boolean;
   };
@@ -78,7 +78,8 @@ export interface OpenAIResponseApiTextSchema {
   strict?: boolean | null;
 }
 
-export interface OpenAIToolFunctionInResponseAPI {
+/** strict becomes required in new response api */
+export interface OpenAIResponseApiToolFunction {
   type: 'function';
   name: string;
   description?: string;
@@ -110,7 +111,7 @@ export interface GeminiResponseSchema {
 // Anthropic Tool Function format
 export interface AnthropicToolFunction {
   name: string;
-  description: string;
+  description?: string;
   input_schema: {
     type: 'object';
     properties: Record<string, any>;

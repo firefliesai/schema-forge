@@ -171,7 +171,7 @@ const tool = classToOpenAIResponseApiTool(UserInput);
 
 // Use it with the Response API
 const response = await openai.responses.create({
-  model: "gpt-4o",
+  model: "gpt-4o-mini",
   input: "Create a user with name John Doe",
   tools: [tool]
 });

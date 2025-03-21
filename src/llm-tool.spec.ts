@@ -12,6 +12,8 @@ import {
   classToOpenAIResponseApiTool,
   classToOpenAIResponseFormatJsonSchema,
   classToOpenAITool,
+  jsonSchemaToAnthropicTool,
+  jsonSchemaToOpenAITool,
 } from './schema-forge';
 
 const findCapitalToolName = 'find_capital';
@@ -32,14 +34,16 @@ const jsonSchema = classToJsonSchema(CapitalTool);
 const openai = new OpenAI();
 const anthropic = new Anthropic();
 
+jest.setTimeout(60 * 1000);
+
 describe('llm tool test', () => {
   it('OpenAI chat completion api - function calling w/ json schema', async () => {
     // Using the new helper function to convert JSON schema to OpenAI tool
-    const tool = jsonSchemaToOpenAITool(
-      jsonSchema,
-      { name: findCapitalToolName, description: findCapitalToolDesc }
-    );
-    
+    const tool = jsonSchemaToOpenAITool(jsonSchema, {
+      name: findCapitalToolName,
+      description: findCapitalToolDesc,
+    });
+
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
@@ -154,10 +158,10 @@ describe('llm tool test', () => {
 
   it('Anthropic chat completion api - tool use w/ json schema', async () => {
     // Using the new helper function to convert JSON schema to Anthropic tool
-    const tool = jsonSchemaToAnthropicTool(
-      jsonSchema,
-      { name: findCapitalToolName, description: findCapitalToolDesc }
-    );
+    const tool = jsonSchemaToAnthropicTool(jsonSchema, {
+      name: findCapitalToolName,
+      description: findCapitalToolDesc,
+    });
 
     const message = await anthropic.messages.create({
       model: 'claude-3-7-sonnet-20250219',
