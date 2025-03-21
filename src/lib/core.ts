@@ -2,8 +2,6 @@
  * Core schema generation functionality
  */
 
-import 'reflect-metadata';
-
 import {
   JSONSchemaDefinition,
   JsonSchemaOptions,
