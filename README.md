@@ -388,8 +388,6 @@ const geminiTool = classToGeminiTool(MyClass, options);
 
 ## API Reference
 
-**Note:** Currently, Schema Forge fully supports OpenAI's tools functionality in both Chat Completions and the new Response API. Support for the Response API's `text.format: "json_schema"` option will be added in a future update.
-
 ### Decorators
 
 #### `@ToolMeta(options)`

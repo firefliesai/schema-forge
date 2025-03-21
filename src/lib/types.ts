@@ -58,14 +58,26 @@ export interface OpenAIToolFunction {
   };
 }
 
+/** for chat completion api */
 export interface OpenAIResponseFormatJsonSchema {
   type: 'json_schema';
   json_schema: {
     name: string;
+    description?: string;
     schema: any;
     strict: boolean;
   };
 }
+
+/** for new response API, equivalent to OpenAIResponseFormatJsonSchema */
+export interface OpenAIResponseFormatTextJsonSchemaInResponseAPI {
+  type: 'json_schema';
+  name?: string;
+  description?: string;
+  schema: any;
+  strict?: boolean | null;
+}
+
 export interface OpenAIToolFunctionInResponseAPI {
   type: 'function';
   name: string;

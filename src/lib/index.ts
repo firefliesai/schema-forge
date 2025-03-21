@@ -19,6 +19,7 @@ export {
   classToGeminiResponseSchema,
   classToGeminiTool,
   classToOpenAIResponseFormatJsonSchema,
+  classToOpenAIResponseFormatTextJsonSchemaInResponseAPI,
   classToOpenAITool,
   classToOpenAIToolInResponseAPI,
 } from './llm-formats';

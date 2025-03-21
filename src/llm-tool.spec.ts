@@ -9,6 +9,7 @@ import {
   classToAnthropicTool,
   classToJsonSchema,
   classToOpenAIResponseFormatJsonSchema,
+  classToOpenAIResponseFormatTextJsonSchemaInResponseAPI,
   classToOpenAITool,
   classToOpenAIToolInResponseAPI,
 } from './schema-forge';
@@ -85,6 +86,7 @@ describe('llm tool test', () => {
 
   it('OpenAI chat completion api - structured output', async () => {
     const responseFormat = classToOpenAIResponseFormatJsonSchema(CapitalTool, {
+      /** or use strict: true, they are */
       forStructuredOutput: true,
     });
 
@@ -107,7 +109,7 @@ describe('llm tool test', () => {
     expect(data.name).toBeDefined();
   });
 
-  it('openai response api - function calling w/ wrapped tool', async () => {
+  it('OpenAI response api - function calling w/ wrapped tool', async () => {
     const tool = classToOpenAIToolInResponseAPI(CapitalTool);
 
     const response = await openai.responses.create({
@@ -121,6 +123,32 @@ describe('llm tool test', () => {
 
     if (response.output[0].type === 'function_call') {
       const data: CapitalTool = JSON.parse(response.output[0].arguments);
+      expect(data.name).toBeDefined();
+    } else {
+      throw new Error('Tool use not found');
+    }
+  });
+
+  it('OpenAI response api - structured output', async () => {
+    const responseFormat = classToOpenAIResponseFormatTextJsonSchemaInResponseAPI(CapitalTool, {
+      forStructuredOutput: true,
+    });
+
+    const response = await openai.responses.create({
+      model: 'gpt-4o-mini',
+      /** it is equal to deprecated system role message */
+      instructions: 'You are a helpful assistant',
+      input: userMessage,
+      text: {
+        format: responseFormat,
+      },
+    });
+
+    if (
+      response.output[0].type === 'message' &&
+      response.output[0].content[0].type === 'output_text'
+    ) {
+      const data: CapitalTool = JSON.parse(response.output[0].content[0].text);
       expect(data.name).toBeDefined();
     } else {
       throw new Error('Tool use not found');

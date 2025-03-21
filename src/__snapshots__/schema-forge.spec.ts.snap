@@ -487,6 +487,7 @@ exports[`schema-forge test 7 structured output enhancement: 7-2 enhanced OpenAI 
 exports[`schema-forge test 7 structured output enhancement: 7-3 OpenAI JSON Schema format for response_format 1`] = `
 {
   "json_schema": {
+    "description": "A user entity with basic information",
     "name": "user",
     "schema": {
       "additionalProperties": false,

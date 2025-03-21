@@ -6,6 +6,7 @@
   "scripts": {
     "test": "npm run jest",
     "jest": "env-cmd jest",
+    "jest:u": "env-cmd jest -u",
     "build": "tsc",
     "lint": "eslint \"src/**/*.ts\"",
     "lint:fix": "eslint \"src/**/*.ts\" --fix",

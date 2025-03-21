@@ -13,6 +13,7 @@ import {
   JsonSchemaOptions,
   OpenAIResponseFormatJsonSchema,
   OpenAIResponseFormatOptions,
+  OpenAIResponseFormatTextJsonSchemaInResponseAPI,
   OpenAIToolFunction,
   OpenAIToolFunctionInResponseAPI,
   OpenAIToolOptions,
@@ -56,7 +57,7 @@ export function classToOpenAITool<T extends object>(
     type: 'function',
     function: {
       name: classOptions.name || '',
-      description: classOptions.description || '',
+      description: classOptions.description || undefined,
       parameters: jsonSchema,
     },
   };
@@ -86,7 +87,7 @@ export function classToOpenAIToolInResponseAPI<T extends object>(
   const toolFunction: OpenAIToolFunctionInResponseAPI = {
     type: 'function',
     name: classOptions.name || '',
-    description: classOptions.description || '',
+    description: classOptions.description || undefined,
     parameters: jsonSchema,
     strict: options?.strict ?? null,
   };
@@ -138,9 +139,36 @@ export function classToOpenAIResponseFormatJsonSchema<T extends object>(
     type: 'json_schema',
     json_schema: {
       name: classOptions.name || '',
+      description: classOptions.description || undefined,
       schema: jsonSchema,
       strict,
     },
+  };
+}
+
+export function classToOpenAIResponseFormatTextJsonSchemaInResponseAPI<T extends object>(
+  target: new (...args: any[]) => T,
+  options?: OpenAIResponseFormatOptions<T>,
+): OpenAIResponseFormatTextJsonSchemaInResponseAPI {
+  const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
+
+  // Create a modified options object where forStructuredOutput is set if strict is true
+  const jsonSchemaOptions: JsonSchemaOptions<T> = { ...options };
+  if (options?.strict && !options.forStructuredOutput) {
+    jsonSchemaOptions.forStructuredOutput = true;
+  }
+
+  const jsonSchema = classToJsonSchema(target, jsonSchemaOptions);
+
+  // Default to options.strict if provided, otherwise use forStructuredOutput value
+  const strict = options?.strict !== undefined ? options.strict : !!options?.forStructuredOutput;
+
+  return {
+    type: 'json_schema',
+    name: classOptions.name || '',
+    description: classOptions.description || undefined,
+    schema: jsonSchema,
+    strict,
   };
 }
 
@@ -170,10 +198,10 @@ export function classToGeminiTool<T extends object>(
   // Convert properties to Gemini format
   return {
     name: classOptions.name || '',
-    description: classOptions.description || '',
+    description: classOptions.description || undefined,
     parameters: {
       type: 'OBJECT',
-      description: classOptions.description || '',
+      description: classOptions.description || undefined,
       properties: jsonSchema.properties,
       required: jsonSchema.required || [],
     },
@@ -207,7 +235,7 @@ export function classToAnthropicTool<T extends object>(
 
   return {
     name: classOptions.name || '',
-    description: classOptions.description || '',
+    description: classOptions.description || undefined,
     input_schema: {
       type: 'object',
       properties: jsonSchema.properties,
