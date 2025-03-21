@@ -395,7 +395,10 @@ addSchemaProperty(User, 'metadata.tags', {
 If you already have a JSON Schema definition (perhaps from another source or manually created), you can convert it directly to LLM-specific formats:
 
 ```typescript
-import { jsonSchemaToOpenAITool } from 'schema-forge';
+import { 
+  jsonSchemaToOpenAITool, 
+  jsonSchemaToOpenAIResponseApiTool 
+} from 'schema-forge';
 
 // Custom JSON Schema
 const myJsonSchema = {
@@ -407,18 +410,33 @@ const myJsonSchema = {
   required: ['name']
 };
 
-// Convert to OpenAI tool format
+// Convert to OpenAI Chat Completions API tool format
 const openaiTool = jsonSchemaToOpenAITool(
   myJsonSchema,
   { name: 'user_info', description: 'Get user information' },
   { strict: true }
 );
 
-// Use with OpenAI
+// Use with OpenAI Chat Completions API
 const completion = await openai.chat.completions.create({
   model: "gpt-4-turbo",
   messages: [...messages],
   tools: [openaiTool],
+});
+
+// Convert to OpenAI Response API tool format
+// Note: strict is required for Response API and defaults to true
+const responseApiTool = jsonSchemaToOpenAIResponseApiTool(
+  myJsonSchema,
+  { name: 'user_info', description: 'Get user information' },
+  { strict: true }
+);
+
+// Use with OpenAI Response API
+const response = await openai.responses.create({
+  model: "gpt-4o",
+  input: "What's the user information?",
+  tools: [responseApiTool]
 });
 ```
 
@@ -514,7 +532,7 @@ roles: string[];
 #### Class to LLM Format Converters
 
 - `classToOpenAITool(target, options?)`: Generates OpenAI function calling format for Chat Completions API
-- `classToOpenAIResponseApiTool(target, options?)`: Generates OpenAI tool format for Response API
+- `classToOpenAIResponseApiTool(target, options?)`: Generates OpenAI tool format for Response API (note: `strict` parameter is required and defaults to `true`)
 - `classToOpenAIResponseFormatJsonSchema(target, options?)`: Generates OpenAI response format for Chat Completions API
 - `classToOpenAIResponseApiTextSchema(target, options?)`: Generates OpenAI text format for Response API
 - `classToAnthropicTool(target, options?)`: Generates Anthropic Claude tool format
@@ -524,7 +542,7 @@ roles: string[];
 #### JSON Schema to LLM Format Converters
 
 - `jsonSchemaToOpenAITool(schema, metadata, options?)`: Converts JSON Schema to OpenAI tool format for Chat Completions API
-- `jsonSchemaToOpenAIResponseApiTool(schema, metadata, options?)`: Converts JSON Schema to OpenAI tool format for Response API
+- `jsonSchemaToOpenAIResponseApiTool(schema, metadata, options)`: Converts JSON Schema to OpenAI tool format for Response API (note: `strict` parameter is required)
 - `jsonSchemaToOpenAIResponseFormat(schema, metadata, options?)`: Converts JSON Schema to OpenAI response format for Chat Completions API
 - `jsonSchemaToOpenAIResponseApiTextSchema(schema, metadata, options?)`: Converts JSON Schema to OpenAI text format for Response API
 - `jsonSchemaToAnthropicTool(schema, metadata)`: Converts JSON Schema to Anthropic Claude tool format
@@ -539,6 +557,27 @@ roles: string[];
 ## License
 
 ISC
+
+## OpenAI API Differences
+
+### Response API vs Chat Completions API
+
+When using OpenAI's Response API, note that there are some key differences from the Chat Completions API:
+
+- In Response API, the `strict` parameter is **required** for tool functions and defaults to `true`, whereas in Chat Completions API it's optional
+- The structure of tool functions differs between APIs:
+  - Chat Completions: `{ type: 'function', function: { name, description, parameters, strict? } }`
+  - Response API: `{ type: 'function', name, description, parameters, strict }`
+
+These differences are automatically handled by schema-forge's corresponding functions:
+
+```typescript
+// Chat Completions API - strict is optional
+const chatTool = classToOpenAITool(MyClass, { strict: true });
+
+// Response API - strict is required (defaults to true if not specified)
+const responseTool = classToOpenAIResponseApiTool(MyClass);
+```
 
 ## Common Issues and Solutions
 
