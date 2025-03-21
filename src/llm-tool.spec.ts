@@ -10,10 +10,12 @@ import {
   classToJsonSchema,
   classToOpenAIResponseFormatJsonSchema,
   classToOpenAITool,
+  classToOpenAIToolInResponseAPI,
 } from './schema-forge';
 
 const findCapitalToolName = 'find_capital';
 const findCapitalToolDesc = 'Find the capital of a given state';
+const userMessage = 'What is the capital of California?';
 @ToolMeta({
   name: findCapitalToolName,
   description: findCapitalToolDesc,
@@ -36,7 +38,7 @@ describe('llm tool test', () => {
       messages: [
         {
           role: 'user',
-          content: 'What is the capital of California?',
+          content: userMessage,
         },
       ],
       tools: [
@@ -67,7 +69,7 @@ describe('llm tool test', () => {
       messages: [
         {
           role: 'user',
-          content: 'What is the capital of California?',
+          content: userMessage,
         },
       ],
       tools: [tool],
@@ -95,7 +97,7 @@ describe('llm tool test', () => {
         },
         {
           role: 'user',
-          content: 'What is the capital of California?',
+          content: userMessage,
         },
       ],
       response_format: responseFormat,
@@ -105,6 +107,26 @@ describe('llm tool test', () => {
     expect(data.name).toBeDefined();
   });
 
+  it('openai response api - function calling w/ wrapped tool', async () => {
+    const tool = classToOpenAIToolInResponseAPI(CapitalTool);
+
+    const response = await openai.responses.create({
+      model: 'gpt-4o-mini',
+      /** it is equal to deprecated system role message */
+      instructions: 'You are a helpful assistant',
+      input: userMessage,
+      tools: [tool],
+      tool_choice: 'required',
+    });
+
+    if (response.output[0].type === 'function_call') {
+      const data: CapitalTool = JSON.parse(response.output[0].arguments);
+      expect(data.name).toBeDefined();
+    } else {
+      throw new Error('Tool use not found');
+    }
+  });
+
   it('Anthropic chat completion api - tool use w/ json schema', async () => {
     const message = await anthropic.messages.create({
       model: 'claude-3-7-sonnet-20250219',
@@ -112,7 +134,7 @@ describe('llm tool test', () => {
       messages: [
         {
           role: 'user',
-          content: 'What is the capital of California?',
+          content: userMessage,
         },
       ],
       tools: [
@@ -147,7 +169,7 @@ describe('llm tool test', () => {
       messages: [
         {
           role: 'user',
-          content: 'What is the capital of California?',
+          content: userMessage,
         },
       ],
       tools: [claudeTool],

@@ -122,7 +122,7 @@ console.log(schema);
 // Using the JSON Schema with OpenAI directly
 const jsonSchema = classToJsonSchema(UserInput);
 const completion = await openai.chat.completions.create({
-  model: "gpt-4-turbo",
+  model: "gpt-4o-mini",
   messages: [...messages],
   tools: [
     {
@@ -151,7 +151,7 @@ const openaiTool = classToOpenAITool(UserInput);
 
 // Use in OpenAI API
 const completion = await openai.chat.completions.create({
-  model: "gpt-4-turbo",
+  model: "gpt-4o-mini",
   messages: [...messages],
   tools: [openaiTool],
 });
@@ -167,7 +167,7 @@ import OpenAI from "openai";
 const openai = new OpenAI();
 
 // Create a tool using Schema Forge
-const tool = classToOpenAITool(UserInput);
+const tool = classToOpenAIToolInResponseAPI(UserInput);
 
 // Use it with the Response API
 const response = await openai.responses.create({
@@ -175,6 +175,11 @@ const response = await openai.responses.create({
   input: "Create a user with name John Doe",
   tools: [tool]
 });
+
+if (response.output[0].type === 'function_call') {
+  const data: UserInput = JSON.parse(response.output[0].arguments);
+  expect(data.name).toBe(findCapitalToolName);
+} 
 ```
 
 #### Anthropic Claude
@@ -187,7 +192,7 @@ const claudeTool = classToAnthropicTool(UserInput);
 
 // Use with Anthropic API
 const message = await anthropic.messages.create({
-  model: "claude-3-opus-20240229",
+  model: "claude-3-7-sonnet-20250219",
   max_tokens: 1000,
   messages: [...messages],
   tools: [claudeTool],
@@ -230,7 +235,7 @@ const responseFormat = classToOpenAIResponseFormatJsonSchema(UserOutput, {
 
 // Use with OpenAI
 const result = await openai.chat.completions.create({
-  model: "gpt-4-turbo",
+  model: "gpt-4o-mini",
   messages: [...messages],
   response_format: responseFormat,
 });
@@ -376,6 +381,8 @@ const options = {
 // Use the same options across different LLM formats
 const jsonSchema = classToJsonSchema(MyClass, options);
 const openaiTool = classToOpenAITool(MyClass, { ...options, strict: true });
+const openaiToolInResponseAPI = classToOpenAITool(MyClass, { ...options, strict: true });
+const anthropicTool = classToAnthropicTool(MyClass, options);
 const geminiTool = classToGeminiTool(MyClass, options);
 ```
 
@@ -438,7 +445,8 @@ roles: string[];
 
 ### LLM Format Functions
 
-- `classToOpenAITool(target, options?)`: Generates OpenAI function calling format
+- `classToOpenAITool(target, options?)`: Generates OpenAI function calling format for chat completion API
+- `classToOpenAIToolInResponseAPI(target, options?)`: Generates OpenAI function calling format for new response API
 - `classToAnthropicTool(target, options?)`: Generates Anthropic Claude tool format
 - `classToGeminiTool(target, options?)`: Generates Google Gemini tool format
 - `classToOpenAIResponseFormatJsonSchema(target, options?)`: Generates OpenAI response format

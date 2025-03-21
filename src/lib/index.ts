@@ -11,15 +11,16 @@ export * from './types';
 export { classToJsonSchema } from './core';
 
 // Re-export decorator functions
-export { ToolProp, ToolMeta, updateSchemaProperty, addSchemaProperty } from './decorators';
+export { addSchemaProperty, ToolMeta, ToolProp, updateSchemaProperty } from './decorators';
 
 // Re-export LLM-specific functions
 export {
-  classToOpenAITool,
-  classToOpenAIResponseFormatJsonSchema,
-  classToGeminiTool,
-  classToGeminiResponseSchema,
   classToAnthropicTool,
+  classToGeminiResponseSchema,
+  classToGeminiTool,
+  classToOpenAIResponseFormatJsonSchema,
+  classToOpenAITool,
+  classToOpenAIToolInResponseAPI,
 } from './llm-formats';
 
 // Re-export utility functions
@@ -29,14 +30,14 @@ export { prepareForStructuredOutput } from './utils';
 export { classToOpenAITool as classToLLMTool } from './llm-formats';
 
 // Namespace for all exports (backwards compatibility)
-import { ToolProp, ToolMeta, updateSchemaProperty, addSchemaProperty } from './decorators';
 import { classToJsonSchema } from './core';
+import { addSchemaProperty, ToolMeta, ToolProp, updateSchemaProperty } from './decorators';
 import {
-  classToOpenAITool,
-  classToOpenAIResponseFormatJsonSchema,
-  classToGeminiTool,
-  classToGeminiResponseSchema,
   classToAnthropicTool,
+  classToGeminiResponseSchema,
+  classToGeminiTool,
+  classToOpenAIResponseFormatJsonSchema,
+  classToOpenAITool,
 } from './llm-formats';
 import { prepareForStructuredOutput } from './utils';
 

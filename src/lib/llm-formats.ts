@@ -2,18 +2,21 @@
  * LLM-specific formats for different providers
  */
 
-import {
-  OpenAIToolOptions,
-  OpenAIToolFunction,
-  OpenAIResponseFormatOptions,
-  AnthropicToolOptions,
-  AnthropicToolFunction,
-  GeminiToolOptions,
-  GeminiToolFunction,
-  GeminiResponseSchemaOptions,
-  JsonSchemaOptions,
-} from './types';
 import { classToJsonSchema } from './core';
+import {
+  AnthropicToolFunction,
+  AnthropicToolOptions,
+  GeminiResponseSchema,
+  GeminiResponseSchemaOptions,
+  GeminiToolFunction,
+  GeminiToolOptions,
+  JsonSchemaOptions,
+  OpenAIResponseFormatJsonSchema,
+  OpenAIResponseFormatOptions,
+  OpenAIToolFunction,
+  OpenAIToolFunctionInResponseAPI,
+  OpenAIToolOptions,
+} from './types';
 
 /**
  * Creates an OpenAI-compatible tool function from a class
@@ -66,6 +69,36 @@ export function classToOpenAITool<T extends object>(
   return toolFunction;
 }
 
+export function classToOpenAIToolInResponseAPI<T extends object>(
+  target: new (...args: any[]) => T,
+  options?: OpenAIToolOptions<T>,
+): OpenAIToolFunctionInResponseAPI {
+  const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
+
+  // Create a modified options object where forStructuredOutput is set if strict is true
+  const jsonSchemaOptions: JsonSchemaOptions<T> = { ...options };
+  if (options?.strict && !options.forStructuredOutput) {
+    jsonSchemaOptions.forStructuredOutput = true;
+  }
+
+  const jsonSchema = classToJsonSchema(target, jsonSchemaOptions);
+
+  const toolFunction: OpenAIToolFunctionInResponseAPI = {
+    type: 'function',
+    name: classOptions.name || '',
+    description: classOptions.description || '',
+    parameters: jsonSchema,
+    strict: options?.strict ?? null,
+  };
+
+  // Add strict property if specified or if we're preparing for structured output
+  if (options?.strict || options?.forStructuredOutput) {
+    toolFunction.strict = true;
+  }
+
+  return toolFunction;
+}
+
 /**
  * Creates an OpenAI response_format compatible JSON schema from a class.
  * Can be used for both normal and structured outputs with OpenAI chat completions.
@@ -87,14 +120,7 @@ export function classToOpenAITool<T extends object>(
 export function classToOpenAIResponseFormatJsonSchema<T extends object>(
   target: new (...args: any[]) => T,
   options?: OpenAIResponseFormatOptions<T>,
-): {
-  type: 'json_schema';
-  json_schema: {
-    name: string;
-    schema: any;
-    strict: boolean;
-  };
-} {
+): OpenAIResponseFormatJsonSchema {
   const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
 
   // Create a modified options object where forStructuredOutput is set if strict is true
@@ -227,7 +253,7 @@ export function classToAnthropicTool<T extends object>(
 export function classToGeminiResponseSchema<T extends object>(
   target: new (...args: any[]) => T,
   options?: GeminiResponseSchemaOptions<T>,
-): any {
+): GeminiResponseSchema {
   const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
   const jsonSchema = classToJsonSchema(target, options);
 

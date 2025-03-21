@@ -53,9 +53,25 @@ export interface OpenAIToolFunction {
   function: {
     name: string;
     description: string;
-    parameters: any;
+    parameters: any; // json schema
     strict?: boolean;
   };
+}
+
+export interface OpenAIResponseFormatJsonSchema {
+  type: 'json_schema';
+  json_schema: {
+    name: string;
+    schema: any;
+    strict: boolean;
+  };
+}
+export interface OpenAIToolFunctionInResponseAPI {
+  type: 'function';
+  name: string;
+  description?: string;
+  parameters: any; // json schema
+  strict: boolean;
 }
 
 // Gemini Tool Function format
@@ -63,11 +79,20 @@ export interface GeminiToolFunction {
   name: string;
   description?: string;
   parameters: {
+    // json schema except object becoming capital 'OBJECT
     type: 'OBJECT';
     description?: string;
     properties: Record<string, any>;
     required?: string[];
   };
+}
+
+/** json schema like, except object becoming capital 'OBJECT  */
+export interface GeminiResponseSchema {
+  description?: string;
+  type: 'OBJECT';
+  properties: Record<string, any>;
+  required?: string[];
 }
 
 // Anthropic Tool Function format
