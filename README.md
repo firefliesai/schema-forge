@@ -167,7 +167,7 @@ import OpenAI from "openai";
 const openai = new OpenAI();
 
 // Create a tool using Schema Forge
-const tool = classToOpenAIToolInResponseAPI(UserInput);
+const tool = classToOpenAIResponseApiTool(UserInput);
 
 // Use it with the Response API
 const response = await openai.responses.create({
@@ -245,7 +245,7 @@ const result = await openai.chat.completions.create({
 const data: UserInput = JSON.parse(result.choices[0].message.content);
 
 /** new response api example **/
-const responseFormat = classToOpenAIResponseFormatTextJsonSchemaInResponseAPI(CapitalTool, {
+const responseFormat = classToOpenAIResponseApiTextSchema (CapitalTool, {
   forStructuredOutput: true,
 });
 
@@ -468,11 +468,11 @@ roles: string[];
 ### LLM Format Functions
 
 - `classToOpenAITool(target, options?)`: Generates OpenAI function calling format for chat completion API
-- `classToOpenAIToolInResponseAPI(target, options?)`: Generates OpenAI function calling format for new response API
+- `classToOpenAIResponseApiTool(target, options?)`: Generates OpenAI function calling format for new response API
 - `classToAnthropicTool(target, options?)`: Generates Anthropic Claude tool format
 - `classToGeminiTool(target, options?)`: Generates Google Gemini tool format
 - `classToOpenAIResponseFormatJsonSchema(target, options?)`: Generates OpenAI response format
-- `classToOpenAIResponseFormatTextJsonSchemaInResponseAPI(target, options?)` Generates OpenAI response format for new response API
+- `classToOpenAIResponseApiTextSchema (target, options?)` Generates OpenAI response format for new response API
 - `classToGeminiResponseSchema(target, options?)`: Generates Gemini response schema
 
 ### Schema Modification

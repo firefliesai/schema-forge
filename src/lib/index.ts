@@ -18,10 +18,10 @@ export {
   classToAnthropicTool,
   classToGeminiResponseSchema,
   classToGeminiTool,
+  classToOpenAIResponseApiTextSchema,
+  classToOpenAIResponseApiTool,
   classToOpenAIResponseFormatJsonSchema,
-  classToOpenAIResponseFormatTextJsonSchemaInResponseAPI,
   classToOpenAITool,
-  classToOpenAIToolInResponseAPI,
 } from './llm-formats';
 
 // Re-export utility functions

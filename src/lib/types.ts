@@ -70,7 +70,7 @@ export interface OpenAIResponseFormatJsonSchema {
 }
 
 /** for new response API, equivalent to OpenAIResponseFormatJsonSchema */
-export interface OpenAIResponseFormatTextJsonSchemaInResponseAPI {
+export interface OpenAIResponseApiTextSchema {
   type: 'json_schema';
   name?: string;
   description?: string;

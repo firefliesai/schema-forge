@@ -8,10 +8,10 @@ import {
   ToolProp,
   classToAnthropicTool,
   classToJsonSchema,
+  classToOpenAIResponseApiTextSchema,
+  classToOpenAIResponseApiTool,
   classToOpenAIResponseFormatJsonSchema,
-  classToOpenAIResponseFormatTextJsonSchemaInResponseAPI,
   classToOpenAITool,
-  classToOpenAIToolInResponseAPI,
 } from './schema-forge';
 
 const findCapitalToolName = 'find_capital';
@@ -110,7 +110,7 @@ describe('llm tool test', () => {
   });
 
   it('OpenAI response api - function calling w/ wrapped tool', async () => {
-    const tool = classToOpenAIToolInResponseAPI(CapitalTool);
+    const tool = classToOpenAIResponseApiTool(CapitalTool);
 
     const response = await openai.responses.create({
       model: 'gpt-4o-mini',
@@ -130,7 +130,7 @@ describe('llm tool test', () => {
   });
 
   it('OpenAI response api - structured output', async () => {
-    const responseFormat = classToOpenAIResponseFormatTextJsonSchemaInResponseAPI(CapitalTool, {
+    const responseFormat = classToOpenAIResponseApiTextSchema(CapitalTool, {
       forStructuredOutput: true,
     });
 

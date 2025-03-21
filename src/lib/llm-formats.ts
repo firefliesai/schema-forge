@@ -11,9 +11,9 @@ import {
   GeminiToolFunction,
   GeminiToolOptions,
   JsonSchemaOptions,
+  OpenAIResponseApiTextSchema,
   OpenAIResponseFormatJsonSchema,
   OpenAIResponseFormatOptions,
-  OpenAIResponseFormatTextJsonSchemaInResponseAPI,
   OpenAIToolFunction,
   OpenAIToolFunctionInResponseAPI,
   OpenAIToolOptions,
@@ -72,13 +72,13 @@ export function classToOpenAITool<T extends object>(
 
 /**
  * Creates an OpenAI-compatible tool function for the Response API from a class
- * 
+ *
  * Note: This is for use with OpenAI's newer Response API, which has a slightly
  * different format than the Chat Completions API.
  *
  * @example
  * // Create a tool for OpenAI Response API
- * const tool = classToOpenAIToolInResponseAPI(UserClass, {
+ * const tool = classToOpenAIResponseApiTool(UserClass, {
  *   forStructuredOutput: true,
  *   strict: true
  * });
@@ -90,7 +90,7 @@ export function classToOpenAITool<T extends object>(
  *   tools: [tool]
  * });
  */
-export function classToOpenAIToolInResponseAPI<T extends object>(
+export function classToOpenAIResponseApiTool<T extends object>(
   target: new (...args: any[]) => T,
   options?: OpenAIToolOptions<T>,
 ): OpenAIToolFunctionInResponseAPI {
@@ -175,7 +175,7 @@ export function classToOpenAIResponseFormatJsonSchema<T extends object>(
  *
  * @example
  * // Create a response format for OpenAI Response API
- * const responseFormat = classToOpenAIResponseFormatTextJsonSchemaInResponseAPI(UserOutput, {
+ * const responseFormat = classToOpenAIResponseApiTextSchema (UserOutput, {
  *   forStructuredOutput: true
  * });
  *
@@ -183,18 +183,18 @@ export function classToOpenAIResponseFormatJsonSchema<T extends object>(
  * const result = await openai.responses.create({
  *   model: "gpt-4o",
  *   input: "Give me user information for John Doe",
- *   text: { 
- *     format: responseFormat 
+ *   text: {
+ *     format: responseFormat
  *   }
  * });
- * 
+ *
  * // Parse the response
  * const data = JSON.parse(result.output[0].content[0].text);
  */
-export function classToOpenAIResponseFormatTextJsonSchemaInResponseAPI<T extends object>(
+export function classToOpenAIResponseApiTextSchema<T extends object>(
   target: new (...args: any[]) => T,
   options?: OpenAIResponseFormatOptions<T>,
-): OpenAIResponseFormatTextJsonSchemaInResponseAPI {
+): OpenAIResponseApiTextSchema {
   const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
 
   // Create a modified options object where forStructuredOutput is set if strict is true
