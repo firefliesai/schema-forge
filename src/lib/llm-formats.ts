@@ -2,7 +2,6 @@
  * LLM-specific formats for different providers
  */
 
-import 'reflect-metadata';
 import {
   OpenAIToolOptions,
   OpenAIToolFunction,

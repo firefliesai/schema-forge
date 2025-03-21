@@ -21,6 +21,33 @@ Schema Forge is a powerful TypeScript library that transforms your TypeScript cl
 npm install schema-forge
 ```
 
+### Required Dependency: reflect-metadata
+
+Schema Forge relies on the `reflect-metadata` package to access metadata at runtime. This package is listed as a peer dependency:
+
+- **npm 7+** will automatically install peer dependencies
+- **npm <7**, **yarn**, and **pnpm** will not automatically install peer dependencies
+
+If you're not using npm 7+, you'll need to manually install reflect-metadata:
+
+```bash
+npm install reflect-metadata
+# or
+yarn add reflect-metadata
+# or
+pnpm add reflect-metadata
+```
+
+You must also import reflect-metadata **once** at the entry point of your application before using Schema Forge:
+
+```typescript
+// Import this once at the beginning of your app
+import 'reflect-metadata';
+
+// Then import and use schema-forge
+import { ToolMeta, ToolProp } from 'schema-forge';
+```
+
 ### TypeScript Configuration
 
 Make sure to enable experimental decorators in your `tsconfig.json`:

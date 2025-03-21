@@ -2,7 +2,6 @@
  * Decorators for schema-forge
  */
 
-import 'reflect-metadata';
 import {
   JSON_SCHEMA_METADATA_KEY,
   REQUIRED_PROPS_METADATA_KEY,
