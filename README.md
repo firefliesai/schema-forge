@@ -122,7 +122,7 @@ console.log(schema);
 // Using the JSON Schema with OpenAI directly
 const jsonSchema = classToJsonSchema(UserInput);
 const completion = await openai.chat.completions.create({
-  model: "gpt-4-turbo",
+  model: "gpt-4o-mini",
   messages: [...messages],
   tools: [
     {
@@ -151,7 +151,7 @@ const openaiTool = classToOpenAITool(UserInput);
 
 // Use in OpenAI API
 const completion = await openai.chat.completions.create({
-  model: "gpt-4-turbo",
+  model: "gpt-4o-mini",
   messages: [...messages],
   tools: [openaiTool],
 });
@@ -167,14 +167,19 @@ import OpenAI from "openai";
 const openai = new OpenAI();
 
 // Create a tool using Schema Forge
-const tool = classToOpenAITool(UserInput);
+const tool = classToOpenAIResponseApiTool(UserInput);
 
 // Use it with the Response API
 const response = await openai.responses.create({
-  model: "gpt-4o",
+  model: "gpt-4o-mini",
   input: "Create a user with name John Doe",
   tools: [tool]
 });
+
+if (response.output[0].type === 'function_call') {
+  const data: UserInput = JSON.parse(response.output[0].arguments);
+  expect(data.name).toBe(findCapitalToolName);
+} 
 ```
 
 #### Anthropic Claude
@@ -187,11 +192,15 @@ const claudeTool = classToAnthropicTool(UserInput);
 
 // Use with Anthropic API
 const message = await anthropic.messages.create({
-  model: "claude-3-opus-20240229",
+  model: "claude-3-7-sonnet-20250219",
   max_tokens: 1000,
   messages: [...messages],
   tools: [claudeTool],
 });
+
+if (message.content[0].type === 'tool_use') {
+  const data = message.content[0].input as UserInput;
+}
 ```
 
 #### Google Gemini
@@ -218,6 +227,7 @@ When you need structured output from LLMs, Schema Forge can prepare JSON schemas
 ```typescript
 import { classToOpenAIResponseFormatJsonSchema } from 'schema-forge';
 
+/** chat completion api example **/
 // Create a response format for OpenAI structured output
 const responseFormat = classToOpenAIResponseFormatJsonSchema(UserOutput, {
   forStructuredOutput: true,
@@ -226,10 +236,36 @@ const responseFormat = classToOpenAIResponseFormatJsonSchema(UserOutput, {
 
 // Use with OpenAI
 const result = await openai.chat.completions.create({
-  model: "gpt-4-turbo",
+  model: "gpt-4o-mini",
   messages: [...messages],
   response_format: responseFormat,
 });
+
+// Parse the response directly to your TypeScript class type
+const data: UserInput = JSON.parse(result.choices[0].message.content);
+
+/** new response api example **/
+const responseFormat = classToOpenAIResponseApiTextSchema (CapitalTool, {
+  forStructuredOutput: true,
+});
+
+const response = await openai.responses.create({
+  model: 'gpt-4o-mini',
+  /** it is equal to deprecated system role message */
+  instructions: 'You are a helpful assistant',
+  input: userMessage,
+  text: {
+    format: responseFormat,
+  },
+});
+
+if (
+  response.output[0].type === 'message' &&
+  response.output[0].content[0].type === 'output_text'
+) {
+  const data: CapitalTool = JSON.parse(response.output[0].content[0].text);
+  expect(data.name).toBeDefined();
+}
 ```
 
 For Gemini:
@@ -354,6 +390,61 @@ addSchemaProperty(User, 'metadata.tags', {
 });
 ```
 
+### Using Direct JSON Schema Converters
+
+If you already have a JSON Schema definition (perhaps from another source or manually created), you can convert it directly to LLM-specific formats:
+
+```typescript
+import { 
+  jsonSchemaToOpenAITool, 
+  jsonSchemaToOpenAIResponseApiTool 
+} from 'schema-forge';
+
+// Custom JSON Schema
+const myJsonSchema = {
+  type: 'object',
+  properties: {
+    name: { type: 'string', description: 'User name' },
+    age: { type: 'number', description: 'Age in years' }
+  },
+  required: ['name']
+};
+
+// Convert to OpenAI Chat Completions API tool format
+const openaiTool = jsonSchemaToOpenAITool(
+  myJsonSchema,
+  { name: 'user_info', description: 'Get user information' },
+  { strict: true }
+);
+
+// Use with OpenAI Chat Completions API
+const completion = await openai.chat.completions.create({
+  model: "gpt-4-turbo",
+  messages: [...messages],
+  tools: [openaiTool],
+});
+
+// Convert to OpenAI Response API tool format
+// Note: strict is required for Response API and defaults to true
+const responseApiTool = jsonSchemaToOpenAIResponseApiTool(
+  myJsonSchema,
+  { name: 'user_info', description: 'Get user information' },
+  { strict: true }
+);
+
+// Use with OpenAI Response API
+const response = await openai.responses.create({
+  model: "gpt-4o",
+  input: "What's the user information?",
+  tools: [responseApiTool]
+});
+```
+
+This approach is particularly useful when:
+- You have existing JSON Schemas that you want to use with LLMs
+- You're migrating from another schema system
+- You need to manually craft complex schemas that are difficult to express with decorators
+
 ### Common Options Pattern
 
 All schema generation functions accept a consistent options pattern:
@@ -369,12 +460,19 @@ const options = {
 // Use the same options across different LLM formats
 const jsonSchema = classToJsonSchema(MyClass, options);
 const openaiTool = classToOpenAITool(MyClass, { ...options, strict: true });
+const responseApiTool = classToOpenAIResponseApiTool(MyClass, { ...options, strict: true });
+const anthropicTool = classToAnthropicTool(MyClass, options);
 const geminiTool = classToGeminiTool(MyClass, options);
+
+// You can also use the JSON Schema directly with converter functions
+const directOpenAITool = jsonSchemaToOpenAITool(
+  jsonSchema, 
+  { name: 'my_function', description: 'Function description' },
+  { strict: true }
+);
 ```
 
 ## API Reference
-
-**Note:** Currently, Schema Forge fully supports OpenAI's tools functionality in both Chat Completions and the new Response API. Support for the Response API's `text.format: "json_schema"` option will be added in a future update.
 
 ### Decorators
 
@@ -431,11 +529,25 @@ roles: string[];
 
 ### LLM Format Functions
 
-- `classToOpenAITool(target, options?)`: Generates OpenAI function calling format
+#### Class to LLM Format Converters
+
+- `classToOpenAITool(target, options?)`: Generates OpenAI function calling format for Chat Completions API
+- `classToOpenAIResponseApiTool(target, options?)`: Generates OpenAI tool format for Response API (note: `strict` parameter is required and defaults to `true`)
+- `classToOpenAIResponseFormatJsonSchema(target, options?)`: Generates OpenAI response format for Chat Completions API
+- `classToOpenAIResponseApiTextSchema(target, options?)`: Generates OpenAI text format for Response API
 - `classToAnthropicTool(target, options?)`: Generates Anthropic Claude tool format
 - `classToGeminiTool(target, options?)`: Generates Google Gemini tool format
-- `classToOpenAIResponseFormatJsonSchema(target, options?)`: Generates OpenAI response format
 - `classToGeminiResponseSchema(target, options?)`: Generates Gemini response schema
+
+#### JSON Schema to LLM Format Converters
+
+- `jsonSchemaToOpenAITool(schema, metadata, options?)`: Converts JSON Schema to OpenAI tool format for Chat Completions API
+- `jsonSchemaToOpenAIResponseApiTool(schema, metadata, options)`: Converts JSON Schema to OpenAI tool format for Response API (note: `strict` parameter is required)
+- `jsonSchemaToOpenAIResponseFormat(schema, metadata, options?)`: Converts JSON Schema to OpenAI response format for Chat Completions API
+- `jsonSchemaToOpenAIResponseApiTextSchema(schema, metadata, options?)`: Converts JSON Schema to OpenAI text format for Response API
+- `jsonSchemaToAnthropicTool(schema, metadata)`: Converts JSON Schema to Anthropic Claude tool format
+- `jsonSchemaToGeminiTool(schema, metadata)`: Converts JSON Schema to Google Gemini tool format
+- `jsonSchemaToGeminiResponseSchema(schema, metadata)`: Converts JSON Schema to Gemini response schema format
 
 ### Schema Modification
 
@@ -445,6 +557,27 @@ roles: string[];
 ## License
 
 ISC
+
+## OpenAI API Differences
+
+### Response API vs Chat Completions API
+
+When using OpenAI's Response API, note that there are some key differences from the Chat Completions API:
+
+- In Response API, the `strict` parameter is **required** for tool functions and defaults to `true`, whereas in Chat Completions API it's optional
+- The structure of tool functions differs between APIs:
+  - Chat Completions: `{ type: 'function', function: { name, description, parameters, strict? } }`
+  - Response API: `{ type: 'function', name, description, parameters, strict }`
+
+These differences are automatically handled by schema-forge's corresponding functions:
+
+```typescript
+// Chat Completions API - strict is optional
+const chatTool = classToOpenAITool(MyClass, { strict: true });
+
+// Response API - strict is required (defaults to true if not specified)
+const responseTool = classToOpenAIResponseApiTool(MyClass);
+```
 
 ## Common Issues and Solutions
 

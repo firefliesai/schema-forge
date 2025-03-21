@@ -52,10 +52,39 @@ export interface OpenAIToolFunction {
   type: 'function';
   function: {
     name: string;
-    description: string;
-    parameters: any;
+    description?: string;
+    parameters: any; // json schema
     strict?: boolean;
   };
+}
+
+/** for chat completion api */
+export interface OpenAIResponseFormatJsonSchema {
+  type: 'json_schema';
+  json_schema: {
+    name: string;
+    description?: string;
+    schema: any;
+    strict: boolean;
+  };
+}
+
+/** for new response API, equivalent to OpenAIResponseFormatJsonSchema */
+export interface OpenAIResponseApiTextSchema {
+  type: 'json_schema';
+  name?: string;
+  description?: string;
+  schema: any;
+  strict?: boolean | null;
+}
+
+/** strict becomes required in new response api */
+export interface OpenAIResponseApiToolFunction {
+  type: 'function';
+  name: string;
+  description?: string;
+  parameters: any; // json schema
+  strict: boolean;
 }
 
 // Gemini Tool Function format
@@ -63,6 +92,7 @@ export interface GeminiToolFunction {
   name: string;
   description?: string;
   parameters: {
+    // json schema except object becoming capital 'OBJECT
     type: 'OBJECT';
     description?: string;
     properties: Record<string, any>;
@@ -70,10 +100,18 @@ export interface GeminiToolFunction {
   };
 }
 
+/** json schema like, except object becoming capital 'OBJECT  */
+export interface GeminiResponseSchema {
+  description?: string;
+  type: 'OBJECT';
+  properties: Record<string, any>;
+  required?: string[];
+}
+
 // Anthropic Tool Function format
 export interface AnthropicToolFunction {
   name: string;
-  description: string;
+  description?: string;
   input_schema: {
     type: 'object';
     properties: Record<string, any>;

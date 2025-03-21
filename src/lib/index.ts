@@ -11,15 +11,25 @@ export * from './types';
 export { classToJsonSchema } from './core';
 
 // Re-export decorator functions
-export { ToolProp, ToolMeta, updateSchemaProperty, addSchemaProperty } from './decorators';
+export { addSchemaProperty, ToolMeta, ToolProp, updateSchemaProperty } from './decorators';
 
 // Re-export LLM-specific functions
 export {
-  classToOpenAITool,
-  classToOpenAIResponseFormatJsonSchema,
-  classToGeminiTool,
-  classToGeminiResponseSchema,
   classToAnthropicTool,
+  classToGeminiResponseSchema,
+  classToGeminiTool,
+  classToOpenAIResponseApiTextSchema,
+  classToOpenAIResponseApiTool,
+  classToOpenAIResponseFormatJsonSchema,
+  classToOpenAITool,
+  // Direct JSON Schema converters
+  jsonSchemaToAnthropicTool,
+  jsonSchemaToGeminiResponseSchema,
+  jsonSchemaToGeminiTool,
+  jsonSchemaToOpenAIResponseApiTextSchema,
+  jsonSchemaToOpenAIResponseApiTool,
+  jsonSchemaToOpenAIResponseFormat,
+  jsonSchemaToOpenAITool,
 } from './llm-formats';
 
 // Re-export utility functions
@@ -29,14 +39,23 @@ export { prepareForStructuredOutput } from './utils';
 export { classToOpenAITool as classToLLMTool } from './llm-formats';
 
 // Namespace for all exports (backwards compatibility)
-import { ToolProp, ToolMeta, updateSchemaProperty, addSchemaProperty } from './decorators';
 import { classToJsonSchema } from './core';
+import { addSchemaProperty, ToolMeta, ToolProp, updateSchemaProperty } from './decorators';
 import {
-  classToOpenAITool,
-  classToOpenAIResponseFormatJsonSchema,
-  classToGeminiTool,
-  classToGeminiResponseSchema,
   classToAnthropicTool,
+  classToGeminiResponseSchema,
+  classToGeminiTool,
+  classToOpenAIResponseApiTextSchema,
+  classToOpenAIResponseApiTool,
+  classToOpenAIResponseFormatJsonSchema,
+  classToOpenAITool,
+  jsonSchemaToAnthropicTool,
+  jsonSchemaToGeminiResponseSchema,
+  jsonSchemaToGeminiTool,
+  jsonSchemaToOpenAIResponseApiTextSchema,
+  jsonSchemaToOpenAIResponseApiTool,
+  jsonSchemaToOpenAIResponseFormat,
+  jsonSchemaToOpenAITool,
 } from './llm-formats';
 import { prepareForStructuredOutput } from './utils';
 
@@ -53,12 +72,23 @@ export const Schema = {
   updateSchemaProperty,
   addSchemaProperty,
 
-  // LLM-specific formats
+  // LLM-specific class converter functions
   classToOpenAITool,
   classToOpenAIResponseFormatJsonSchema,
+  classToOpenAIResponseApiTool,
+  classToOpenAIResponseApiTextSchema,
   classToGeminiTool,
   classToGeminiResponseSchema,
   classToAnthropicTool,
+
+  // Direct JSON Schema converter functions
+  jsonSchemaToOpenAITool,
+  jsonSchemaToOpenAIResponseFormat,
+  jsonSchemaToOpenAIResponseApiTool,
+  jsonSchemaToOpenAIResponseApiTextSchema,
+  jsonSchemaToGeminiTool,
+  jsonSchemaToGeminiResponseSchema,
+  jsonSchemaToAnthropicTool,
 
   // Legacy name
   classToLLMTool: classToOpenAITool,
