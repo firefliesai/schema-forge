@@ -192,6 +192,10 @@ const message = await anthropic.messages.create({
   messages: [...messages],
   tools: [claudeTool],
 });
+
+if (message.content[0].type === 'tool_use') {
+  const data = message.content[0].input as UserInput;
+}
 ```
 
 #### Google Gemini
@@ -230,6 +234,9 @@ const result = await openai.chat.completions.create({
   messages: [...messages],
   response_format: responseFormat,
 });
+
+// Parse the response directly to your TypeScript class type
+const data: UserInput = JSON.parse(result.choices[0].message.content);
 ```
 
 For Gemini:
