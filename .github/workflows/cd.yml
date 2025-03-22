@@ -39,12 +39,12 @@ jobs:
             echo "Detected prerelease version with tag: $PRERELEASE_TAG"
 
             # Publish with the extracted tag
-            npm publish --tag $PRERELEASE_TAG
+            npm publish --tag $PRERELEASE_TAG --access public
 
             echo "Published with tag: $PRERELEASE_TAG"
           else
             # Regular version, publish with default tag (latest)
-            npm publish
+            npm publish --access public
 
             echo "Published as latest version"
           fi
