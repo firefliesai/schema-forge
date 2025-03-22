@@ -3,6 +3,13 @@
   "version": "1.0.0-rc.1",
   "main": "dist/lib/index.js",
   "types": "dist/lib/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/lib/index.js",
+      "require": "./dist/lib/index.js",
+      "types": "./dist/lib/index.d.ts"
+    }
+  },
   "scripts": {
     "test": "npm run jest",
     "jest": "env-cmd jest",
