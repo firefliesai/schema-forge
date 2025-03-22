@@ -233,7 +233,6 @@ import { classToOpenAIResponseFormatJsonSchema } from '@firefliesai/schema-forge
 // Create a response format for OpenAI structured output
 const responseFormat = classToOpenAIResponseFormatJsonSchema(UserOutput, {
   forStructuredOutput: true,
-  strict: true
 });
 
 // Use with OpenAI
