@@ -233,7 +233,7 @@ export function jsonSchemaToGeminiOldTool(
 }
 
 /**
- * Converts a JSON Schema to Gemini response schema format
+ * Converts a JSON Schema to Gemini response schema format (@google/genai)
  *
  * @example
  * // Convert a JSON schema to Gemini response schema
@@ -260,6 +260,7 @@ export function jsonSchemaToGeminiResponseSchema(
   };
 }
 
+/** @google/generative-ai */
 export function jsonSchemaToGeminiOldResponseSchema(
   schema: JSONSchemaDefinition,
   metadata: { description?: string },
@@ -279,7 +280,6 @@ export function jsonSchemaToGeminiOldResponseSchema(
  * // Using options object
  * const tool = classToOpenAITool(UserClass, {
  *   forStructuredOutput: true,
- *   strict: true,
  *   propertyOverrides: {
  *     'username': { description: 'Override description' }
  *   }
@@ -331,7 +331,6 @@ export function classToOpenAITool<T extends object>(
  * // Create a tool for OpenAI Response API
  * const tool = classToOpenAIResponseApiTool(UserClass, {
  *   forStructuredOutput: true,
- *   strict: true
  * });
  *
  * // Use with OpenAI Response API:
@@ -380,7 +379,6 @@ export function classToOpenAIResponseApiTool<T extends object>(
  * // For structured output (common case):
  * const responseFormat = classToOpenAIResponseFormatJsonSchema(UserClass, {
  *   forStructuredOutput: true,
- *   strict: true
  * });
  *
  * // Use with OpenAI API:
@@ -489,9 +487,9 @@ export function classToOpenAIResponseApiTextSchema<T extends object>(
  *   }
  * });
  *
- * // Use with Google Generative AI:
+ * // Use with Google @google/genai:
  * const model = genAI.getGenerativeModel({
- *   model: "gemini-1.5-flash",
+ *   model: "gemini-2.0-flash-001",
  *   tools: { functionDeclarations: [toolDeclaration] },
  * });
  */
@@ -516,6 +514,7 @@ export function classToGeminiTool<T extends object>(
   });
 }
 
+/** @google/generative-ai */
 export function classToGeminiOldTool<T extends object>(
   target: new (...args: any[]) => T,
   options?: GeminiToolOptions<T>,
@@ -588,20 +587,21 @@ export function classToAnthropicTool<T extends object>(
  * or create a dedicated helper function.
  *
  * @example
- * const schema = classToGeminiResponseSchema(RecipeClass, {
+ * const responseSchema = classToGeminiResponseSchema(RecipeClass, {
  *   propertyOverrides: {
  *     'ingredients': { description: 'List of recipe ingredients' }
  *   }
  * });
  *
- * // Use with Google Generative AI:
- * const model = genAI.getGenerativeModel({
- *   model: "gemini-1.5-pro",
- *   generationConfig: {
- *     responseMimeType: "application/json",
- *     responseSchema: schema,
- *   },
- * });
+ * // Use with Google @google/genai:
+ *  const response = await gemini.models.generateContent({
+ *    model: 'gemini-2.0-flash-001',
+ *    contents: userMessage,
+ *    config: {
+ *      responseMimeType: 'application/json',
+ *      responseSchema: responseSchema,
+ *    },
+ *  });
  */
 export function classToGeminiResponseSchema<T extends object>(
   target: new (...args: any[]) => T,
@@ -623,6 +623,7 @@ export function classToGeminiResponseSchema<T extends object>(
   });
 }
 
+// @google/generative-ai
 export function classToGeminiOldResponseSchema<T extends object>(
   target: new (...args: any[]) => T,
   options?: GeminiResponseSchemaOptions<T>,

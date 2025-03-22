@@ -27,7 +27,7 @@ import { cloneMetadata, prepareForOpenAIStructuredOutput } from './utils';
  *   propertyOverrides: {
  *     'username': { description: 'Custom description' }
  *   },
- *   handleOptionals: true // Process optional properties
+ *   structuredOutputFormat: 'openai', // unused
  * });
  */
 export function classToJsonSchema<T extends object>(

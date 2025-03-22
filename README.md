@@ -20,7 +20,7 @@ Schema Forge is a powerful TypeScript library that transforms your TypeScript cl
 ## Installation
 
 ```bash
-npm install schema-forge
+npm install @firefliesai/schema-forge
 ```
 
 ### Required Dependency: reflect-metadata
@@ -47,7 +47,7 @@ You must also import reflect-metadata **once** at the entry point of your applic
 import 'reflect-metadata';
 
 // Then import and use schema-forge
-import { ToolMeta, ToolProp } from 'schema-forge';
+import { ToolMeta, ToolProp } from '@firefliesai/schema-forge';
 ```
 
 ### TypeScript Configuration
@@ -69,7 +69,7 @@ Make sure to enable experimental decorators in your `tsconfig.json`:
 ### Define a Class with Decorators
 
 ```typescript
-import { ToolMeta, ToolProp } from 'schema-forge';
+import { ToolMeta, ToolProp } from '@firefliesai/schema-forge';
 
 @ToolMeta({
   name: 'create_user',
@@ -103,7 +103,7 @@ class UserInput {
 ### Generate JSON Schema
 
 ```typescript
-import { classToJsonSchema } from 'schema-forge';
+import { classToJsonSchema } from '@firefliesai/schema-forge';
 
 // Basic usage
 const schema = classToJsonSchema(UserInput);
@@ -146,7 +146,7 @@ const completion = await openai.chat.completions.create({
 #### OpenAI
 
 ```typescript
-import { classToOpenAITool } from 'schema-forge';
+import { classToOpenAITool } from '@firefliesai/schema-forge';
 
 // Create an OpenAI tool definition
 const openaiTool = classToOpenAITool(UserInput);
@@ -187,7 +187,7 @@ if (response.output[0].type === 'function_call') {
 #### Anthropic Claude
 
 ```typescript
-import { classToAnthropicTool } from 'schema-forge';
+import { classToAnthropicTool } from '@firefliesai/schema-forge';
 
 // Create an Anthropic tool definition
 const claudeTool = classToAnthropicTool(UserInput);
@@ -208,14 +208,14 @@ if (message.content[0].type === 'tool_use') {
 #### Google Gemini
 
 ```typescript
-import { classToGeminiTool } from 'schema-forge';
+import { classToGeminiTool } from '@firefliesai/schema-forge';
 
 // Create a Gemini tool definition
 const geminiTool = classToGeminiTool(UserInput);
 
-// Use with Google Generative AI
+// Use with Google @google/generative-ai
 const model = genAI.getGenerativeModel({
-  model: "gemini-1.5-flash",
+  model: "gemini-2.0-flash-001",
   tools: { functionDeclarations: [geminiTool] },
 });
 ```
@@ -227,7 +227,7 @@ const model = genAI.getGenerativeModel({
 When you need structured output from LLMs, Schema Forge can prepare JSON schemas for this purpose:
 
 ```typescript
-import { classToOpenAIResponseFormatJsonSchema } from 'schema-forge';
+import { classToOpenAIResponseFormatJsonSchema } from '@firefliesai/schema-forge';
 
 /** chat completion api example **/
 // Create a response format for OpenAI structured output
@@ -273,14 +273,14 @@ if (
 For Gemini:
 
 ```typescript
-import { classToGeminiResponseSchema } from 'schema-forge';
+import { classToGeminiResponseSchema } from '@firefliesai/schema-forge';
 
 // Create a response schema for Gemini structured output
 const geminiSchema = classToGeminiResponseSchema(UserOutput);
 
-// Use with Gemini
+// Use with Gemini @google/generative-ai
 const model = genAI.getGenerativeModel({
-  model: "gemini-1.5-pro",
+  model: "gemini-2.0-flash-001",
   generationConfig: {
     responseMimeType: "application/json",
     responseSchema: geminiSchema,
@@ -293,7 +293,7 @@ const model = genAI.getGenerativeModel({
 You can temporarily override properties when generating schemas:
 
 ```typescript
-import { classToJsonSchema } from 'schema-forge';
+import { classToJsonSchema } from '@firefliesai/schema-forge';
 
 const schema = classToJsonSchema(UserInput, {
   propertyOverrides: {
@@ -377,7 +377,7 @@ class User {
 You can update schemas programmatically. Note that these changes are permanent and will affect all future schema generations for the class:
 
 ```typescript
-import { updateSchemaProperty, addSchemaProperty } from 'schema-forge';
+import { updateSchemaProperty, addSchemaProperty } from '@firefliesai/schema-forge';
 
 // Update an existing property (permanent change)
 updateSchemaProperty(User, 'name', {
@@ -400,7 +400,7 @@ If you already have a JSON Schema definition (perhaps from another source or man
 import { 
   jsonSchemaToOpenAITool, 
   jsonSchemaToOpenAIResponseApiTool 
-} from 'schema-forge';
+} from '@firefliesai/schema-forge';
 
 // Custom JSON Schema
 const myJsonSchema = {
@@ -456,7 +456,7 @@ import {
   openAIToolToJsonSchema,
   jsonSchemaToAnthropicTool,
   classToOpenAITool
-} from 'schema-forge';
+} from '@firefliesai/schema-forge';
 
 // First, create or get an OpenAI tool format
 const openaiTool = classToOpenAITool(MyClass);
@@ -527,7 +527,13 @@ Class decorator for adding metadata to a class. This decorator is required when 
 
 ```typescript
 options = {
-  name?: string;       // Function name (optional but recommended)
+  // Function name (optional but recommended)
+  // Most of the final converted LLM tool or response schema/format requires a name. Here are the exceptions: 
+  // 1. OpenAI Response API text.format: optional
+  // 2. @google/genai tool: optional
+  // 3. @google/genai responseSchema: omitted 
+  // 4. @google/generative-ai responseSchema: omitted
+  name?: string;       
   description?: string; // Function description (optional but recommended for most LLM providers)
 }
 ```
@@ -539,7 +545,7 @@ Property decorator for defining schema properties.
 ```typescript
 options = {
   description?: string;   // Property description (optional but recommended)
-  type?: string;          // Property type ('string', 'number', etc.) - inferred if not provided
+  type?: string;          // Property type ('string', 'number', 'boolean', Custom Class decorated by schema-forge,  etc.) - inferred if not provided
   enum?: any[] | object;  // Enum values - can be a TS enum or array of values
   items?: object;         // For array properties - required for arrays of primitives or custom types
   isOptional?: boolean;   // If true, property won't be in required array
@@ -547,7 +553,7 @@ options = {
 }
 ```
 
-**Note:** For arrays of primitive types (strings/numbers), you must explicitly set the items property:
+**Note:** For arrays of primitive types (strings/numbers/boolean), you must explicitly set the items property:
 
 ```typescript
 @ToolProp({
@@ -577,7 +583,7 @@ roles: string[];
 #### Class to LLM Format Converters
 
 - `classToOpenAITool(target, options?)`: Generates OpenAI function calling format for Chat Completions API
-- `classToOpenAIResponseApiTool(target, options?)`: Generates OpenAI tool format for Response API (note: `strict` parameter is required and defaults to `true`)
+- `classToOpenAIResponseApiTool(target, options?)`: Generates OpenAI tool format for Response API
 - `classToOpenAIResponseFormatJsonSchema(target, options?)`: Generates OpenAI response format for Chat Completions API
 - `classToOpenAIResponseApiTextSchema(target, options?)`: Generates OpenAI text format for Response API
 - `classToAnthropicTool(target, options?)`: Generates Anthropic Claude tool format
@@ -623,8 +629,9 @@ OpenAI supports two main methods for structured output:
 1. **Response Format Method (Recommended)**
    - Uses `response_format` in Chat Completions API or `text.format` in Response API
    - Requires `additionalProperties: false` and all properties must be in `required` array
-   - Requires schema enforcement (handled automatically)
+   - Requires `strict: true`.
    - Many JSON Schema features are not supported (minimum, maximum, minItems, etc.)
+   - These requirements are handled by schema-forge automatically, as long as `forStructuredOutput: true` is set.
    - Example:
      ```typescript
      // Chat Completions API
@@ -641,7 +648,7 @@ OpenAI supports two main methods for structured output:
      ```
 
 2. **Function Calling Method**
-   - Uses `tools` with schema enforcement (handled by schema-forge's forStructuredOutput) and `parallel_tool_calls: false` (that people need to specify in OpenAI top level request body)
+   - Uses `tools` with schema enforcement (handled by schema-forge's `forStructuredOutput`) and `parallel_tool_calls: false` (that people need to specify in OpenAI top level request body)
    - Has the same JSON Schema limitations as above
    - Less recommended by OpenAI but still works for structured output
    - Example:
@@ -676,8 +683,6 @@ class UserProfile {
 }
 ```
 
-**Note on Gemini**: Gemini has broader JSON Schema support and follows standard JSON Schema patterns. Gemini accepts standard JSON Schema for handling optional properties (simply by excluding them from the `required` array, which is done automatically when you mark a property with `isOptional: true`).
-
 #### Google Gemini Structured Output
 
 Gemini has simpler structured output requirements:
@@ -694,7 +699,7 @@ Gemini has simpler structured output requirements:
   
   // Use with Gemini API
   const model = genAI.getGenerativeModel({
-    model: "gemini-1.5-pro",
+    model: "gemini-2.0-flash-001",
     generationConfig: {
       responseMimeType: "application/json", // This enables structured output
       responseSchema: schema,
@@ -755,10 +760,10 @@ When using OpenAI's Response API, note that there are some key differences from 
 These differences are automatically handled by schema-forge's corresponding functions:
 
 ```typescript
-// Chat Completions API - strict is optional
-const chatTool = classToOpenAITool(MyClass, { strict: true });
+// Chat Completions API - forStructuredOutput is optional
+const chatTool = classToOpenAITool(MyClass, { forStructuredOutput: true });
 
-// Response API - strict is required (defaults to true if not specified)
+// Response API - strict is required in the final Sent OpenAI Response API (defaults to true if forStructuredOutput not specified)
 const responseTool = classToOpenAIResponseApiTool(MyClass);
 ```
 
