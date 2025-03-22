@@ -10,16 +10,26 @@ export function cloneMetadata(metadata: any): any {
 }
 
 /**
- * Prepares a JSON Schema object for structured output compatibility with LLM APIs
- * by adding required fields and removing unsupported properties
+ * Prepares a JSON Schema object specifically for OpenAI structured output compatibility
+ * by adding required fields and removing unsupported properties.
+ * 
+ * IMPORTANT: This function is ONLY for OpenAI structured output requirements, and should NOT
+ * be used for other LLM providers like Gemini or Anthropic. Gemini has broader JSON Schema
+ * support and doesn't require these modifications.
+ * 
+ * This function performs several OpenAI-specific modifications:
+ * - Adds additionalProperties:false to enforce strict schema validation
+ * - Makes all properties required (adds them to the required array)
+ * - Removes JSON Schema features not supported by OpenAI's structured output implementation
+ *   (e.g., minimum, maximum, minLength, pattern, etc.)
  *
  * @public
  * @param obj The JSON Schema object to enhance
  * @param isTopLevel Whether this is the top level object (affects processing)
- * @returns Enhanced JSON Schema object ready for structured output
+ * @returns Enhanced JSON Schema object ready for OpenAI structured output
  *
  * @example
- * // Enhance a manually created JSON Schema
+ * // Enhance a JSON Schema for OpenAI structured output
  * const schema = {
  *   type: 'object',
  *   properties: {
@@ -28,6 +38,7 @@ export function cloneMetadata(metadata: any): any {
  *   }
  * };
  * const enhancedSchema = prepareForStructuredOutput(schema);
+ * // Use with OpenAI response_format or text.format
  */
 export function prepareForStructuredOutput(obj: any, _isTopLevel = false): any {
   // If the input is not an object or is null, return the input value directly

@@ -2,10 +2,14 @@
  * LLM-specific formats for different providers
  */
 
+import { Type } from '@google/genai';
+import { SchemaType } from '@google/generative-ai';
 import { classToJsonSchema } from './core';
 import {
   AnthropicToolFunction,
   AnthropicToolOptions,
+  GeminiOldResponseSchema,
+  GeminiOldToolFunction,
   GeminiResponseSchema,
   GeminiResponseSchemaOptions,
   GeminiToolFunction,
@@ -180,7 +184,7 @@ export function jsonSchemaToAnthropicTool(
 }
 
 /**
- * Converts a JSON Schema to Gemini tool format
+ * Converts a JSON Schema to Gemini tool format (@google/genai)
  *
  * @example
  * // Convert a JSON schema to Gemini tool format
@@ -203,7 +207,24 @@ export function jsonSchemaToGeminiTool(
     name: metadata.name,
     ...(metadata.description && { description: metadata.description }),
     parameters: {
-      type: 'OBJECT',
+      type: Type.OBJECT, //'OBJECT',
+      ...(metadata.description && { description: metadata.description }),
+      properties: schema.properties,
+      required: schema.required || [],
+    },
+  };
+}
+
+/** @google/generative-ai */
+export function jsonSchemaToGeminiOldTool(
+  schema: JSONSchemaDefinition,
+  metadata: { name: string; description?: string },
+): GeminiOldToolFunction {
+  return {
+    name: metadata.name,
+    ...(metadata.description && { description: metadata.description }),
+    parameters: {
+      type: SchemaType.OBJECT,
       ...(metadata.description && { description: metadata.description }),
       properties: schema.properties,
       required: schema.required || [],
@@ -232,7 +253,19 @@ export function jsonSchemaToGeminiResponseSchema(
   metadata: { description?: string },
 ): GeminiResponseSchema {
   return {
-    type: 'OBJECT',
+    type: Type.OBJECT,
+    ...(metadata.description && { description: metadata.description }),
+    properties: schema.properties,
+    required: schema.required || [],
+  };
+}
+
+export function jsonSchemaToGeminiOldResponseSchema(
+  schema: JSONSchemaDefinition,
+  metadata: { description?: string },
+): GeminiOldResponseSchema {
+  return {
+    type: SchemaType.OBJECT,
     ...(metadata.description && { description: metadata.description }),
     properties: schema.properties,
     required: schema.required || [],
@@ -254,7 +287,7 @@ export function jsonSchemaToGeminiResponseSchema(
  *
  * // Use with OpenAI API:
  * const response = await openai.chat.completions.create({
- *   model: "gpt-4-turbo",
+ *   model: "gpt-4o-mini",
  *   messages: [...],
  *   tools: [tool]
  * });
@@ -265,15 +298,12 @@ export function classToOpenAITool<T extends object>(
 ): OpenAIToolFunction {
   const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
 
-  // Create a modified options object where forStructuredOutput is set if strict is true
+  // Use forStructuredOutput from options
   const jsonSchemaOptions: JsonSchemaOptions<T> = { ...options };
-  if (options?.strict && !options?.forStructuredOutput) {
-    jsonSchemaOptions.forStructuredOutput = true;
-  }
-
   const jsonSchema = classToJsonSchema(target, jsonSchemaOptions);
 
   // Use the helper function to convert JSON schema to OpenAI tool
+  // Set strict to true if forStructuredOutput is true
   return jsonSchemaToOpenAITool(
     jsonSchema,
     {
@@ -281,7 +311,7 @@ export function classToOpenAITool<T extends object>(
       description: classOptions.description,
     },
     {
-      strict: options?.strict || options?.forStructuredOutput,
+      strict: !!options?.forStructuredOutput,
     },
   );
 }
@@ -301,7 +331,7 @@ export function classToOpenAITool<T extends object>(
  *
  * // Use with OpenAI Response API:
  * const response = await openai.responses.create({
- *   model: "gpt-4o",
+ *   model: "gpt-4o-mini",
  *   input: "Create a user with name John Doe",
  *   tools: [tool]
  * });
@@ -312,18 +342,11 @@ export function classToOpenAIResponseApiTool<T extends object>(
 ): OpenAIResponseApiToolFunction {
   const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
 
-  //  [function calling](https://platform.openai.com/docs/guides/function-calling).
-  //  export interface FunctionTool {
-  //  default to true
-  const strict = (options?.strict || options?.forStructuredOutput) ?? true;
+  // For Response API, use forStructuredOutput if provided, otherwise default to true
+  const strict = options?.forStructuredOutput ?? true;
 
-  // Create a modified options object where forStructuredOutput is set if strict is true
-  const jsonSchemaOptions: JsonSchemaOptions<T> = { ...options };
-  if (strict && !options?.forStructuredOutput) {
-    jsonSchemaOptions.forStructuredOutput = true;
-  }
-
-  const jsonSchema = classToJsonSchema(target, jsonSchemaOptions);
+  // No need to modify options for strict anymore
+  const jsonSchema = classToJsonSchema(target, { ...options, forStructuredOutput: strict });
 
   // Use the helper function to convert JSON schema to OpenAI Response API tool
   return jsonSchemaToOpenAIResponseApiTool(
@@ -351,7 +374,7 @@ export function classToOpenAIResponseApiTool<T extends object>(
  *
  * // Use with OpenAI API:
  * const completion = await openai.chat.completions.create({
- *   model: "gpt-4-turbo",
+ *   model: "gpt-4o-mini",
  *   messages: [...],
  *   response_format: responseFormat,
  * });
@@ -362,16 +385,11 @@ export function classToOpenAIResponseFormatJsonSchema<T extends object>(
 ): OpenAIResponseFormatJsonSchema {
   const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
 
-  // Create a modified options object where forStructuredOutput is set if strict is true
-  const jsonSchemaOptions: JsonSchemaOptions<T> = { ...options };
-  if (options?.strict && !options?.forStructuredOutput) {
-    jsonSchemaOptions.forStructuredOutput = true;
-  }
+  // No need to modify options for strict anymore
+  const jsonSchema = classToJsonSchema(target, options);
 
-  const jsonSchema = classToJsonSchema(target, jsonSchemaOptions);
-
-  // Default to options.strict if provided, otherwise use forStructuredOutput value
-  const strict = options?.strict !== undefined ? options.strict : !!options?.forStructuredOutput;
+  // Use forStructuredOutput to determine if strict should be true
+  const strict = !!options?.forStructuredOutput;
 
   // Use the helper function to convert JSON schema to OpenAI response format
   return jsonSchemaToOpenAIResponseFormat(
@@ -401,7 +419,7 @@ export function classToOpenAIResponseFormatJsonSchema<T extends object>(
  *
  * // Use with OpenAI Response API:
  * const result = await openai.responses.create({
- *   model: "gpt-4o",
+ *   model: "gpt-4o-mini",
  *   input: "Give me user information for John Doe",
  *   text: {
  *     format: responseFormat
@@ -417,16 +435,11 @@ export function classToOpenAIResponseApiTextSchema<T extends object>(
 ): OpenAIResponseApiTextSchema {
   const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
 
-  // Create a modified options object where forStructuredOutput is set if strict is true
-  const jsonSchemaOptions: JsonSchemaOptions<T> = { ...options };
-  if (options?.strict && !options?.forStructuredOutput) {
-    jsonSchemaOptions.forStructuredOutput = true;
-  }
+  // No need to modify options for strict anymore
+  const jsonSchema = classToJsonSchema(target, options);
 
-  const jsonSchema = classToJsonSchema(target, jsonSchemaOptions);
-
-  // Default to options.strict if provided, otherwise use forStructuredOutput value
-  const strict = options?.strict !== undefined ? options.strict : !!options?.forStructuredOutput;
+  // Use forStructuredOutput to determine if strict should be true
+  const strict = !!options?.forStructuredOutput;
 
   // Use the helper function to convert JSON schema to OpenAI Response API text format
   return jsonSchemaToOpenAIResponseApiTextSchema(
@@ -462,10 +475,34 @@ export function classToGeminiTool<T extends object>(
   options?: GeminiToolOptions<T>,
 ): GeminiToolFunction {
   const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
-  const jsonSchema = classToJsonSchema(target, options);
+  // Convert GeminiToolOptions to JsonSchemaOptions without forStructuredOutput
+  const jsonSchemaOptions: JsonSchemaOptions<T> = {
+    propertyOverrides: options?.propertyOverrides,
+  };
+
+  const jsonSchema = classToJsonSchema(target, jsonSchemaOptions);
 
   // Use the helper function to convert JSON schema to Gemini tool format
   return jsonSchemaToGeminiTool(jsonSchema, {
+    name: classOptions.name || '',
+    description: classOptions.description,
+  });
+}
+
+export function classToGeminiOldTool<T extends object>(
+  target: new (...args: any[]) => T,
+  options?: GeminiToolOptions<T>,
+): GeminiOldToolFunction {
+  const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
+  // Convert GeminiToolOptions to JsonSchemaOptions without forStructuredOutput
+  const jsonSchemaOptions: JsonSchemaOptions<T> = {
+    propertyOverrides: options?.propertyOverrides,
+  };
+
+  const jsonSchema = classToJsonSchema(target, jsonSchemaOptions);
+
+  // Use the helper function to convert JSON schema to Gemini tool format
+  return jsonSchemaToGeminiOldTool(jsonSchema, {
     name: classOptions.name || '',
     description: classOptions.description,
   });
@@ -483,7 +520,7 @@ export function classToGeminiTool<T extends object>(
  *
  * // Use with Anthropic API:
  * const message = await anthropic.messages.create({
- *   model: "claude-3-opus-20240229",
+ *   model: "claude-3-7-sonnet-20250219",
  *   max_tokens: 1000,
  *   messages: [...],
  *   tools: [tool],
@@ -542,10 +579,112 @@ export function classToGeminiResponseSchema<T extends object>(
   options?: GeminiResponseSchemaOptions<T>,
 ): GeminiResponseSchema {
   const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
-  const jsonSchema = classToJsonSchema(target, options);
+  // Convert GeminiResponseSchemaOptions to JsonSchemaOptions without forStructuredOutput
+  const jsonSchemaOptions: JsonSchemaOptions<T> = {
+    propertyOverrides: options?.propertyOverrides,
+  };
+
+  const jsonSchema = classToJsonSchema(target, jsonSchemaOptions);
 
   // Use the helper function to convert JSON schema to Gemini response schema format
   return jsonSchemaToGeminiResponseSchema(jsonSchema, {
     description: classOptions.description,
   });
+}
+
+export function classToGeminiOldResponseSchema<T extends object>(
+  target: new (...args: any[]) => T,
+  options?: GeminiResponseSchemaOptions<T>,
+): GeminiOldResponseSchema {
+  const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
+  // Convert GeminiResponseSchemaOptions to JsonSchemaOptions without forStructuredOutput
+  const jsonSchemaOptions: JsonSchemaOptions<T> = {
+    propertyOverrides: options?.propertyOverrides,
+  };
+
+  const jsonSchema = classToJsonSchema(target, jsonSchemaOptions);
+
+  // Use the helper function to convert JSON schema to Gemini response schema format
+  return jsonSchemaToGeminiOldResponseSchema(jsonSchema, {
+    description: classOptions.description,
+  });
+}
+
+/**
+ * Extracts JSON Schema and metadata from an OpenAI Chat Completions API tool format
+ *
+ * This function is useful when you want to convert an existing OpenAI tool definition
+ * to another LLM format (e.g., Anthropic or Gemini) or when you need to extract
+ * the JSON Schema for other purposes.
+ *
+ * @example
+ * // Extract JSON Schema from an OpenAI tool
+ * const openaiTool = {
+ *   type: 'function',
+ *   function: {
+ *     name: 'get_user',
+ *     description: 'Get user information',
+ *     parameters: {
+ *       type: 'object',
+ *       properties: { id: { type: 'string' } },
+ *       required: ['id']
+ *     }
+ *   }
+ * };
+ *
+ * const { schema, metadata } = openAIToolToJsonSchema(openaiTool);
+ *
+ * // Convert to Anthropic format
+ * const anthropicTool = jsonSchemaToAnthropicTool(schema, metadata);
+ */
+export function openAIToolToJsonSchema(openAITool: OpenAIToolFunction): {
+  schema: JSONSchemaDefinition;
+  metadata: { name: string; description?: string };
+} {
+  return {
+    schema: openAITool.function.parameters,
+    metadata: {
+      name: openAITool.function.name,
+      ...(openAITool.function.description && { description: openAITool.function.description }),
+    },
+  };
+}
+
+/**
+ * Extracts JSON Schema and metadata from an OpenAI Response API tool format
+ *
+ * This function is useful when you want to convert an existing OpenAI Response API tool
+ * definition to another LLM format (e.g., Anthropic or Gemini) or when you need to extract
+ * the JSON Schema for other purposes.
+ *
+ * @example
+ * // Extract JSON Schema from an OpenAI Response API tool
+ * const responseApiTool = {
+ *   type: 'function',
+ *   name: 'get_user',
+ *   description: 'Get user information',
+ *   parameters: {
+ *     type: 'object',
+ *     properties: { id: { type: 'string' } },
+ *     required: ['id']
+ *   },
+ *   strict: true
+ * };
+ *
+ * const { schema, metadata } = openAIResponseApiToolToJsonSchema(responseApiTool);
+ *
+ * // Convert to Gemini format
+ * const geminiTool = jsonSchemaToGeminiTool(schema, metadata);
+ */
+export function openAIResponseApiToolToJsonSchema(openAITool: OpenAIResponseApiToolFunction): {
+  schema: JSONSchemaDefinition;
+  metadata: { name: string; description?: string };
+} {
+  return {
+    schema: openAITool.parameters,
+    metadata: {
+      name: openAITool.name,
+      ...(openAITool.description && { description: openAITool.description }),
+    },
+  };
 }

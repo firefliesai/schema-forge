@@ -20,6 +20,7 @@
   "description": "",
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
+    "@google/genai": "^0.6.0",
     "@google/generative-ai": "^0.24.0",
     "@types/jest": "^29.5.14",
     "@types/reflect-metadata": "^0.0.5",
