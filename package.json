@@ -1,6 +1,6 @@
 {
-  "name": "schema-forge",
-  "version": "1.0.0",
+  "name": "@firefliesai/schema-forge",
+  "version": "1.0.0-rc.1",
   "main": "dist/lib/index.js",
   "types": "dist/lib/index.d.ts",
   "scripts": {
