@@ -38,7 +38,7 @@ export {
 } from './llm-formats';
 
 // Re-export utility functions
-export { prepareForStructuredOutput } from './utils';
+export { prepareForOpenAIStructuredOutput } from './utils';
 
 // Legacy import name for backwards compatibility
 export { classToOpenAITool as classToLLMTool } from './llm-formats';
@@ -64,7 +64,7 @@ import {
   openAIResponseApiToolToJsonSchema,
   openAIToolToJsonSchema,
 } from './llm-formats';
-import { prepareForStructuredOutput } from './utils';
+import { prepareForOpenAIStructuredOutput } from './utils';
 
 export const Schema = {
   // Decorators
@@ -73,7 +73,7 @@ export const Schema = {
 
   // Core JSON Schema generation
   classToJsonSchema,
-  prepareForStructuredOutput,
+  prepareForOpenAIStructuredOutput,
 
   // Schema modification
   updateSchemaProperty,

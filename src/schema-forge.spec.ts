@@ -150,7 +150,7 @@ describe('schema-forge test', () => {
 
     // Test OpenAI response_format
     const userJsonSchemaFormat = classToOpenAIResponseFormatJsonSchema(User, {
-      forStructuredOutput: true
+      forStructuredOutput: true,
     });
     expect(userJsonSchemaFormat).toMatchSnapshot(
       '7-3 OpenAI JSON Schema format for response_format',
@@ -169,5 +169,105 @@ describe('schema-forge test', () => {
     // Test Gemini response schema
     const geminiResponseSchema = classToGeminiResponseSchema(User);
     expect(geminiResponseSchema).toMatchSnapshot('8-3 Gemini response schema');
+  });
+
+  it('9 optional properties handling for different LLM providers', async () => {
+    // Define nested DTOs first
+    class AddressDto {
+      @ToolProp({ description: 'Street address' })
+      street: string;
+
+      @ToolProp({ description: 'City name', isOptional: true })
+      city?: string;
+
+      @ToolProp({ description: 'Postal code' })
+      postalCode: string;
+    }
+
+    class ContactDto {
+      @ToolProp({ description: 'Contact name' })
+      name: string;
+
+      @ToolProp({ description: 'Contact email', isOptional: true })
+      email?: string;
+
+      @ToolProp({ description: 'Phone number' })
+      phone: string;
+    }
+
+    // Create a test class with optional properties including nested objects
+    class TestWithOptionals {
+      @ToolProp({ description: 'User ID' })
+      id: string;
+
+      @ToolProp({ description: 'Username', isOptional: true })
+      username?: string;
+
+      @ToolProp({ description: 'Age of the user', isOptional: true })
+      age?: number;
+
+      @ToolProp({
+        description: 'Tags for the user',
+        items: { type: 'string' },
+        isOptional: true,
+      })
+      tags?: string[];
+
+      @ToolProp({ description: 'Primary address information', isOptional: true })
+      address?: AddressDto;
+
+      @ToolProp({
+        description: 'List of contact methods',
+        items: { type: ContactDto },
+        isOptional: true,
+      })
+      contacts?: ContactDto[];
+    }
+
+    // Test OpenAI format handles optional properties with ["type", "null"]
+    const openaiTool = classToOpenAITool(TestWithOptionals, { forStructuredOutput: true });
+    expect(openaiTool.function.parameters.properties.username.type).toEqual(['string', 'null']);
+    expect(openaiTool.function.parameters.properties.age.type).toEqual(['number', 'null']);
+    expect(openaiTool.function.parameters.properties.tags.type).toEqual(['array', 'null']);
+    expect(openaiTool.function.parameters.properties.address.type).toEqual(['object', 'null']);
+    expect(openaiTool.function.parameters.properties.contacts.type).toEqual(['array', 'null']);
+    expect(openaiTool).toMatchSnapshot('9-1 OpenAI optional properties with nested objects');
+
+    // Test Gemini format properly marks properties as optional (not in required array)
+    const geminiTool = classToGeminiTool(TestWithOptionals);
+    // Check that optional properties are not in the required array
+    expect(geminiTool.parameters.required).not.toContain('username');
+    expect(geminiTool.parameters.required).not.toContain('age');
+    expect(geminiTool.parameters.required).not.toContain('tags');
+    expect(geminiTool.parameters.required).not.toContain('address');
+    expect(geminiTool.parameters.required).not.toContain('contacts');
+    // Required properties should be in the required array
+    expect(geminiTool.parameters.required).toContain('id');
+    expect(geminiTool).toMatchSnapshot('9-2 Gemini optional properties handling');
+
+    // Test Gemini response schema also properly marks properties as optional
+    const geminiResponseSchema = classToGeminiResponseSchema(TestWithOptionals);
+    // Check that optional properties are not in the required array
+    expect(geminiResponseSchema.required).not.toContain('username');
+    expect(geminiResponseSchema.required).not.toContain('age');
+    expect(geminiResponseSchema.required).not.toContain('tags');
+    expect(geminiResponseSchema.required).not.toContain('address');
+    expect(geminiResponseSchema.required).not.toContain('contacts');
+    // Required properties should be in the required array
+    expect(geminiResponseSchema.required).toContain('id');
+    expect(geminiResponseSchema).toMatchSnapshot(
+      '9-3 Gemini response schema optional properties handling',
+    );
+
+    // Verify that optionals are properly handled in nested objects
+    expect(openaiTool.function.parameters.properties.address.properties.city.type).toEqual([
+      'string',
+      'null',
+    ]);
+    // For Gemini, verify city is not in address's required array
+    const addressProps = geminiTool.parameters.properties.address;
+    expect(addressProps.properties.city).toBeDefined();
+    const addressRequired = addressProps.required || [];
+    expect(addressRequired).not.toContain('city');
   });
 });

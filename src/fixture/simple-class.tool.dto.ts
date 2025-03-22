@@ -1,4 +1,4 @@
-import { ToolProp, ToolMeta } from '../schema-forge';
+import { ToolMeta, ToolProp } from '../schema-forge';
 
 @ToolMeta({
   name: 'user',

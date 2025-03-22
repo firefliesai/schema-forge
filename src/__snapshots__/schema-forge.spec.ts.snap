@@ -444,7 +444,10 @@ exports[`schema-forge test 7 structured output enhancement: 7-1 enhanced JSON Sc
     },
     "username": {
       "description": "The username of the user",
-      "type": "string",
+      "type": [
+        "string",
+        "null",
+      ],
     },
   },
   "required": [
@@ -469,7 +472,10 @@ exports[`schema-forge test 7 structured output enhancement: 7-2 enhanced OpenAI 
         },
         "username": {
           "description": "The username of the user",
-          "type": "string",
+          "type": [
+            "string",
+            "null",
+          ],
         },
       },
       "required": [
@@ -498,7 +504,10 @@ exports[`schema-forge test 7 structured output enhancement: 7-3 OpenAI JSON Sche
         },
         "username": {
           "description": "The username of the user",
-          "type": "string",
+          "type": [
+            "string",
+            "null",
+          ],
         },
       },
       "required": [
@@ -570,6 +579,278 @@ exports[`schema-forge test 8 different LLM formats: 8-3 Gemini response schema 1
     },
     "username": {
       "description": "The username of the user",
+      "type": "string",
+    },
+  },
+  "required": [
+    "id",
+  ],
+  "type": "OBJECT",
+}
+`;
+
+exports[`schema-forge test 9 optional properties handling for different LLM providers: 9-1 OpenAI optional properties with nested objects 1`] = `
+{
+  "function": {
+    "name": "",
+    "parameters": {
+      "additionalProperties": false,
+      "properties": {
+        "address": {
+          "additionalProperties": false,
+          "description": "Primary address information",
+          "properties": {
+            "city": {
+              "description": "City name",
+              "type": [
+                "string",
+                "null",
+              ],
+            },
+            "postalCode": {
+              "description": "Postal code",
+              "type": "string",
+            },
+            "street": {
+              "description": "Street address",
+              "type": "string",
+            },
+          },
+          "required": [
+            "street",
+            "city",
+            "postalCode",
+          ],
+          "type": [
+            "object",
+            "null",
+          ],
+        },
+        "age": {
+          "description": "Age of the user",
+          "type": [
+            "number",
+            "null",
+          ],
+        },
+        "contacts": {
+          "description": "List of contact methods",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "email": {
+                "description": "Contact email",
+                "type": [
+                  "string",
+                  "null",
+                ],
+              },
+              "name": {
+                "description": "Contact name",
+                "type": "string",
+              },
+              "phone": {
+                "description": "Phone number",
+                "type": "string",
+              },
+            },
+            "required": [
+              "name",
+              "email",
+              "phone",
+            ],
+            "type": "object",
+          },
+          "type": [
+            "array",
+            "null",
+          ],
+        },
+        "id": {
+          "description": "User ID",
+          "type": "string",
+        },
+        "tags": {
+          "description": "Tags for the user",
+          "items": {
+            "type": "string",
+          },
+          "type": [
+            "array",
+            "null",
+          ],
+        },
+        "username": {
+          "description": "Username",
+          "type": [
+            "string",
+            "null",
+          ],
+        },
+      },
+      "required": [
+        "id",
+        "username",
+        "age",
+        "tags",
+        "address",
+        "contacts",
+      ],
+      "type": "object",
+    },
+    "strict": true,
+  },
+  "type": "function",
+}
+`;
+
+exports[`schema-forge test 9 optional properties handling for different LLM providers: 9-2 Gemini optional properties handling 1`] = `
+{
+  "name": "",
+  "parameters": {
+    "properties": {
+      "address": {
+        "description": "Primary address information",
+        "properties": {
+          "city": {
+            "description": "City name",
+            "type": "string",
+          },
+          "postalCode": {
+            "description": "Postal code",
+            "type": "string",
+          },
+          "street": {
+            "description": "Street address",
+            "type": "string",
+          },
+        },
+        "required": [
+          "street",
+          "postalCode",
+        ],
+        "type": "object",
+      },
+      "age": {
+        "description": "Age of the user",
+        "type": "number",
+      },
+      "contacts": {
+        "description": "List of contact methods",
+        "items": {
+          "properties": {
+            "email": {
+              "description": "Contact email",
+              "type": "string",
+            },
+            "name": {
+              "description": "Contact name",
+              "type": "string",
+            },
+            "phone": {
+              "description": "Phone number",
+              "type": "string",
+            },
+          },
+          "required": [
+            "name",
+            "phone",
+          ],
+          "type": "object",
+        },
+        "type": "array",
+      },
+      "id": {
+        "description": "User ID",
+        "type": "string",
+      },
+      "tags": {
+        "description": "Tags for the user",
+        "items": {
+          "type": "string",
+        },
+        "type": "array",
+      },
+      "username": {
+        "description": "Username",
+        "type": "string",
+      },
+    },
+    "required": [
+      "id",
+    ],
+    "type": "OBJECT",
+  },
+}
+`;
+
+exports[`schema-forge test 9 optional properties handling for different LLM providers: 9-3 Gemini response schema optional properties handling 1`] = `
+{
+  "properties": {
+    "address": {
+      "description": "Primary address information",
+      "properties": {
+        "city": {
+          "description": "City name",
+          "type": "string",
+        },
+        "postalCode": {
+          "description": "Postal code",
+          "type": "string",
+        },
+        "street": {
+          "description": "Street address",
+          "type": "string",
+        },
+      },
+      "required": [
+        "street",
+        "postalCode",
+      ],
+      "type": "object",
+    },
+    "age": {
+      "description": "Age of the user",
+      "type": "number",
+    },
+    "contacts": {
+      "description": "List of contact methods",
+      "items": {
+        "properties": {
+          "email": {
+            "description": "Contact email",
+            "type": "string",
+          },
+          "name": {
+            "description": "Contact name",
+            "type": "string",
+          },
+          "phone": {
+            "description": "Phone number",
+            "type": "string",
+          },
+        },
+        "required": [
+          "name",
+          "phone",
+        ],
+        "type": "object",
+      },
+      "type": "array",
+    },
+    "id": {
+      "description": "User ID",
+      "type": "string",
+    },
+    "tags": {
+      "description": "Tags for the user",
+      "items": {
+        "type": "string",
+      },
+      "type": "array",
+    },
+    "username": {
+      "description": "Username",
       "type": "string",
     },
   },

@@ -2,14 +2,14 @@
  * Decorators for schema-forge
  */
 
+import { classToJsonSchema } from './core';
 import {
   JSON_SCHEMA_METADATA_KEY,
-  REQUIRED_PROPS_METADATA_KEY,
   PropertyOptions,
   PropertyPath,
+  REQUIRED_PROPS_METADATA_KEY,
 } from './types';
 import { cloneMetadata, extractEnumValues, getJsonSchemaType, isCustomClass } from './utils';
-import { classToJsonSchema } from './core';
 
 /**
  * Applies property updates for a given property path

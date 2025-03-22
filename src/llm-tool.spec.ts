@@ -38,6 +38,12 @@ class CapitalTool {
     description: 'The name of the capital to find',
   })
   name: string;
+
+  @ToolProp({
+    description: 'alternative names or nicknames of the capital',
+    isOptional: true,
+  })
+  alias?: string;
 }
 const jsonSchema = classToJsonSchema(CapitalTool);
 
