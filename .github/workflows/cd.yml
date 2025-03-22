@@ -27,34 +27,50 @@ jobs:
       - run: npm run build
       - name: Publish to NPM
         run: |
-          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > ~/.npmrc
+          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > .npmrc
 
           # Read version from package.json
           VERSION=$(node -p "require('./package.json').version")
           echo "Current package version: $VERSION"
 
-          # Check if version contains prerelease marker (e.g., -rc, -beta, -alpha)
-          if [[ $VERSION == *"-"* ]]; then
-            # Extract prerelease tag (e.g., extract 'rc' from '1.0.0-rc.1')
-            PRERELEASE_TAG=$(echo $VERSION | sed -E 's/[0-9]+\.[0-9]+\.[0-9]+-([a-zA-Z]+).*/\1/')
-            echo "Detected prerelease version with tag: $PRERELEASE_TAG"
-
-            # Publish with the extracted tag
-            npm publish --tag $PRERELEASE_TAG --access public
-
-            echo "Published with tag: $PRERELEASE_TAG"
+          # Check if version already exists on npm
+          NPM_VIEW_OUTPUT=$(npm view @firefliesai/schema-forge@$VERSION 2>&1 || true)
+          if [[ $NPM_VIEW_OUTPUT != *"E404"* && $NPM_VIEW_OUTPUT != *"npm ERR! code E404"* ]]; then
+            echo "Version $VERSION already exists on npm registry. Skipping npm publish."
+            SKIP_NPM_PUBLISH="true"
           else
-            # Regular version, publish with default tag (latest)
-            npm publish --access public
-
-            echo "Published as latest version"
+            echo "Version $VERSION does not exist on npm registry. Proceeding with publish."
+            SKIP_NPM_PUBLISH="false"
           fi
+
+          # Only publish if version doesn't already exist
+          if [[ "$SKIP_NPM_PUBLISH" == "false" ]]; then
+            # Check if version contains prerelease marker (e.g., -rc, -beta, -alpha)
+            if [[ $VERSION == *"-"* ]]; then
+              # Extract prerelease tag (e.g., extract 'rc' from '1.0.0-rc.1')
+              PRERELEASE_TAG=$(echo $VERSION | sed -E 's/[0-9]+\.[0-9]+\.[0-9]+-([a-zA-Z]+).*/\1/')
+              echo "Detected prerelease version with tag: $PRERELEASE_TAG"
+
+              # Publish with the extracted tag
+              npm publish --tag $PRERELEASE_TAG --access public
+
+              echo "Published with tag: $PRERELEASE_TAG"
+            else
+              # Regular version, publish with default tag (latest)
+              npm publish --access public
+
+              echo "Published as latest version"
+            fi
+          fi
+
+          # Set output for GitHub Package Registry step
+          echo "SKIP_NPM_PUBLISH=${SKIP_NPM_PUBLISH}" >> $GITHUB_ENV
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create .npmrc file again
         run: |
-          rm .npmrc
+          rm -f .npmrc
           echo "@firefliesai:registry=https://npm.pkg.github.com" > .npmrc
           echo "//npm.pkg.github.com/:_authToken=${GTP_TOKEN}" >> .npmrc
       - name: Publish Package to GitHub Package Registry
