@@ -16,7 +16,7 @@
     "fix": "npm run lint:fix && npm run format"
   },
   "author": "",
-  "license": "ISC",
+  "license": "Apache-2.0",
   "description": "",
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
