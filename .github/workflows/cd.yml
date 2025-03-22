@@ -1,4 +1,4 @@
-name: Deploy to NPM
+name: Deploy to NPM and GitHub Package Registry
 
 on:
   workflow_dispatch:
@@ -13,6 +13,7 @@ jobs:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GTP_TOKEN: ${{ secrets.CROSS_REPO_TOKEN }}
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
@@ -50,3 +51,15 @@ jobs:
           fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create .npmrc file again
+        run: |
+          rm .npmrc
+          echo "@firefliesai:registry=https://npm.pkg.github.com" > .npmrc
+          echo "//npm.pkg.github.com/:_authToken=${GTP_TOKEN}" >> .npmrc
+      - name: Publish Package to GitHub Package Registry
+        uses: JS-DevTools/npm-publish@v3.1.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          registry: https://npm.pkg.github.com/
+          package: ./package.json
