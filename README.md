@@ -641,7 +641,7 @@ OpenAI supports two main methods for structured output:
      ```
 
 2. **Function Calling Method**
-   - Uses `tools` with schema enforcement and `parallel_tool_calls: false`
+   - Uses `tools` with schema enforcement (handled by schema-forge's forStructuredOutput) and `parallel_tool_calls: false` (that people need to specify in OpenAI top level request body)
    - Has the same JSON Schema limitations as above
    - Less recommended by OpenAI but still works for structured output
    - Example:
@@ -714,7 +714,8 @@ Google provides multiple API packages for working with Gemini models. Schema For
      ```typescript
      import { VertexAI } from '@google-cloud/vertexai';
      const vertexAI = new VertexAI({project, location});
-     const tool = classToGeminiTool(MyClass); // Same format works
+     // Same format which is supposed to works, but not verified yet. 
+     const tool = classToGeminiTool(MyClass); 
      ```
 
 #### Anthropic Claude
@@ -725,7 +726,8 @@ Claude doesn't have specific structured output support beyond tool calling.
 
 When using OpenAI's Response API, note that there are some key differences from the Chat Completions API:
 
-- In Response API, the `strict` parameter is **required** for tool functions and defaults to `true`
+- In Response API, the `strict` parameter is **required** for tool functions 
+- Schema-forge uses `forStructuredOutput` to control the `strict` parameter - if `forStructuredOutput` is set, `strict` will be true; otherwise it defaults to true for the Response API (forge-schema sets it default as true, as Response API comment says it is default true but it is a TypeScript required property in API and no default value set)
 - The structure of tool functions differs between APIs:
   - Chat Completions: `{ type: 'function', function: { name, description, parameters, strict? } }`
   - Response API: `{ type: 'function', name, description, parameters, strict }`
