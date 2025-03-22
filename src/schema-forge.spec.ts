@@ -3,24 +3,24 @@ import 'reflect-metadata';
 import { isEqual } from 'lodash';
 
 import {
-  classToOpenAITool,
-  classToGeminiTool,
-  classToAnthropicTool,
-  classToGeminiResponseSchema,
-  classToJsonSchema,
-  classToOpenAIResponseFormatJsonSchema,
-  updateSchemaProperty,
-  addSchemaProperty,
-  ToolProp,
-} from './schema-forge';
-import {
-  GameCharacter,
-  GameCharacterV2,
-  GameCharacterToolName,
-  GameCharacterToolDesc,
   FirstLevelDto,
+  GameCharacter,
+  GameCharacterToolDesc,
+  GameCharacterToolName,
+  GameCharacterV2,
 } from './fixture/complex-class.tool.dto';
 import { User, User2 } from './fixture/simple-class.tool.dto';
+import {
+  addSchemaProperty,
+  classToAnthropicTool,
+  classToGeminiResponseSchema,
+  classToGeminiTool,
+  classToJsonSchema,
+  classToOpenAIResponseFormatJsonSchema,
+  classToOpenAITool,
+  ToolProp,
+  updateSchemaProperty,
+} from './schema-forge';
 
 describe('schema-forge test', () => {
   it('1 simple classes: classToJsonSchema, inheritance, classToJsonSchema with temp updated property, updateSchemaProperty (permanently)', async () => {
@@ -145,13 +145,12 @@ describe('schema-forge test', () => {
     expect(userSchemaEnhanced).toMatchSnapshot('7-1 enhanced JSON Schema');
 
     // Test OpenAI function calling format
-    const userToolEnhanced = classToOpenAITool(User, { forStructuredOutput: true, strict: true });
+    const userToolEnhanced = classToOpenAITool(User, { forStructuredOutput: true });
     expect(userToolEnhanced).toMatchSnapshot('7-2 enhanced OpenAI function calling format');
 
     // Test OpenAI response_format
     const userJsonSchemaFormat = classToOpenAIResponseFormatJsonSchema(User, {
-      forStructuredOutput: true,
-      strict: true,
+      forStructuredOutput: true
     });
     expect(userJsonSchemaFormat).toMatchSnapshot(
       '7-3 OpenAI JSON Schema format for response_format',

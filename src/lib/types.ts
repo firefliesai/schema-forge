@@ -161,31 +161,28 @@ export interface JsonSchemaOptions<T> {
   forStructuredOutput?: boolean;
 }
 
-// Options for OpenAI tool functions
-export interface OpenAIToolOptions<T> extends JsonSchemaOptions<T> {
-  /**
-   * Whether to add strict:true to the function object
-   */
-  strict?: boolean;
-}
+// Options for OpenAI tool functions - same as JsonSchemaOptions
+// Use forStructuredOutput instead of strict
+export type OpenAIToolOptions<T> = JsonSchemaOptions<T>;
 
-// Options for OpenAI response format
-export interface OpenAIResponseFormatOptions<T> extends JsonSchemaOptions<T> {
-  /**
-   * Whether to set strict:true on the json_schema
-   * Usually you want this to be true when using structured output
-   */
-  strict?: boolean;
-}
+// Options for OpenAI response format - same as JsonSchemaOptions
+// Use forStructuredOutput instead of strict
+export type OpenAIResponseFormatOptions<T> = JsonSchemaOptions<T>;
 
-// Options for Gemini tool functions
-export type GeminiToolOptions<T> = JsonSchemaOptions<T>;
+// Options for Gemini tool functions - omit forStructuredOutput as it's not needed for Gemini
+export type GeminiToolOptions<T> = Omit<JsonSchemaOptions<T>, 'forStructuredOutput'> & {
+  // Allow propertyOverrides without forStructuredOutput
+  propertyOverrides?: JsonSchemaOptions<T>['propertyOverrides'];
+};
 
 // Options for Anthropic tool functions
 export type AnthropicToolOptions<T> = JsonSchemaOptions<T>;
 
-// Options for Gemini response schema
-export type GeminiResponseSchemaOptions<T> = JsonSchemaOptions<T>;
+// Options for Gemini response schema - omit forStructuredOutput as it's not needed for Gemini
+export type GeminiResponseSchemaOptions<T> = Omit<JsonSchemaOptions<T>, 'forStructuredOutput'> & {
+  // Allow propertyOverrides without forStructuredOutput
+  propertyOverrides?: JsonSchemaOptions<T>['propertyOverrides'];
+};
 
 // Type utilities to get all possible property paths
 export type Primitive = string | number | boolean;

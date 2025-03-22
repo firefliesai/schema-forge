@@ -298,15 +298,12 @@ export function classToOpenAITool<T extends object>(
 ): OpenAIToolFunction {
   const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
 
-  // Create a modified options object where forStructuredOutput is set if strict is true
+  // Use forStructuredOutput from options
   const jsonSchemaOptions: JsonSchemaOptions<T> = { ...options };
-  if (options?.strict && !options?.forStructuredOutput) {
-    jsonSchemaOptions.forStructuredOutput = true;
-  }
-
   const jsonSchema = classToJsonSchema(target, jsonSchemaOptions);
 
   // Use the helper function to convert JSON schema to OpenAI tool
+  // Set strict to true if forStructuredOutput is true
   return jsonSchemaToOpenAITool(
     jsonSchema,
     {
@@ -314,7 +311,7 @@ export function classToOpenAITool<T extends object>(
       description: classOptions.description,
     },
     {
-      strict: options?.strict || options?.forStructuredOutput,
+      strict: !!options?.forStructuredOutput,
     },
   );
 }
@@ -345,18 +342,11 @@ export function classToOpenAIResponseApiTool<T extends object>(
 ): OpenAIResponseApiToolFunction {
   const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
 
-  //  [function calling](https://platform.openai.com/docs/guides/function-calling).
-  //  export interface FunctionTool {
-  //  default to true
-  const strict = (options?.strict || options?.forStructuredOutput) ?? true;
+  // For Response API, use forStructuredOutput if provided, otherwise default to true
+  const strict = options?.forStructuredOutput ?? true;
 
-  // Create a modified options object where forStructuredOutput is set if strict is true
-  const jsonSchemaOptions: JsonSchemaOptions<T> = { ...options };
-  if (strict && !options?.forStructuredOutput) {
-    jsonSchemaOptions.forStructuredOutput = true;
-  }
-
-  const jsonSchema = classToJsonSchema(target, jsonSchemaOptions);
+  // No need to modify options for strict anymore
+  const jsonSchema = classToJsonSchema(target, { ...options, forStructuredOutput: strict });
 
   // Use the helper function to convert JSON schema to OpenAI Response API tool
   return jsonSchemaToOpenAIResponseApiTool(
@@ -395,16 +385,11 @@ export function classToOpenAIResponseFormatJsonSchema<T extends object>(
 ): OpenAIResponseFormatJsonSchema {
   const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
 
-  // Create a modified options object where forStructuredOutput is set if strict is true
-  const jsonSchemaOptions: JsonSchemaOptions<T> = { ...options };
-  if (options?.strict && !options?.forStructuredOutput) {
-    jsonSchemaOptions.forStructuredOutput = true;
-  }
+  // No need to modify options for strict anymore
+  const jsonSchema = classToJsonSchema(target, options);
 
-  const jsonSchema = classToJsonSchema(target, jsonSchemaOptions);
-
-  // Default to options.strict if provided, otherwise use forStructuredOutput value
-  const strict = options?.strict !== undefined ? options.strict : !!options?.forStructuredOutput;
+  // Use forStructuredOutput to determine if strict should be true
+  const strict = !!options?.forStructuredOutput;
 
   // Use the helper function to convert JSON schema to OpenAI response format
   return jsonSchemaToOpenAIResponseFormat(
@@ -450,16 +435,11 @@ export function classToOpenAIResponseApiTextSchema<T extends object>(
 ): OpenAIResponseApiTextSchema {
   const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
 
-  // Create a modified options object where forStructuredOutput is set if strict is true
-  const jsonSchemaOptions: JsonSchemaOptions<T> = { ...options };
-  if (options?.strict && !options?.forStructuredOutput) {
-    jsonSchemaOptions.forStructuredOutput = true;
-  }
+  // No need to modify options for strict anymore
+  const jsonSchema = classToJsonSchema(target, options);
 
-  const jsonSchema = classToJsonSchema(target, jsonSchemaOptions);
-
-  // Default to options.strict if provided, otherwise use forStructuredOutput value
-  const strict = options?.strict !== undefined ? options.strict : !!options?.forStructuredOutput;
+  // Use forStructuredOutput to determine if strict should be true
+  const strict = !!options?.forStructuredOutput;
 
   // Use the helper function to convert JSON schema to OpenAI Response API text format
   return jsonSchemaToOpenAIResponseApiTextSchema(
@@ -495,7 +475,12 @@ export function classToGeminiTool<T extends object>(
   options?: GeminiToolOptions<T>,
 ): GeminiToolFunction {
   const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
-  const jsonSchema = classToJsonSchema(target, options);
+  // Convert GeminiToolOptions to JsonSchemaOptions without forStructuredOutput
+  const jsonSchemaOptions: JsonSchemaOptions<T> = {
+    propertyOverrides: options?.propertyOverrides,
+  };
+
+  const jsonSchema = classToJsonSchema(target, jsonSchemaOptions);
 
   // Use the helper function to convert JSON schema to Gemini tool format
   return jsonSchemaToGeminiTool(jsonSchema, {
@@ -509,7 +494,12 @@ export function classToGeminiOldTool<T extends object>(
   options?: GeminiToolOptions<T>,
 ): GeminiOldToolFunction {
   const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
-  const jsonSchema = classToJsonSchema(target, options);
+  // Convert GeminiToolOptions to JsonSchemaOptions without forStructuredOutput
+  const jsonSchemaOptions: JsonSchemaOptions<T> = {
+    propertyOverrides: options?.propertyOverrides,
+  };
+
+  const jsonSchema = classToJsonSchema(target, jsonSchemaOptions);
 
   // Use the helper function to convert JSON schema to Gemini tool format
   return jsonSchemaToGeminiOldTool(jsonSchema, {
@@ -589,7 +579,12 @@ export function classToGeminiResponseSchema<T extends object>(
   options?: GeminiResponseSchemaOptions<T>,
 ): GeminiResponseSchema {
   const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
-  const jsonSchema = classToJsonSchema(target, options);
+  // Convert GeminiResponseSchemaOptions to JsonSchemaOptions without forStructuredOutput
+  const jsonSchemaOptions: JsonSchemaOptions<T> = {
+    propertyOverrides: options?.propertyOverrides,
+  };
+
+  const jsonSchema = classToJsonSchema(target, jsonSchemaOptions);
 
   // Use the helper function to convert JSON schema to Gemini response schema format
   return jsonSchemaToGeminiResponseSchema(jsonSchema, {
@@ -602,7 +597,12 @@ export function classToGeminiOldResponseSchema<T extends object>(
   options?: GeminiResponseSchemaOptions<T>,
 ): GeminiOldResponseSchema {
   const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
-  const jsonSchema = classToJsonSchema(target, options);
+  // Convert GeminiResponseSchemaOptions to JsonSchemaOptions without forStructuredOutput
+  const jsonSchemaOptions: JsonSchemaOptions<T> = {
+    propertyOverrides: options?.propertyOverrides,
+  };
+
+  const jsonSchema = classToJsonSchema(target, jsonSchemaOptions);
 
   // Use the helper function to convert JSON schema to Gemini response schema format
   return jsonSchemaToGeminiOldResponseSchema(jsonSchema, {

@@ -48,8 +48,8 @@ const geminiOldApi = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 jest.setTimeout(60 * 1000);
 
-describe('llm tool test', () => {
-  it('OpenAI chat completion api - function calling w/ json schema', async () => {
+describe('LLM Tool Call and Structured Output Tests', () => {
+  it('OpenAI (Chat Completions API) - Function calling with JSON Schema', async () => {
     // Using the new helper function to convert JSON schema to OpenAI tool
     const tool = jsonSchemaToOpenAITool(jsonSchema, {
       name: findCapitalToolName,
@@ -75,7 +75,7 @@ describe('llm tool test', () => {
     expect(data.name).toBeDefined();
   });
 
-  it('OpenAI chat completion api - function calling w/ wrapped tool', async () => {
+  it('OpenAI (Chat Completions API) - Function calling with direct class conversion', async () => {
     const tool = classToOpenAITool(CapitalTool);
 
     const completion = await openai.chat.completions.create({
@@ -97,9 +97,9 @@ describe('llm tool test', () => {
     expect(data.name).toBeDefined();
   });
 
-  it('OpenAI chat completion api - structured output', async () => {
+  it('OpenAI (Chat Completions API) - Structured output with response_format', async () => {
     const responseFormat = classToOpenAIResponseFormatJsonSchema(CapitalTool, {
-      /** or use strict: true, they are equivalent and just need to choose one*/
+      // Enable structured output for OpenAI
       forStructuredOutput: true,
     });
 
@@ -122,7 +122,7 @@ describe('llm tool test', () => {
     expect(data.name).toBeDefined();
   });
 
-  it('OpenAI response api - function calling w/ wrapped tool', async () => {
+  it('OpenAI (Response API) - Function calling with direct class conversion', async () => {
     const tool = classToOpenAIResponseApiTool(CapitalTool);
 
     const response = await openai.responses.create({
@@ -142,7 +142,7 @@ describe('llm tool test', () => {
     }
   });
 
-  it('OpenAI response api - structured output', async () => {
+  it('OpenAI (Response API) - Structured output with text.format', async () => {
     const responseFormat = classToOpenAIResponseApiTextSchema(CapitalTool, {
       forStructuredOutput: true,
     });
@@ -168,7 +168,7 @@ describe('llm tool test', () => {
     }
   });
 
-  it('Anthropic chat completion api - tool use w/ json schema', async () => {
+  it('Anthropic Claude - Tool use with JSON Schema conversion', async () => {
     // Using the new helper function to convert JSON schema to Anthropic tool
     const tool = jsonSchemaToAnthropicTool(jsonSchema, {
       name: findCapitalToolName,
@@ -197,7 +197,7 @@ describe('llm tool test', () => {
     }
   });
 
-  it('Anthropic chat completion api - tool use w/ wrapped tool', async () => {
+  it('Anthropic Claude - Tool use with direct class conversion', async () => {
     const claudeTool = classToAnthropicTool(CapitalTool);
 
     const message = await anthropic.messages.create({
@@ -222,7 +222,7 @@ describe('llm tool test', () => {
     }
   });
 
-  it('Convert OpenAI tool to JSON Schema then to Anthropic tool', async () => {
+  it('OpenAI to Anthropic - Convert OpenAI Chat Completions tool to Anthropic format', async () => {
     // First create an OpenAI tool
     const openaiTool = classToOpenAITool(CapitalTool);
 
@@ -259,7 +259,7 @@ describe('llm tool test', () => {
     }
   });
 
-  it('Convert OpenAI Response API tool to JSON Schema then to Anthropic tool', async () => {
+  it('OpenAI to Anthropic - Convert OpenAI Response API tool to Anthropic format', async () => {
     // First create an OpenAI Response API tool
     const responseApiTool = classToOpenAIResponseApiTool(CapitalTool);
 
@@ -296,7 +296,7 @@ describe('llm tool test', () => {
     }
   });
 
-  it('Gemini @google/genai api (aistudio new, preview stage, support aisutdio and vertex): function calling', async () => {
+  it('Google Gemini (@google/genai) - Function calling with direct class conversion', async () => {
     const tool = classToGeminiTool(CapitalTool);
 
     const response = await gemini.models.generateContent({
@@ -320,7 +320,7 @@ describe('llm tool test', () => {
     expect(data.name).toBeDefined();
   });
 
-  it('Gemini @google/generative-ai api (aistudio old): function calling', async () => {
+  it('Google Gemini (@google/generative-ai) - Function calling with direct class conversion', async () => {
     const tool = classToGeminiOldTool(CapitalTool);
 
     const model = geminiOldApi.getGenerativeModel({
@@ -341,10 +341,9 @@ describe('llm tool test', () => {
     expect(data.name).toBeDefined();
   });
 
-  it('Gemini @google/genai api (aistudio new): structured output', async () => {
-    const responseSchema = classToGeminiResponseSchema(CapitalTool, {
-      forStructuredOutput: true,
-    });
+  it('Google Gemini (@google/genai) - Structured output with responseSchema', async () => {
+    // No forStructuredOutput needed for Gemini
+    const responseSchema = classToGeminiResponseSchema(CapitalTool);
 
     const response = await gemini.models.generateContent({
       model: 'gemini-2.0-flash-001',
@@ -359,10 +358,9 @@ describe('llm tool test', () => {
     expect(data.name).toBeDefined();
   });
 
-  it('Gemini @google/generative-ai api (aistudio old): structured output', async () => {
-    const responseSchema = classToGeminiOldResponseSchema(CapitalTool, {
-      forStructuredOutput: true,
-    });
+  it('Google Gemini (@google/generative-ai) - Structured output with responseSchema', async () => {
+    // No forStructuredOutput needed for Gemini
+    const responseSchema = classToGeminiOldResponseSchema(CapitalTool);
 
     const model = geminiOldApi.getGenerativeModel({
       model: 'gemini-2.0-flash-001',

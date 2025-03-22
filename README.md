@@ -483,22 +483,31 @@ This is especially useful for:
 
 ### Common Options Pattern
 
-All schema generation functions accept a consistent options pattern:
+All schema generation functions accept a consistent options pattern, though some options are provider-specific:
 
 ```typescript
-const options = {
+// For OpenAI (with structured output)
+const openaiOptions = {
   propertyOverrides: {
     'property': { description: 'Override' }
   },
-  forStructuredOutput: true
+  forStructuredOutput: true  // OpenAI-specific, sets strict automatically
 };
 
-// Use the same options across different LLM formats
-const jsonSchema = classToJsonSchema(MyClass, options);
-const openaiTool = classToOpenAITool(MyClass, { ...options, strict: true });
-const responseApiTool = classToOpenAIResponseApiTool(MyClass, { ...options, strict: true });
-const anthropicTool = classToAnthropicTool(MyClass, options);
-const geminiTool = classToGeminiTool(MyClass, options);
+// For Gemini (no structured output flag needed)
+const geminiOptions = {
+  propertyOverrides: {
+    'property': { description: 'Override' }
+  }
+  // No forStructuredOutput or strict needed for Gemini
+};
+
+// Use appropriate options for different LLM formats
+const jsonSchema = classToJsonSchema(MyClass, openaiOptions);
+const openaiTool = classToOpenAITool(MyClass, openaiOptions);
+const responseApiTool = classToOpenAIResponseApiTool(MyClass, openaiOptions);
+const anthropicTool = classToAnthropicTool(MyClass, { propertyOverrides: openaiOptions.propertyOverrides });
+const geminiTool = classToGeminiTool(MyClass, geminiOptions);
 
 // You can also use the JSON Schema directly with converter functions
 const directOpenAITool = jsonSchemaToOpenAITool(
@@ -614,34 +623,40 @@ OpenAI supports two main methods for structured output:
 1. **Response Format Method (Recommended)**
    - Uses `response_format` in Chat Completions API or `text.format` in Response API
    - Requires `additionalProperties: false` and all properties must be in `required` array
+   - Requires schema enforcement (handled automatically)
    - Many JSON Schema features are not supported (minimum, maximum, minItems, etc.)
    - Example:
      ```typescript
      // Chat Completions API
      const responseFormat = classToOpenAIResponseFormatJsonSchema(MyClass, { 
-       forStructuredOutput: true,
-       strict: true
+       forStructuredOutput: true
+       // strict is set automatically when forStructuredOutput is true
      });
      
      // Response API
      const textFormat = classToOpenAIResponseApiTextSchema(MyClass, {
        forStructuredOutput: true
+       // strict is set automatically when forStructuredOutput is true
      });
      ```
 
 2. **Function Calling Method**
-   - Uses `tools` with `strict: true` and `parallel_tool_calls: false`
+   - Uses `tools` with schema enforcement and `parallel_tool_calls: false`
    - Has the same JSON Schema limitations as above
    - Less recommended by OpenAI but still works for structured output
    - Example:
      ```typescript
-     const tool = classToOpenAITool(MyClass, { strict: true });
+     const tool = classToOpenAITool(MyClass, { forStructuredOutput: true });
      // Use with parallel_tool_calls: false
      ```
 
-**Note**: Schema Forge's `prepareForStructuredOutput` utility is specifically designed for OpenAI's requirements, adding `additionalProperties: false` and handling `required` fields automatically.
+**Important**: Schema Forge's `prepareForStructuredOutput` utility is specifically designed for OpenAI's structured output requirements only. It adds `additionalProperties: false`, handles `required` fields, and removes unsupported schema properties. This function is not needed and should not be used for Gemini structured output, which has broader JSON Schema support.
 
-**Current Limitation**: Schema Forge doesn't yet support automatically converting `isOptional: true` properties to the `"type": ["string", "null"]` format that OpenAI recommends for optional fields in structured output. This will be added in a future update.
+**Current Limitation**: Schema Forge has these limitations for structured output:
+
+1. **OpenAI Optional Properties**: Schema Forge doesn't yet automatically convert `isOptional: true` properties to the `"type": ["string", "null"]` format that OpenAI recommends for optional fields in structured output. This requires manual modification after schema generation for now.
+
+2. **Gemini Nullable Properties**: For Gemini, optional properties should use the `nullable: true` property (instead of OpenAI's array type approach). This also requires manual modification after schema generation.
 
 #### Google Gemini Structured Output
 
@@ -649,12 +664,22 @@ Gemini has simpler structured output requirements:
 
 - Uses `responseMimeType: "application/json"` + `responseSchema`
 - Doesn't require special handling of `required` fields or `additionalProperties`
-- Supports more JSON Schema features than OpenAI
+- Supports more JSON Schema features than OpenAI (including `minimum`, `maximum`, etc.)
 - Properties can be marked nullable with `nullable: true` property
+- **IMPORTANT**: Unlike OpenAI, Gemini doesn't require `forStructuredOutput` flag or schema modifications
 - Example:
   ```typescript
+  // Gemini structured output - no forStructuredOutput needed
   const schema = classToGeminiResponseSchema(MyClass);
-  // No forStructuredOutput needed as Gemini responseSchema is already for structured output
+  
+  // Use with Gemini API
+  const model = genAI.getGenerativeModel({
+    model: "gemini-1.5-pro",
+    generationConfig: {
+      responseMimeType: "application/json", // This enables structured output
+      responseSchema: schema,
+    },
+  });
   ```
 
 #### Google API Options
