@@ -2,8 +2,15 @@
  * Types for schema-forge
  */
 
-import type { Type } from '@google/genai';
-import type { SchemaType } from '@google/generative-ai';
+/** @google/generative-ai */
+export enum SchemaType {
+  OBJECT = 'object',
+}
+
+/** @google/genai */
+export enum Type {
+  OBJECT = 'OBJECT',
+}
 
 // Metadata keys
 export const JSON_SCHEMA_METADATA_KEY = Symbol('jsonSchema');

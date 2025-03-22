@@ -1,9 +1,6 @@
 /**
  * LLM-specific formats for different providers
  */
-
-import { Type } from '@google/genai';
-import { SchemaType } from '@google/generative-ai';
 import { classToJsonSchema } from './core';
 import {
   AnthropicToolFunction,
@@ -21,6 +18,8 @@ import {
   OpenAIResponseFormatOptions,
   OpenAIToolFunction,
   OpenAIToolOptions,
+  SchemaType,
+  Type,
 } from './types';
 import { prepareForOpenAIStructuredOutput } from './utils';
 
