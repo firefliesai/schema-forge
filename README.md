@@ -527,14 +527,14 @@ Class decorator for adding metadata to a class. This decorator is required when 
 
 ```typescript
 options = {
-  // Function name (optional but recommended)
+  // Tool function name (optional but recommended)
   // Most of the final converted LLM tool or response schema/format requires a name. Here are the exceptions: 
-  // 1. OpenAI Response API text.format: optional
-  // 2. @google/genai tool: optional
-  // 3. @google/genai responseSchema: omitted 
-  // 4. @google/generative-ai responseSchema: omitted
+  // - OpenAI Response API text.format: optional
+  // - @google/genai tool: optional
+  // - @google/genai responseSchema: omitted 
+  // - @google/generative-ai responseSchema: omitted
   name?: string;       
-  description?: string; // Function description (optional but recommended for most LLM providers)
+  description?: string; // Tool function description (optional but recommended for most LLM providers)
 }
 ```
 

@@ -9,6 +9,10 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
@@ -16,6 +20,8 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
       - run: npm ci
+      - name: Create empty .env file
+        run: touch .env
       - run: npm test
       - run: npm run build
       - name: Publish to NPM
@@ -33,12 +39,12 @@ jobs:
             echo "Detected prerelease version with tag: $PRERELEASE_TAG"
 
             # Publish with the extracted tag
-            npm publish --tag $PRERELEASE_TAG
+            npm publish --tag $PRERELEASE_TAG --access public
 
             echo "Published with tag: $PRERELEASE_TAG"
           else
             # Regular version, publish with default tag (latest)
-            npm publish
+            npm publish --access public
 
             echo "Published as latest version"
           fi
