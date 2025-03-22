@@ -572,8 +572,10 @@ roles: string[];
 - `classToOpenAIResponseFormatJsonSchema(target, options?)`: Generates OpenAI response format for Chat Completions API
 - `classToOpenAIResponseApiTextSchema(target, options?)`: Generates OpenAI text format for Response API
 - `classToAnthropicTool(target, options?)`: Generates Anthropic Claude tool format
-- `classToGeminiTool(target, options?)`: Generates Google Gemini tool format
-- `classToGeminiResponseSchema(target, options?)`: Generates Gemini response schema
+- `classToGeminiTool(target, options?)`: Generates Google Gemini tool format for new `@google/genai` API
+- `classToGeminiResponseSchema(target, options?)`: Generates Gemini response schema for new `@google/genai` API
+- `classToGeminiOldTool(target, options?)`: Generates Google Gemini tool format for legacy `@google/generative-ai` API
+- `classToGeminiOldResponseSchema(target, options?)`: Generates Gemini response schema for legacy `@google/generative-ai` API
 
 #### JSON Schema to LLM Format Converters
 
@@ -599,13 +601,106 @@ roles: string[];
 
 ISC
 
-## OpenAI API Differences
+## Structured Output & API Differences
 
-### Response API vs Chat Completions API
+### Structured Output in Different LLM Providers
+
+Schema Forge supports structured output formats for various LLM providers, but each has different requirements and limitations:
+
+#### OpenAI Structured Output
+
+OpenAI supports two main methods for structured output:
+
+1. **Response Format Method (Recommended)**
+   - Uses `response_format` in Chat Completions API or `text.format` in Response API
+   - Requires `additionalProperties: false` and all properties must be in `required` array
+   - Many JSON Schema features are not supported (minimum, maximum, minItems, etc.)
+   - Example:
+     ```typescript
+     // Chat Completions API
+     const responseFormat = classToOpenAIResponseFormatJsonSchema(MyClass, { 
+       forStructuredOutput: true,
+       strict: true
+     });
+     
+     // Response API
+     const textFormat = classToOpenAIResponseApiTextSchema(MyClass, {
+       forStructuredOutput: true
+     });
+     ```
+
+2. **Function Calling Method**
+   - Uses `tools` with `strict: true` and `parallel_tool_calls: false`
+   - Has the same JSON Schema limitations as above
+   - Less recommended by OpenAI but still works for structured output
+   - Example:
+     ```typescript
+     const tool = classToOpenAITool(MyClass, { strict: true });
+     // Use with parallel_tool_calls: false
+     ```
+
+**Note**: Schema Forge's `prepareForStructuredOutput` utility is specifically designed for OpenAI's requirements, adding `additionalProperties: false` and handling `required` fields automatically.
+
+**Current Limitation**: Schema Forge doesn't yet support automatically converting `isOptional: true` properties to the `"type": ["string", "null"]` format that OpenAI recommends for optional fields in structured output. This will be added in a future update.
+
+#### Google Gemini Structured Output
+
+Gemini has simpler structured output requirements:
+
+- Uses `responseMimeType: "application/json"` + `responseSchema`
+- Doesn't require special handling of `required` fields or `additionalProperties`
+- Supports more JSON Schema features than OpenAI
+- Properties can be marked nullable with `nullable: true` property
+- Example:
+  ```typescript
+  const schema = classToGeminiResponseSchema(MyClass);
+  // No forStructuredOutput needed as Gemini responseSchema is already for structured output
+  ```
+
+#### Google API Options
+
+Google provides multiple API packages for working with Gemini models. Schema Forge supports all of them:
+
+1. **New Google AI Studio API (Recommended)**: `@google/genai`
+   - Latest API that supports both Google AI Studio and Vertex AI
+   - Use `classToGeminiTool` and `classToGeminiResponseSchema`
+   - Example: 
+     ```typescript
+     import { GoogleGenAI } from '@google/genai';
+     const genAI = new GoogleGenAI(apiKey);
+     const tool = classToGeminiTool(MyClass);
+     ```
+
+2. **Legacy Google AI Studio API**: `@google/generative-ai` 
+   - Older API being phased out, use only if needed
+   - Use `classToGeminiOldTool` and `classToGeminiOldResponseSchema`
+   - Example:
+     ```typescript
+     import { GoogleGenerativeAI } from '@google/generative-ai';
+     const genAI = new GoogleGenerativeAI(apiKey);
+     const tool = classToGeminiOldTool(MyClass);
+     ```
+
+3. **Google Vertex AI**: `@google-cloud/vertexai`
+   - Enterprise API for Google Cloud Platform
+   - Requires GCP project and location settings
+   - Uses the same formats as the new `@google/genai` library
+   - Example:
+     ```typescript
+     import { VertexAI } from '@google-cloud/vertexai';
+     const vertexAI = new VertexAI({project, location});
+     const tool = classToGeminiTool(MyClass); // Same format works
+     ```
+
+#### Anthropic Claude
+
+Claude doesn't have specific structured output support beyond tool calling.
+
+### OpenAI Response API vs Chat Completions API
 
 When using OpenAI's Response API, note that there are some key differences from the Chat Completions API:
 
-- In Response API, the `strict` parameter is **required** for tool functions and defaults to `true`, whereas in Chat Completions API it's optional
+- In Response API, the `strict` parameter is **required** for tool functions and defaults to `true`
 - The structure of tool functions differs between APIs:
   - Chat Completions: `{ type: 'function', function: { name, description, parameters, strict? } }`
   - Response API: `{ type: 'function', name, description, parameters, strict }`
@@ -619,6 +714,38 @@ const chatTool = classToOpenAITool(MyClass, { strict: true });
 // Response API - strict is required (defaults to true if not specified)
 const responseTool = classToOpenAIResponseApiTool(MyClass);
 ```
+
+## JSON Schema Support
+
+Schema Forge is aligned with JSON Schema Draft 2020-12, but does not output the `$schema` field in generated schemas to maintain consistency with LLM API examples and to minimize payload size.
+
+### Supported JSON Schema Properties
+
+The `@ToolProp` decorator currently supports these JSON Schema properties:
+
+```typescript
+@ToolProp({
+  description: string,       // Provides description for the property
+  type: string,              // Explicit type (usually inferred)
+  enum: string[] | number[], // Enumeration values
+  items: object,             // For array properties
+  isOptional: boolean,       // Controls if property is in required array
+  // ...other basic JSON Schema properties
+})
+```
+
+#### Current Limitations
+
+Some JSON Schema properties are not yet directly supported through decorators, including:
+
+- Array constraints: `minItems`, `maxItems`, `uniqueItems`
+- String constraints: `minLength`, `maxLength`, `pattern`, `format`
+- Number constraints: `minimum`, `maximum`, `multipleOf`
+- Object constraints: `minProperties`, `maxProperties`
+
+For these properties, you can either:
+1. Use `updateSchemaProperty` to add them to schemas after generation
+2. Use `classToJsonSchema` to get the basic schema and then manually enhance it
 
 ## Common Issues and Solutions
 

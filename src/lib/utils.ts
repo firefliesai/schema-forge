@@ -10,16 +10,20 @@ export function cloneMetadata(metadata: any): any {
 }
 
 /**
- * Prepares a JSON Schema object for structured output compatibility with LLM APIs
- * by adding required fields and removing unsupported properties
+ * Prepares a JSON Schema object for structured output compatibility with OpenAI APIs
+ * by adding required fields and removing unsupported properties.
+ * 
+ * Note: This function is specifically designed for OpenAI structured output requirements.
+ * It adds additionalProperties:false and handles required fields as needed for OpenAI's strict mode.
+ * It also removes JSON Schema features not supported by OpenAI's structured output implementation.
  *
  * @public
  * @param obj The JSON Schema object to enhance
  * @param isTopLevel Whether this is the top level object (affects processing)
- * @returns Enhanced JSON Schema object ready for structured output
+ * @returns Enhanced JSON Schema object ready for OpenAI structured output
  *
  * @example
- * // Enhance a manually created JSON Schema
+ * // Enhance a manually created JSON Schema for OpenAI structured output
  * const schema = {
  *   type: 'object',
  *   properties: {
