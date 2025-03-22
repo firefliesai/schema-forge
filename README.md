@@ -790,9 +790,10 @@ Some JSON Schema properties are not yet directly supported through decorators, i
 - Number constraints: `minimum`, `maximum`, `multipleOf`
 - Object constraints: `minProperties`, `maxProperties`
 
-For these properties, you can either:
-1. Use `updateSchemaProperty` to add them to schemas after generation
-2. Use `classToJsonSchema` to get the basic schema and then manually enhance it
+The following JSON Schema features are also not yet supported, despite being supported by OpenAI structured output:
+
+- Recursive schemas using `$ref`
+- Complex schema composition with `anyOf`
 
 ## Common Issues and Solutions
 
