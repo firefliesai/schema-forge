@@ -794,6 +794,7 @@ The following JSON Schema features are also not yet supported, despite being sup
 
 - Recursive schemas using `$ref`
 - Complex schema composition with `anyOf`
+- `"type": "integer"`
 
 ## Common Issues and Solutions
 
