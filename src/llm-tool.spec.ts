@@ -1,12 +1,20 @@
 import 'reflect-metadata';
 
 import Anthropic from '@anthropic-ai/sdk';
+/** new Google AI Studio API which supports Gemini Developer API and Vertex AI.*/
+import { GoogleGenAI } from '@google/genai';
+/** old Google AI Studio API which supports Gemini Developer API.*/
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import OpenAI from 'openai';
 
 import {
   ToolMeta,
   ToolProp,
   classToAnthropicTool,
+  classToGeminiOldResponseSchema,
+  classToGeminiOldTool,
+  classToGeminiResponseSchema,
+  classToGeminiTool,
   classToJsonSchema,
   classToOpenAIResponseApiTextSchema,
   classToOpenAIResponseApiTool,
@@ -27,7 +35,7 @@ const userMessage = 'What is the capital of California?';
 })
 class CapitalTool {
   @ToolProp({
-    description: 'The full name of the user',
+    description: 'The name of the capital to find',
   })
   name: string;
 }
@@ -35,6 +43,8 @@ const jsonSchema = classToJsonSchema(CapitalTool);
 
 const openai = new OpenAI();
 const anthropic = new Anthropic();
+const gemini = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const geminiOldApi = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 jest.setTimeout(60 * 1000);
 
@@ -89,7 +99,7 @@ describe('llm tool test', () => {
 
   it('OpenAI chat completion api - structured output', async () => {
     const responseFormat = classToOpenAIResponseFormatJsonSchema(CapitalTool, {
-      /** or use strict: true, they are */
+      /** or use strict: true, they are equivalent and just need to choose one*/
       forStructuredOutput: true,
     });
 
@@ -284,5 +294,86 @@ describe('llm tool test', () => {
     } else {
       throw new Error('Tool use not found');
     }
+  });
+
+  it('Gemini @google/genai api (aistudio new, preview stage, support aisutdio and vertex): function calling', async () => {
+    const tool = classToGeminiTool(CapitalTool);
+
+    const response = await gemini.models.generateContent({
+      model: 'gemini-2.0-flash-001',
+      contents: userMessage,
+      config: {
+        // we trust the auto choice of Gemini would work for the current case
+        // toolConfig: {
+        //   functionCallingConfig: {
+        //     // Force it to call any function
+        //     mode: FunctionCallingConfigMode.ANY,
+        //     allowedFunctionNames: [tool.name],
+        //   },
+        // },
+        tools: [{ functionDeclarations: [tool] }],
+      },
+    });
+
+    expect(response.functionCalls[0].name).toBe(findCapitalToolName);
+    const data = response.functionCalls[0].args as unknown as CapitalTool;
+    expect(data.name).toBeDefined();
+  });
+
+  it('Gemini @google/generative-ai api (aistudio old): function calling', async () => {
+    const tool = classToGeminiOldTool(CapitalTool);
+
+    const model = geminiOldApi.getGenerativeModel({
+      model: 'gemini-2.0-flash-001',
+      tools: [
+        {
+          functionDeclarations: [tool],
+        },
+      ],
+    });
+
+    const result = await model.generateContent([userMessage]);
+
+    expect(result.response.candidates[0].content.parts[0].functionCall.name).toBe(
+      findCapitalToolName,
+    );
+    const data = result.response.candidates[0].content.parts[0].functionCall.args as CapitalTool;
+    expect(data.name).toBeDefined();
+  });
+
+  it('Gemini @google/genai api (aistudio new): structured output', async () => {
+    const responseSchema = classToGeminiResponseSchema(CapitalTool, {
+      forStructuredOutput: true,
+    });
+
+    const response = await gemini.models.generateContent({
+      model: 'gemini-2.0-flash-001',
+      contents: userMessage,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: responseSchema,
+      },
+    });
+
+    const data: CapitalTool = JSON.parse(response.text);
+    expect(data.name).toBeDefined();
+  });
+
+  it('Gemini @google/generative-ai api (aistudio old): structured output', async () => {
+    const responseSchema = classToGeminiOldResponseSchema(CapitalTool, {
+      forStructuredOutput: true,
+    });
+
+    const model = geminiOldApi.getGenerativeModel({
+      model: 'gemini-2.0-flash-001',
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: responseSchema,
+      },
+    });
+
+    const result = await model.generateContent([userMessage]);
+    const data: CapitalTool = JSON.parse(result.response.candidates[0].content.parts[0].text);
+    expect(data.name).toBeDefined();
   });
 });

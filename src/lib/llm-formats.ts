@@ -2,10 +2,14 @@
  * LLM-specific formats for different providers
  */
 
+import { Type } from '@google/genai';
+import { SchemaType } from '@google/generative-ai';
 import { classToJsonSchema } from './core';
 import {
   AnthropicToolFunction,
   AnthropicToolOptions,
+  GeminiOldResponseSchema,
+  GeminiOldToolFunction,
   GeminiResponseSchema,
   GeminiResponseSchemaOptions,
   GeminiToolFunction,
@@ -180,7 +184,7 @@ export function jsonSchemaToAnthropicTool(
 }
 
 /**
- * Converts a JSON Schema to Gemini tool format
+ * Converts a JSON Schema to Gemini tool format (@google/genai)
  *
  * @example
  * // Convert a JSON schema to Gemini tool format
@@ -203,7 +207,24 @@ export function jsonSchemaToGeminiTool(
     name: metadata.name,
     ...(metadata.description && { description: metadata.description }),
     parameters: {
-      type: 'OBJECT',
+      type: Type.OBJECT, //'OBJECT',
+      ...(metadata.description && { description: metadata.description }),
+      properties: schema.properties,
+      required: schema.required || [],
+    },
+  };
+}
+
+/** @google/generative-ai */
+export function jsonSchemaToGeminiOldTool(
+  schema: JSONSchemaDefinition,
+  metadata: { name: string; description?: string },
+): GeminiOldToolFunction {
+  return {
+    name: metadata.name,
+    ...(metadata.description && { description: metadata.description }),
+    parameters: {
+      type: SchemaType.OBJECT,
       ...(metadata.description && { description: metadata.description }),
       properties: schema.properties,
       required: schema.required || [],
@@ -232,7 +253,19 @@ export function jsonSchemaToGeminiResponseSchema(
   metadata: { description?: string },
 ): GeminiResponseSchema {
   return {
-    type: 'OBJECT',
+    type: Type.OBJECT,
+    ...(metadata.description && { description: metadata.description }),
+    properties: schema.properties,
+    required: schema.required || [],
+  };
+}
+
+export function jsonSchemaToGeminiOldResponseSchema(
+  schema: JSONSchemaDefinition,
+  metadata: { description?: string },
+): GeminiOldResponseSchema {
+  return {
+    type: SchemaType.OBJECT,
     ...(metadata.description && { description: metadata.description }),
     properties: schema.properties,
     required: schema.required || [],
@@ -471,6 +504,20 @@ export function classToGeminiTool<T extends object>(
   });
 }
 
+export function classToGeminiOldTool<T extends object>(
+  target: new (...args: any[]) => T,
+  options?: GeminiToolOptions<T>,
+): GeminiOldToolFunction {
+  const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
+  const jsonSchema = classToJsonSchema(target, options);
+
+  // Use the helper function to convert JSON schema to Gemini tool format
+  return jsonSchemaToGeminiOldTool(jsonSchema, {
+    name: classOptions.name || '',
+    description: classOptions.description,
+  });
+}
+
 /**
  * Creates an Anthropic-compatible tool function from a class
  *
@@ -546,6 +593,19 @@ export function classToGeminiResponseSchema<T extends object>(
 
   // Use the helper function to convert JSON schema to Gemini response schema format
   return jsonSchemaToGeminiResponseSchema(jsonSchema, {
+    description: classOptions.description,
+  });
+}
+
+export function classToGeminiOldResponseSchema<T extends object>(
+  target: new (...args: any[]) => T,
+  options?: GeminiResponseSchemaOptions<T>,
+): GeminiOldResponseSchema {
+  const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
+  const jsonSchema = classToJsonSchema(target, options);
+
+  // Use the helper function to convert JSON schema to Gemini response schema format
+  return jsonSchemaToGeminiOldResponseSchema(jsonSchema, {
     description: classOptions.description,
   });
 }

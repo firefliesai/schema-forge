@@ -2,6 +2,9 @@
  * Types for schema-forge
  */
 
+import type { Type } from '@google/genai';
+import type { SchemaType } from '@google/generative-ai';
+
 // Metadata keys
 export const JSON_SCHEMA_METADATA_KEY = Symbol('jsonSchema');
 export const REQUIRED_PROPS_METADATA_KEY = Symbol('requiredProperties');
@@ -37,6 +40,9 @@ export interface JSONSchemaProperty extends BaseSchemaProperty {
   required?: string[];
 }
 
+// The common first layer of the JSON schema used by LLM
+// Theoretically, it can have description field as well.
+// Practically, description is not used in LLM for the first layer.
 export interface JSONSchemaDefinition extends Record<string, unknown> {
   type: 'object';
   properties: {
@@ -92,8 +98,22 @@ export interface GeminiToolFunction {
   name: string;
   description?: string;
   parameters: {
-    // json schema except object becoming capital 'OBJECT
-    type: 'OBJECT';
+    // json schema like structure,
+    // GoogleGenAI (new gemini api) prefer capital 'OBJECT' instead of 'object'
+    // but 'object' is also accepted by Gemini API
+    type: Type.OBJECT;
+    description?: string;
+    properties: Record<string, any>;
+    required?: string[];
+  };
+}
+
+export interface GeminiOldToolFunction {
+  name: string;
+  description?: string;
+  parameters: {
+    // json schema structure,
+    type: SchemaType.OBJECT;
     description?: string;
     properties: Record<string, any>;
     required?: string[];
@@ -103,7 +123,14 @@ export interface GeminiToolFunction {
 /** json schema like, except object becoming capital 'OBJECT  */
 export interface GeminiResponseSchema {
   description?: string;
-  type: 'OBJECT';
+  type: Type.OBJECT;
+  properties: Record<string, any>;
+  required?: string[];
+}
+
+export interface GeminiOldResponseSchema {
+  description?: string;
+  type: SchemaType.OBJECT;
   properties: Record<string, any>;
   required?: string[];
 }

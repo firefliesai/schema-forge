@@ -16,6 +16,8 @@ export { addSchemaProperty, ToolMeta, ToolProp, updateSchemaProperty } from './d
 // Re-export LLM-specific functions
 export {
   classToAnthropicTool,
+  classToGeminiOldResponseSchema,
+  classToGeminiOldTool,
   classToGeminiResponseSchema,
   classToGeminiTool,
   classToOpenAIResponseApiTextSchema,
@@ -30,9 +32,9 @@ export {
   jsonSchemaToOpenAIResponseApiTool,
   jsonSchemaToOpenAIResponseFormat,
   jsonSchemaToOpenAITool,
+  openAIResponseApiToolToJsonSchema,
   // Extract JSON Schema from LLM formats
   openAIToolToJsonSchema,
-  openAIResponseApiToolToJsonSchema,
 } from './llm-formats';
 
 // Re-export utility functions
@@ -59,8 +61,8 @@ import {
   jsonSchemaToOpenAIResponseApiTool,
   jsonSchemaToOpenAIResponseFormat,
   jsonSchemaToOpenAITool,
-  openAIToolToJsonSchema,
   openAIResponseApiToolToJsonSchema,
+  openAIToolToJsonSchema,
 } from './llm-formats';
 import { prepareForStructuredOutput } from './utils';
 
