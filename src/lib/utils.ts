@@ -10,85 +10,6 @@ export function cloneMetadata(metadata: any): any {
 }
 
 /**
- * Handles optional properties for OpenAI structured output
- *
- * Converts isOptional properties to type arrays with null (["string", "null"])
- * This is the format recommended by OpenAI for optional properties
- *
- * @param property The JSON Schema property to process
- * @param isOptional Whether the property is marked as optional
- * @returns Processed property with correct optional representation
- */
-export function handleOptionalProperty(property: any, isOptional: boolean): any {
-  // If not optional or no type is defined, return property as is
-  if (!isOptional || !property.type) {
-    return property;
-  }
-
-  // Clone the property to avoid modifying the original
-  const result = { ...property };
-
-  // OpenAI: Convert type to array with null for optional properties
-  result.type = Array.isArray(result.type)
-    ? result.type.includes('null')
-      ? result.type
-      : [...result.type, 'null']
-    : [result.type, 'null'];
-
-  return result;
-}
-
-/**
- * Recursively processes a schema to handle optional properties for OpenAI
- *
- * @param schema The schema object to process
- * @param requiredProps Array of required property names (properties not in this array are optional)
- * @returns Processed schema with correct optional property representation
- */
-export function processOptionalProperties(schema: any, requiredProps?: string[]): any {
-  // If not an object or null, return as is
-  if (typeof schema !== 'object' || schema === null) {
-    return schema;
-  }
-
-  // If it's an array, process each item
-  if (Array.isArray(schema)) {
-    return schema.map((item) => processOptionalProperties(item));
-  }
-
-  // Create a clone to avoid modifying the original
-  const result: any = { ...schema };
-
-  // If it's an object with properties, process each property
-  if (schema.properties && typeof schema.properties === 'object') {
-    result.properties = { ...schema.properties };
-
-    // Get the array of required properties, defaulting to an empty array
-    const required = schema.required || [];
-
-    // Process each property
-    for (const propName in result.properties) {
-      const isOptional = !required.includes(propName);
-
-      // First process any nested objects/arrays in the property
-      result.properties[propName] = processOptionalProperties(result.properties[propName]);
-
-      // Then handle the optional status
-      result.properties[propName] = handleOptionalProperty(result.properties[propName], isOptional);
-    }
-  }
-
-  // Recursively process all other object properties
-  for (const key in result) {
-    if (key !== 'properties' && typeof result[key] === 'object' && result[key] !== null) {
-      result[key] = processOptionalProperties(result[key]);
-    }
-  }
-
-  return result;
-}
-
-/**
  * Prepares a JSON Schema object for OpenAI structured output compatibility.
  *
  * This function:
@@ -217,25 +138,6 @@ export function prepareForOpenAIStructuredOutput(obj: any, handleOptionals = fal
   }
 
   return newObj;
-}
-
-/**
- * Prepares a JSON Schema object specifically for OpenAI structured output compatibility
- * by adding required fields and removing unsupported properties.
- *
- * @deprecated Use prepareForOpenAIStructuredOutput instead for new code
- * @public
- * @param obj The JSON Schema object to enhance
- * @param _isTopLevel Whether this is the top level object (affects processing)
- * @param handleOptionals Whether to convert optional properties to ["type", "null"] format
- * @returns Enhanced JSON Schema object ready for OpenAI structured output
- */
-export function prepareForStructuredOutput(
-  obj: any,
-  _isTopLevel = false,
-  handleOptionals = false,
-): any {
-  return prepareForOpenAIStructuredOutput(obj, handleOptionals);
 }
 
 /**

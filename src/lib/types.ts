@@ -93,14 +93,14 @@ export interface OpenAIResponseApiToolFunction {
   strict: boolean;
 }
 
-// Gemini Tool Function format
+// Google Gemini (@google/genai): Gemini Tool Function format
 export interface GeminiToolFunction {
   name: string;
   description?: string;
   parameters: {
     // json schema like structure,
-    // GoogleGenAI (new gemini api) prefer capital 'OBJECT' instead of 'object'
-    // but 'object' is also accepted by Gemini API
+    // Google Gemini (@google/genai) prefers capital 'OBJECT' instead of 'object'
+    // but 'object' is also accepted by Gemini API if we use any to force triggering api
     type: Type.OBJECT;
     description?: string;
     properties: Record<string, any>;
@@ -108,11 +108,12 @@ export interface GeminiToolFunction {
   };
 }
 
+// Google Gemini (@google/generative-ai)
 export interface GeminiOldToolFunction {
   name: string;
   description?: string;
   parameters: {
-    // json schema structure,
+    // json schema structure, SchemaType.OBJECT= 'object'
     type: SchemaType.OBJECT;
     description?: string;
     properties: Record<string, any>;
@@ -120,7 +121,8 @@ export interface GeminiOldToolFunction {
   };
 }
 
-/** json schema like, except object becoming capital 'OBJECT  */
+/** Google Gemini (@google/genai):
+ * json schema like, except object becoming capital 'OBJECT  */
 export interface GeminiResponseSchema {
   description?: string;
   type: Type.OBJECT;
@@ -128,6 +130,7 @@ export interface GeminiResponseSchema {
   required?: string[];
 }
 
+// Google Gemini (@google/generative-ai)
 export interface GeminiOldResponseSchema {
   description?: string;
   type: SchemaType.OBJECT;
@@ -149,6 +152,7 @@ export interface AnthropicToolFunction {
 // Options for classToJsonSchema function
 /**
  * Structured output format options for different LLM providers
+ * @deprecated Use forStructuredOutput instead
  */
 export type StructuredOutputFormat = 'none' | 'openai' | 'gemini';
 
@@ -161,8 +165,7 @@ export interface JsonSchemaOptions<T> {
   }>;
 
   /**
-   * Whether to prepare the schema for structured output (legacy option)
-   * @deprecated Use structuredOutputFormat instead
+   * Whether to prepare the schema for OpenAI specific structured output
    */
   forStructuredOutput?: boolean;
 
@@ -171,6 +174,7 @@ export interface JsonSchemaOptions<T> {
    * - 'none': No structured output formatting (default)
    * - 'openai': Apply OpenAI-specific structured output formatting
    * - 'gemini': Apply Gemini-specific structured output formatting
+   * @deprecated Use forStructuredOutput instead
    */
   structuredOutputFormat?: StructuredOutputFormat;
 }
@@ -183,7 +187,7 @@ export type OpenAIToolOptions<T> = JsonSchemaOptions<T>;
 // Use forStructuredOutput instead of strict
 export type OpenAIResponseFormatOptions<T> = JsonSchemaOptions<T>;
 
-// Options for Gemini tool functions
+// Options for Gemini tool functions (Google Gemini (@google/genai))
 export type GeminiToolOptions<T> = Omit<JsonSchemaOptions<T>, 'forStructuredOutput'> & {
   // Allow propertyOverrides without forStructuredOutput
   propertyOverrides?: JsonSchemaOptions<T>['propertyOverrides'];
@@ -192,7 +196,7 @@ export type GeminiToolOptions<T> = Omit<JsonSchemaOptions<T>, 'forStructuredOutp
 // Options for Anthropic tool functions
 export type AnthropicToolOptions<T> = JsonSchemaOptions<T>;
 
-// Options for Gemini response schema
+// Options for Gemini response schema (Google Gemini (@google/genai))
 export type GeminiResponseSchemaOptions<T> = Omit<JsonSchemaOptions<T>, 'forStructuredOutput'> & {
   // Allow propertyOverrides without forStructuredOutput
   propertyOverrides?: JsonSchemaOptions<T>['propertyOverrides'];

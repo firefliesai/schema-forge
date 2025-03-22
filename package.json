@@ -1,8 +1,15 @@
 {
-  "name": "schema-forge",
-  "version": "1.0.0",
+  "name": "@firefliesai/schema-forge",
+  "version": "1.0.0-rc.1",
   "main": "dist/lib/index.js",
   "types": "dist/lib/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/lib/index.js",
+      "require": "./dist/lib/index.js",
+      "types": "./dist/lib/index.d.ts"
+    }
+  },
   "scripts": {
     "test": "npm run jest",
     "jest": "env-cmd jest",
@@ -17,6 +24,35 @@
   },
   "author": "",
   "license": "Apache-2.0",
+  "keywords": [
+    "Fireflies.ai",
+    "Firefliesai",
+    "Fireflies",
+    "TypeScript",
+    "decorator",
+    "json schema",
+    "json-schema",
+    "llm schema",
+    "schema",
+    "AI",
+    "model",
+    "LLM",
+    "tool",
+    "tool use",
+    "function",
+    "function calling",
+    "function-calling",
+    "OpenAI",
+    "Anthropic",
+    "Claude",
+    "Gemini",
+    "Google",
+    "converter",
+    "convert",
+    "conversion",
+    "transform",
+    "agent"
+  ],
   "description": "",
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
