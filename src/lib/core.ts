@@ -3,13 +3,12 @@
  */
 
 import {
+  JSON_SCHEMA_METADATA_KEY,
   JSONSchemaDefinition,
   JsonSchemaOptions,
-  JSON_SCHEMA_METADATA_KEY,
   REQUIRED_PROPS_METADATA_KEY,
 } from './types';
-import { cloneMetadata } from './utils';
-import { prepareForStructuredOutput } from './utils';
+import { cloneMetadata, prepareForOpenAIStructuredOutput } from './utils';
 
 /**
  * Converts a TypeScript class to a JSON Schema
@@ -27,7 +26,8 @@ import { prepareForStructuredOutput } from './utils';
  *   forStructuredOutput: true,
  *   propertyOverrides: {
  *     'username': { description: 'Custom description' }
- *   }
+ *   },
+ *   handleOptionals: true // Process optional properties
  * });
  */
 export function classToJsonSchema<T extends object>(
@@ -57,9 +57,10 @@ export function classToJsonSchema<T extends object>(
     schema.required = requiredProps;
   }
 
-  // If forStructuredOutput is true, prepare the schema
+  // Handle structured output formatting based on provider
   if (options?.forStructuredOutput) {
-    return prepareForStructuredOutput(schema, false);
+    // For backward compatibility, use OpenAI format
+    return prepareForOpenAIStructuredOutput(schema, true);
   }
 
   return schema;

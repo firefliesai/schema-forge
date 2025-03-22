@@ -147,6 +147,11 @@ export interface AnthropicToolFunction {
 }
 
 // Options for classToJsonSchema function
+/**
+ * Structured output format options for different LLM providers
+ */
+export type StructuredOutputFormat = 'none' | 'openai' | 'gemini';
+
 export interface JsonSchemaOptions<T> {
   /**
    * Property overrides to apply to the schema
@@ -156,9 +161,18 @@ export interface JsonSchemaOptions<T> {
   }>;
 
   /**
-   * Whether to prepare the schema for structured output
+   * Whether to prepare the schema for structured output (legacy option)
+   * @deprecated Use structuredOutputFormat instead
    */
   forStructuredOutput?: boolean;
+
+  /**
+   * Specify which structured output format to use
+   * - 'none': No structured output formatting (default)
+   * - 'openai': Apply OpenAI-specific structured output formatting
+   * - 'gemini': Apply Gemini-specific structured output formatting
+   */
+  structuredOutputFormat?: StructuredOutputFormat;
 }
 
 // Options for OpenAI tool functions - same as JsonSchemaOptions
@@ -169,7 +183,7 @@ export type OpenAIToolOptions<T> = JsonSchemaOptions<T>;
 // Use forStructuredOutput instead of strict
 export type OpenAIResponseFormatOptions<T> = JsonSchemaOptions<T>;
 
-// Options for Gemini tool functions - omit forStructuredOutput as it's not needed for Gemini
+// Options for Gemini tool functions
 export type GeminiToolOptions<T> = Omit<JsonSchemaOptions<T>, 'forStructuredOutput'> & {
   // Allow propertyOverrides without forStructuredOutput
   propertyOverrides?: JsonSchemaOptions<T>['propertyOverrides'];
@@ -178,7 +192,7 @@ export type GeminiToolOptions<T> = Omit<JsonSchemaOptions<T>, 'forStructuredOutp
 // Options for Anthropic tool functions
 export type AnthropicToolOptions<T> = JsonSchemaOptions<T>;
 
-// Options for Gemini response schema - omit forStructuredOutput as it's not needed for Gemini
+// Options for Gemini response schema
 export type GeminiResponseSchemaOptions<T> = Omit<JsonSchemaOptions<T>, 'forStructuredOutput'> & {
   // Allow propertyOverrides without forStructuredOutput
   propertyOverrides?: JsonSchemaOptions<T>['propertyOverrides'];

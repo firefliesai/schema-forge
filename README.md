@@ -570,7 +570,7 @@ roles: string[];
 ### Core Functions
 
 - `classToJsonSchema(target, options?)`: Converts a class to JSON Schema
-- `prepareForStructuredOutput(schema)`: Enhances a schema for LLM structured output
+- `prepareForOpenAIStructuredOutput(schema)`: Enhances a schema for OpenAI structured output
 
 ### LLM Format Functions
 
@@ -650,13 +650,33 @@ OpenAI supports two main methods for structured output:
      // Use with parallel_tool_calls: false
      ```
 
-**Important**: Schema Forge's `prepareForStructuredOutput` utility is specifically designed for OpenAI's structured output requirements only. It adds `additionalProperties: false`, handles `required` fields, and removes unsupported schema properties. This function is not needed and should not be used for Gemini structured output, which has broader JSON Schema support.
+**Important**: Schema Forge's `prepareForOpenAIStructuredOutput` utility is specifically designed for OpenAI's structured output requirements only. It adds `additionalProperties: false`, handles `required` fields, and removes unsupported schema properties. This function is not needed and should not be used for Gemini structured output, which has broader JSON Schema support.
 
-**Current Limitation**: Schema Forge has these limitations for structured output:
+**Optional Property Handling for OpenAI**:
 
-1. **OpenAI Optional Properties**: Schema Forge doesn't yet automatically convert `isOptional: true` properties to the `"type": ["string", "null"]` format that OpenAI recommends for optional fields in structured output. This requires manual modification after schema generation for now.
+Schema Forge automatically converts optional properties for OpenAI structured output:
 
-2. **Gemini Nullable Properties**: For Gemini, optional properties should use the `nullable: true` property (instead of OpenAI's array type approach). This also requires manual modification after schema generation.
+1. **OpenAI Optional Properties**: When using `forStructuredOutput: true` with OpenAI functions, `isOptional: true` properties are automatically converted to the `"type": ["string", "null"]` format that OpenAI recommends for optional fields.
+
+This works for both primitive and complex nested properties:
+
+```typescript
+class UserProfile {
+  @ToolProp()
+  id: string;  // Required property
+  
+  @ToolProp({ isOptional: true })
+  nickname?: string;  // Optional string automatically converted to ["string", "null"] with OpenAI
+  
+  @ToolProp({ isOptional: true })
+  address?: Address;  // Optional nested object handled correctly
+  
+  @ToolProp({ isOptional: true, items: { type: 'string' } })
+  tags?: string[];  // Optional array also handled correctly
+}
+```
+
+**Note on Gemini**: Gemini has broader JSON Schema support and follows standard JSON Schema patterns. Gemini accepts standard JSON Schema for handling optional properties (simply by excluding them from the `required` array, which is done automatically when you mark a property with `isOptional: true`).
 
 #### Google Gemini Structured Output
 
