@@ -83,11 +83,11 @@ Schema Forge is designed for developers working with LLM function calling who wa
 
 ### Alternative Approaches
 
-Schema Forge might not be the best fit if:
+While Schema Forge works well for many scenarios (including within functions), you might consider alternatives if:
 
-- **You prefer functional schema definitions**: Libraries like [Zod](https://github.com/colinhacks/zod) or [TypeBox](https://github.com/sinclairzx81/typebox) allow defining schemas inline within functions
-- **You don't want to define classes outside your function call code**: If creating separate class definitions doesn't fit your coding style, inline schema builders might feel more natural
-- **Your project doesn't use decorators elsewhere**: If your codebase avoids decorators in general, introducing them just for LLM schemas might be inconsistent
+- **You prefer purely functional schema definitions**: Libraries like [Zod](https://github.com/colinhacks/zod) or [TypeBox](https://github.com/sinclairzx81/typebox) offer a more functional approach to schema creation
+- **You prefer defining schemas without classes**: If you generally avoid class-based patterns in your codebase, functional schema builders might feel more natural
+- **Your project doesn't use decorators elsewhere**: If your codebase avoids decorators in general, introducing them just for LLM schemas might be inconsistent with your codebase style
 
 In summary, Schema Forge works well for projects of any size where class-based schema definitions are preferred, especially when you want to leverage the same classes for both schema generation and type safety in your response handling.
 
@@ -120,8 +120,15 @@ You must also import reflect-metadata **once** at the entry point of your applic
 // Import this once at the beginning of your app
 import 'reflect-metadata';
 
-// Then import and use schema-forge
-import { ToolMeta, ToolProp } from '@firefliesai/schema-forge';
+// Option 1: Import individual exports (most common)
+import { ToolMeta, classToJsonSchema } from '@firefliesai/schema-forge';
+// @ToolMeta({ name: 'example' })
+// classToJsonSchema(UserClass);
+
+// Option 2: Import Schema object (alternative)
+import { Schema } from '@firefliesai/schema-forge';
+// @Schema.ToolMeta({ name: 'example' })
+// Schema.classToJsonSchema(UserClass);
 ```
 
 ### TypeScript Configuration
