@@ -10,6 +10,12 @@
       "types": "./dist/lib/index.d.ts"
     }
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
   "scripts": {
     "test": "npm run jest",
     "jest": "env-cmd jest",

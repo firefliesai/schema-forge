@@ -1,3 +1,13 @@
-*.spec.js
-*.spec.d.ts
+# Only exclude test files from dist
+# This is used in conjunction with the "files" field in package.json
+# which is already restricting the published files to dist, README.md, LICENSE, and CHANGELOG.md
+
+# Test files that might be in the dist directory
+dist/**/*.spec.js
+dist/**/*.spec.d.ts
+dist/**/*.test.js
+dist/**/*.test.d.ts
+dist/**/__tests__/
+dist/**/__mocks__/
+dist/**/__snapshots__/
 
