@@ -230,16 +230,25 @@ if (message.content[0].type === 'tool_use') {
 #### Google Gemini
 
 ```typescript
-import { classToGeminiTool } from '@firefliesai/schema-forge';
+import { classToGeminiTool, classToGeminiOldTool } from '@firefliesai/schema-forge';
 
-// Create a Gemini tool definition
-const geminiTool = classToGeminiTool(UserInput);
+/** Use with @google/genai */
+const tool = classToGeminiTool(UserInput);
+const response = await geminiClient.models.generateContent({
+  model: 'gemini-2.0-flash-001',
+  contents: userMessage,
+  config: {
+    tools: [{ functionDeclarations: [tool] }],
+  },
+});
 
-// Use with Google @google/generative-ai
-const model = genAI.getGenerativeModel({
+/** Use with Google @google/generative-ai */
+const geminiTool = classToGeminiOldTool(UserInput);
+const model = geminiOldClient.getGenerativeModel({
   model: "gemini-2.0-flash-001",
   tools: { functionDeclarations: [geminiTool] },
 });
+const result = await model.generateContent([userMessage]);
 ```
 
 ## Advanced Usage
