@@ -17,6 +17,28 @@ Schema Forge is a powerful TypeScript library that transforms your TypeScript cl
 - 📦 TypeScript-first with full type safety and inference
 - 🪶 Lightweight with minimal dependencies (only requires reflect-metadata)
 
+## Who Should Use This Library?
+
+Schema Forge is designed for developers working with LLM function calling who want a type-safe approach to schema definition.
+
+### Ideal Use Cases
+
+- **You prefer class-based schema definitions**: If you like working with TypeScript classes and decorators for data structures
+- **You have an existing NestJS application**: Schema Forge integrates seamlessly with NestJS DTOs, allowing you to reuse your existing class-based schemas for LLM function calling
+- **You're using TypeORM or similar ORM**: If your project already uses class decorators for database models, Schema Forge provides a consistent pattern
+- **You want end-to-end type safety**: Schema Forge leverages TypeScript's type system to infer types automatically, and you can use the same class both for schema definition and for typing the parsed response from LLM function calls
+- **You need multi-LLM provider support**: When your application needs to work with multiple LLM providers and wants consistent schema handling
+
+### Alternative Approaches
+
+Schema Forge might not be the best fit if:
+
+- **You prefer functional schema definitions**: Libraries like [Zod](https://github.com/colinhacks/zod) or [TypeBox](https://github.com/sinclairzx81/typebox) allow defining schemas inline within functions
+- **You don't want to define classes outside your function call code**: If creating separate class definitions doesn't fit your coding style, inline schema builders might feel more natural
+- **Your project doesn't use decorators elsewhere**: If your codebase avoids decorators in general, introducing them just for LLM schemas might be inconsistent
+
+In summary, Schema Forge works well for projects of any size where class-based schema definitions are preferred, especially when you want to leverage the same classes for both schema generation and type safety in your response handling.
+
 ## Installation
 
 ```bash
