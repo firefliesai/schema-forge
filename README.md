@@ -24,8 +24,9 @@ Schema Forge is designed for developers working with LLM function calling who wa
 ### Ideal Use Cases
 
 - **You prefer class-based schema definitions**: If you like working with TypeScript classes and decorators for data structures
-- **You have an existing NestJS application**: Schema Forge integrates seamlessly with NestJS DTOs, allowing you to reuse your existing class-based schemas for LLM function calling
-- **You're using TypeORM or similar ORM**: If your project already uses class decorators for database models, Schema Forge provides a consistent pattern
+- **You're already using decorator-based frameworks**: 
+  - Schema Forge integrates seamlessly with NestJS DTOs, allowing you to reuse existing class-based schemas
+  - If you're using TypeORM or similar ORMs with decorators, Schema Forge provides a consistent pattern across your codebase
 - **You want end-to-end type safety**: Schema Forge leverages TypeScript's type system to infer types automatically, and you can use the same class both for schema definition and for typing the parsed response from LLM function calls
 - **You need multi-LLM provider support**: When your application needs to work with multiple LLM providers and wants consistent schema handling
 
