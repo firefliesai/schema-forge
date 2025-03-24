@@ -88,7 +88,8 @@ While Schema Forge works well for many scenarios (including within functions), y
 - **You prefer purely functional schema definitions**: Libraries like [Zod](https://github.com/colinhacks/zod) or [TypeBox](https://github.com/sinclairzx81/typebox) offer a more functional approach to schema creation
 - **You prefer defining schemas without classes**: If you generally avoid class-based patterns in your codebase, functional schema builders might feel more natural
 - **Your project doesn't use decorators elsewhere**: If your codebase avoids decorators in general, introducing them just for LLM schemas might be inconsistent with your codebase style
-
+- **You need to build deeply nested schemas with dynamic property names at runtime**: Schema Forge works best with predefined class structures where nested property names are known at build time. For schemas where nested property paths are only known at runtime and need to be dynamically added, functional schema builders like [Zod](https://github.com/colinhacks/zod) or [TypeBox](https://github.com/sinclairzx81/typebox) might offer more flexibility
+  
 In summary, Schema Forge works well for projects of any size where class-based schema definitions are preferred, especially when you want to leverage the same classes for both schema generation and type safety in your response handling.
 
 ## Installation
