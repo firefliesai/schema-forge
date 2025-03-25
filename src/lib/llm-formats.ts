@@ -282,6 +282,17 @@ export function jsonSchemaToGeminiOldResponseSchema(
   };
 }
 
+// @google-cloud/vertexai
+export function jsonSchemaToGeminiVertexResponseSchema(
+  schema: JSONSchemaDefinition,
+  metadata: { description?: string },
+): GeminiVertexResponseSchema {
+  return jsonSchemaToGeminiResponseSchema(
+    schema,
+    metadata,
+  ) as unknown as GeminiVertexResponseSchema;
+}
+
 /**
  * Creates an OpenAI-compatible tool function from a class
  *
