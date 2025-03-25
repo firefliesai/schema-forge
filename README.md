@@ -686,8 +686,8 @@ roles: string[];
 - `classToGeminiResponseSchema(target, options?)`: Generates Gemini response schema for new `@google/genai` API
 - `classToGeminiOldTool(target, options?)`: Generates Google Gemini tool format for legacy `@google/generative-ai` API
 - `classToGeminiOldResponseSchema(target, options?)`: Generates Gemini response schema for legacy `@google/generative-ai` API
-- `classToGeminiVertexTool(target, options?)`: Generates Google Gemini tool format for legacy `@google-cloud/vertexai` API
-- `classToGeminiVertexResponseSchema(target, options?)`: Generates Gemini response schema for legacy `@google-cloud/vertexai` API
+- `classToGeminiVertexTool(target, options?)`: Generates Google Gemini tool format for `@google-cloud/vertexai` API *(Note: functionality implemented but not verified with real API calls)*
+- `classToGeminiVertexResponseSchema(target, options?)`: Generates Gemini response schema for `@google-cloud/vertexai` API *(Note: functionality implemented but not verified with real API calls)*
 
 #### JSON Schema to LLM Format Converters
 
@@ -700,8 +700,8 @@ roles: string[];
 - `jsonSchemaToGeminiResponseSchema(schema, metadata)`: Converts JSON Schema to Gemini response schema format for new `@google/genai` API
 - `jsonSchemaToGeminiOldTool(schema, metadata)`: Converts JSON Schema to Google Gemini old tool format for legacy `@google/generative-ai` API
 - `jsonSchemaToGeminiOldResponseSchema(schema, metadata)`: Converts JSON Schema to Gemini old response schema format for legacy `@google/generative-ai` API
-- `jsonSchemaToGeminiVertexTool(schema, metadata)`: Converts JSON Schema to Gemini response schema format for legacy `@google-cloud/vertexai` API
-- `jsonSchemaToGeminiVertexResponseSchema(schema, metadata)`: Converts JSON Schema to Gemini old response schema format for legacy `@google/generative-ai` API
+- `jsonSchemaToGeminiVertexTool(schema, metadata)`: Converts JSON Schema to Gemini tool format for `@google-cloud/vertexai` API *(Note: functionality implemented but not verified with real API calls)*
+- `jsonSchemaToGeminiVertexResponseSchema(schema, metadata)`: Converts JSON Schema to Gemini response schema format for `@google-cloud/vertexai` API *(Note: functionality implemented but not verified with real API calls)*
  
 #### LLM Format to JSON Schema Converters
 
@@ -835,7 +835,9 @@ Google provides multiple API packages for working with Gemini models. Schema For
 3. **Google Vertex AI**: `@google-cloud/vertexai`
    - Enterprise API for Google Cloud Platform
    - Requires GCP project and location settings
-   - Use `classToGeminiVertexTool` and `GeminiVertexResponseSchema`
+   - Use `classToGeminiVertexTool` and `classToGeminiVertexResponseSchema`
+   - **Note**: Vertex AI support is implemented but not verified with actual API calls yet
+   - **Important**: Google may eventually deprecate this API in favor of `@google/genai`
    - Example:
      ```typescript
      import { VertexAI } from '@google-cloud/vertexai';
