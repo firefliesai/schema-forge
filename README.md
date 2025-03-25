@@ -1,6 +1,6 @@
 # Schema Forge
 
-[![npm version](https://img.shields.io/npm/v/schema-forge.svg)](https://www.npmjs.com/package/@firefliesai/schema-forge)
+[![npm version](https://img.shields.io/npm/v/@firefliesai/schema-forge.svg)](https://www.npmjs.com/package/@firefliesai/schema-forge)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 Schema Forge is a powerful TypeScript library that transforms your TypeScript classes into JSON Schema definitions, with special support for LLM (Large Language Model) function calling formats including OpenAI, Anthropic Claude, and Google Gemini. It also provides direct converters to transform your existing JSON Schemas into LLM-compatible formats without requiring TypeScript classes.
