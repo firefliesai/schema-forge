@@ -123,13 +123,10 @@ import 'reflect-metadata';
 
 // Option 1: Import individual exports (most common)
 import { ToolMeta, classToJsonSchema } from '@firefliesai/schema-forge';
-// @ToolMeta({ name: 'example' })
-// classToJsonSchema(UserClass);
 
 // Option 2: Import Schema object (alternative)
+// Schema object contains all exports (ToolMeta, ToolProp, classToJsonSchema, etc.)
 import { Schema } from '@firefliesai/schema-forge';
-// @Schema.ToolMeta({ name: 'example' })
-// Schema.classToJsonSchema(UserClass);
 ```
 
 ### TypeScript Configuration
