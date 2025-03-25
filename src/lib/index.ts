@@ -20,6 +20,8 @@ export {
   classToGeminiOldTool,
   classToGeminiResponseSchema,
   classToGeminiTool,
+  classToGeminiVertexResponseSchema,
+  classToGeminiVertexTool,
   classToOpenAIResponseApiTextSchema,
   classToOpenAIResponseApiTool,
   classToOpenAIResponseFormatJsonSchema,
