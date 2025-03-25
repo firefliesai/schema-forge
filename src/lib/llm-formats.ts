@@ -11,6 +11,8 @@ import {
   GeminiResponseSchemaOptions,
   GeminiToolFunction,
   GeminiToolOptions,
+  GeminiVertexResponseSchema,
+  GeminiVertexToolFunction,
   JSONSchemaDefinition,
   OpenAIResponseApiTextSchema,
   OpenAIResponseApiToolFunction,
@@ -231,6 +233,14 @@ export function jsonSchemaToGeminiOldTool(
   };
 }
 
+/** @google-cloud/vertexai */
+export function jsonSchemaToGeminiVertexTool(
+  schema: JSONSchemaDefinition,
+  metadata: { name: string; description?: string },
+): GeminiVertexToolFunction {
+  return jsonSchemaToGeminiTool(schema, metadata) as unknown as GeminiVertexToolFunction;
+}
+
 /**
  * Converts a JSON Schema to Gemini response schema format (@google/genai)
  *
@@ -270,6 +280,17 @@ export function jsonSchemaToGeminiOldResponseSchema(
     properties: schema.properties,
     required: schema.required || [],
   };
+}
+
+// @google-cloud/vertexai
+export function jsonSchemaToGeminiVertexResponseSchema(
+  schema: JSONSchemaDefinition,
+  metadata: { description?: string },
+): GeminiVertexResponseSchema {
+  return jsonSchemaToGeminiResponseSchema(
+    schema,
+    metadata,
+  ) as unknown as GeminiVertexResponseSchema;
 }
 
 /**
@@ -535,6 +556,14 @@ export function classToGeminiOldTool<T extends object>(
   });
 }
 
+// @google-cloud/vertexai
+export function classToGeminiVertexTool<T extends object>(
+  target: new (...args: any[]) => T,
+  options?: GeminiToolOptions<T>,
+): GeminiVertexToolFunction {
+  return classToGeminiTool(target, options) as unknown as GeminiVertexToolFunction;
+}
+
 /**
  * Creates an Anthropic-compatible tool function from a class
  *
@@ -641,6 +670,14 @@ export function classToGeminiOldResponseSchema<T extends object>(
   return jsonSchemaToGeminiOldResponseSchema(jsonSchema, {
     description: classOptions.description,
   });
+}
+
+/** @google-cloud/vertexai */
+export function classToGeminiVertexResponseSchema<T extends object>(
+  target: new (...args: any[]) => T,
+  options?: GeminiResponseSchemaOptions<T>,
+): GeminiVertexResponseSchema {
+  return classToGeminiResponseSchema(target, options) as unknown as GeminiVertexResponseSchema;
 }
 
 /**

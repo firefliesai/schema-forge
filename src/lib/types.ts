@@ -1,6 +1,7 @@
 /**
  * Types for schema-forge
  */
+import { SchemaType as SchemaVertexType } from './vertex-api.type';
 
 /** @google/generative-ai */
 export enum SchemaType {
@@ -128,6 +129,20 @@ export interface GeminiOldToolFunction {
   };
 }
 
+// @google-cloud/vertexai
+export interface GeminiVertexToolFunction {
+  name: string;
+  description?: string;
+  parameters: {
+    // json schema like structure,
+    // Google Gemini (@google-cloud/vertexai) prefers capital 'OBJECT' instead of 'object'
+    type: SchemaVertexType.OBJECT;
+    description?: string;
+    properties: Record<string, any>;
+    required?: string[];
+  };
+}
+
 /** Google Gemini (@google/genai):
  * json schema like, except object becoming capital 'OBJECT  */
 export interface GeminiResponseSchema {
@@ -141,6 +156,14 @@ export interface GeminiResponseSchema {
 export interface GeminiOldResponseSchema {
   description?: string;
   type: SchemaType.OBJECT;
+  properties: Record<string, any>;
+  required?: string[];
+}
+
+// @google-cloud/vertexai
+export interface GeminiVertexResponseSchema {
+  description?: string;
+  type: SchemaVertexType.OBJECT;
   properties: Record<string, any>;
   required?: string[];
 }

@@ -287,25 +287,33 @@ if (message.content[0].type === 'tool_use') {
 #### Google Gemini
 
 ```typescript
-import { classToGeminiTool, classToGeminiOldTool } from '@firefliesai/schema-forge';
+import { classToGeminiTool, classToGeminiOldTool, classToGeminiVertexTool } from '@firefliesai/schema-forge';
 
 /** Use with @google/genai */
-const tool = classToGeminiTool(UserInput);
+const geminiTool = classToGeminiTool(UserInput);
 const response = await geminiClient.models.generateContent({
   model: 'gemini-2.0-flash-001',
   contents: userMessage,
   config: {
-    tools: [{ functionDeclarations: [tool] }],
+    tools: [{ functionDeclarations: [geminiTool] }],
   },
 });
 
 /** Use with Google @google/generative-ai */
-const geminiTool = classToGeminiOldTool(UserInput);
+const geminiOldTool = classToGeminiOldTool(UserInput);
 const model = geminiOldClient.getGenerativeModel({
   model: "gemini-2.0-flash-001",
-  tools: { functionDeclarations: [geminiTool] },
+  tools: { functionDeclarations: [geminiOldTool] },
 });
 const result = await model.generateContent([userMessage]);
+
+/** Use with Google @google-cloud/vertexai */
+const geminiVertexTool = classToGeminiVertexTool(UserInput);
+const vertexModel = geminiOldClient.getGenerativeModel({
+  model: "gemini-2.0-flash-001",
+  tools: { functionDeclarations: [geminiVertexTool] },
+});
+const resp = await generativeModel.generateContent(prompt);
 ```
 
 ## Advanced Usage
@@ -678,6 +686,8 @@ roles: string[];
 - `classToGeminiResponseSchema(target, options?)`: Generates Gemini response schema for new `@google/genai` API
 - `classToGeminiOldTool(target, options?)`: Generates Google Gemini tool format for legacy `@google/generative-ai` API
 - `classToGeminiOldResponseSchema(target, options?)`: Generates Gemini response schema for legacy `@google/generative-ai` API
+- `classToGeminiVertexTool(target, options?)`: Generates Google Gemini tool format for `@google-cloud/vertexai` API *(Note: functionality implemented but not verified with real API calls)*
+- `classToGeminiVertexResponseSchema(target, options?)`: Generates Gemini response schema for `@google-cloud/vertexai` API *(Note: functionality implemented but not verified with real API calls)*
 
 #### JSON Schema to LLM Format Converters
 
@@ -686,9 +696,13 @@ roles: string[];
 - `jsonSchemaToOpenAIResponseFormat(schema, metadata, options?)`: Converts JSON Schema to OpenAI response format for Chat Completions API
 - `jsonSchemaToOpenAIResponseApiTextSchema(schema, metadata, options?)`: Converts JSON Schema to OpenAI text format for Response API
 - `jsonSchemaToAnthropicTool(schema, metadata)`: Converts JSON Schema to Anthropic Claude tool format
-- `jsonSchemaToGeminiTool(schema, metadata)`: Converts JSON Schema to Google Gemini tool format
-- `jsonSchemaToGeminiResponseSchema(schema, metadata)`: Converts JSON Schema to Gemini response schema format
-
+- `jsonSchemaToGeminiTool(schema, metadata)`: Converts JSON Schema to Google Gemini tool format for new `@google/genai` API
+- `jsonSchemaToGeminiResponseSchema(schema, metadata)`: Converts JSON Schema to Gemini response schema format for new `@google/genai` API
+- `jsonSchemaToGeminiOldTool(schema, metadata)`: Converts JSON Schema to Google Gemini old tool format for legacy `@google/generative-ai` API
+- `jsonSchemaToGeminiOldResponseSchema(schema, metadata)`: Converts JSON Schema to Gemini old response schema format for legacy `@google/generative-ai` API
+- `jsonSchemaToGeminiVertexTool(schema, metadata)`: Converts JSON Schema to Gemini tool format for `@google-cloud/vertexai` API *(Note: functionality implemented but not verified with real API calls)*
+- `jsonSchemaToGeminiVertexResponseSchema(schema, metadata)`: Converts JSON Schema to Gemini response schema format for `@google-cloud/vertexai` API *(Note: functionality implemented but not verified with real API calls)*
+ 
 #### LLM Format to JSON Schema Converters
 
 - `openAIToolToJsonSchema(openAITool)`: Extracts JSON Schema and metadata from an OpenAI Chat Completions API tool
@@ -821,13 +835,14 @@ Google provides multiple API packages for working with Gemini models. Schema For
 3. **Google Vertex AI**: `@google-cloud/vertexai`
    - Enterprise API for Google Cloud Platform
    - Requires GCP project and location settings
-   - Uses the same formats as the new `@google/genai` library
+   - Use `classToGeminiVertexTool` and `classToGeminiVertexResponseSchema`
+   - **Note**: Vertex AI support is implemented but not verified with actual API calls yet
+   - **Important**: Google may eventually deprecate this API in favor of `@google/genai`
    - Example:
      ```typescript
      import { VertexAI } from '@google-cloud/vertexai';
      const vertexAI = new VertexAI({project, location});
-     // Same format which is supposed to works, but not verified yet. 
-     const tool = classToGeminiTool(MyClass); 
+     const tool = classToGeminiVertexTool(MyClass); 
      ```
 
 #### Anthropic Claude
