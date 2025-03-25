@@ -135,8 +135,7 @@ export interface GeminiVertexToolFunction {
   description?: string;
   parameters: {
     // json schema like structure,
-    // Google Gemini (@google/genai) prefers capital 'OBJECT' insteadac of 'object'
-    // but 'object' is also accepted by Gemini API if we use any to force triggering api
+    // Google Gemini (@google-cloud/vertexai) prefers capital 'OBJECT' instead of 'object'
     type: SchemaVertexType.OBJECT;
     description?: string;
     properties: Record<string, any>;
