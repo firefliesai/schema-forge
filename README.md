@@ -1,9 +1,60 @@
 # Schema Forge
 
-[![npm version](https://img.shields.io/npm/v/schema-forge.svg)](https://www.npmjs.com/package/schema-forge)
+[![npm version](https://img.shields.io/npm/v/schema-forge.svg)](https://www.npmjs.com/package/@firefliesai/schema-forge)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 Schema Forge is a powerful TypeScript library that transforms your TypeScript classes into JSON Schema definitions, with special support for LLM (Large Language Model) function calling formats including OpenAI, Anthropic Claude, and Google Gemini. It also provides direct converters to transform your existing JSON Schemas into LLM-compatible formats without requiring TypeScript classes.
+
+- [Schema Forge](#schema-forge)
+  - [Features](#features)
+  - [Who Should Use This Library?](#who-should-use-this-library)
+    - [Ideal Use Cases](#ideal-use-cases)
+    - [Alternative Approaches](#alternative-approaches)
+  - [Installation](#installation)
+    - [Required Dependency: reflect-metadata](#required-dependency-reflect-metadata)
+    - [TypeScript Configuration](#typescript-configuration)
+  - [Quick Start](#quick-start)
+    - [Define a Class with Decorators](#define-a-class-with-decorators)
+    - [Generate JSON Schema](#generate-json-schema)
+    - [Generate LLM Function Definitions](#generate-llm-function-definitions)
+      - [OpenAI](#openai)
+      - [Anthropic Claude](#anthropic-claude)
+      - [Google Gemini](#google-gemini)
+  - [Advanced Usage](#advanced-usage)
+    - [Structured Output Formatting](#structured-output-formatting)
+    - [Property Overrides](#property-overrides)
+    - [Nested Objects and Arrays](#nested-objects-and-arrays)
+    - [Using TypeScript Enums](#using-typescript-enums)
+    - [Dynamic Schema Updates](#dynamic-schema-updates)
+    - [Using Direct JSON Schema Converters](#using-direct-json-schema-converters)
+    - [Converting Between LLM Formats](#converting-between-llm-formats)
+    - [Common Options Pattern](#common-options-pattern)
+  - [API Reference](#api-reference)
+    - [Decorators](#decorators)
+      - [`@ToolMeta(options)`](#toolmetaoptions)
+      - [`@ToolProp(options)`](#toolpropoptions)
+    - [Core Functions](#core-functions)
+    - [LLM Format Functions](#llm-format-functions)
+      - [Class to LLM Format Converters](#class-to-llm-format-converters)
+      - [JSON Schema to LLM Format Converters](#json-schema-to-llm-format-converters)
+      - [LLM Format to JSON Schema Converters](#llm-format-to-json-schema-converters)
+    - [Schema Modification](#schema-modification)
+  - [License](#license)
+  - [Structured Output \& API Differences](#structured-output--api-differences)
+    - [Structured Output in Different LLM Providers](#structured-output-in-different-llm-providers)
+      - [OpenAI Structured Output](#openai-structured-output)
+      - [Google Gemini Structured Output](#google-gemini-structured-output)
+      - [Google API Options](#google-api-options)
+      - [Anthropic Claude](#anthropic-claude-1)
+    - [OpenAI Response API vs Chat Completions API](#openai-response-api-vs-chat-completions-api)
+  - [JSON Schema Support](#json-schema-support)
+    - [Supported JSON Schema Properties](#supported-json-schema-properties)
+      - [Current Limitations](#current-limitations)
+  - [Common Issues and Solutions](#common-issues-and-solutions)
+    - [Property has no initializer and is not definitely assigned](#property-has-no-initializer-and-is-not-definitely-assigned)
+    - [Optional Properties](#optional-properties)
+  - [Contributing](#contributing)
+
 
 ## Features
 
@@ -16,6 +67,30 @@ Schema Forge is a powerful TypeScript library that transforms your TypeScript cl
 - 📝 Built-in structured output formatting for various LLM providers
 - 📦 TypeScript-first with full type safety and inference
 - 🪶 Lightweight with minimal dependencies (only requires reflect-metadata)
+
+## Who Should Use This Library?
+
+Schema Forge is designed for developers working with LLM function calling who want a type-safe approach to schema definition.
+
+### Ideal Use Cases
+
+- **You prefer class-based schema definitions**: If you like working with TypeScript classes and decorators for data structures
+- **You're already using decorator-based frameworks**: 
+  - Schema Forge integrates seamlessly with NestJS DTOs, allowing you to reuse existing class-based schemas
+  - If you're using TypeORM or similar ORMs with decorators, Schema Forge provides a consistent pattern across your codebase
+- **You want end-to-end type safety**: Schema Forge leverages TypeScript's type system to infer types automatically, and you can use the same class both for schema definition and for typing the parsed response from LLM function calls
+- **You need multi-LLM provider support**: When your application needs to work with multiple LLM providers and wants consistent schema handling
+
+### Alternative Approaches
+
+While Schema Forge works well for many scenarios (including within functions), you might consider alternatives if:
+
+- **You prefer purely functional schema definitions**: Libraries like [Zod](https://github.com/colinhacks/zod) or [TypeBox](https://github.com/sinclairzx81/typebox) offer a more functional approach to schema creation
+- **You prefer defining schemas without classes**: If you generally avoid class-based patterns in your codebase, functional schema builders might feel more natural
+- **Your project doesn't use decorators elsewhere**: If your codebase avoids decorators in general, introducing them just for LLM schemas might be inconsistent with your codebase style
+- **You need to build deeply nested schemas with dynamic property names at runtime**: Schema Forge works best with predefined class structures where nested property names are known at build time. For schemas where nested property paths are only known at runtime and need to be dynamically added, functional schema builders like [Zod](https://github.com/colinhacks/zod) or [TypeBox](https://github.com/sinclairzx81/typebox) might offer more flexibility
+  
+In summary, Schema Forge works well for projects of any size where class-based schema definitions are preferred, especially when you want to leverage the same classes for both schema generation and type safety in your response handling.
 
 ## Installation
 
@@ -46,8 +121,15 @@ You must also import reflect-metadata **once** at the entry point of your applic
 // Import this once at the beginning of your app
 import 'reflect-metadata';
 
-// Then import and use schema-forge
-import { ToolMeta, ToolProp } from '@firefliesai/schema-forge';
+// Option 1: Import individual exports (most common)
+import { ToolMeta, classToJsonSchema } from '@firefliesai/schema-forge';
+// @ToolMeta({ name: 'example' })
+// classToJsonSchema(UserClass);
+
+// Option 2: Import Schema object (alternative)
+import { Schema } from '@firefliesai/schema-forge';
+// @Schema.ToolMeta({ name: 'example' })
+// Schema.classToJsonSchema(UserClass);
 ```
 
 ### TypeScript Configuration
@@ -208,16 +290,25 @@ if (message.content[0].type === 'tool_use') {
 #### Google Gemini
 
 ```typescript
-import { classToGeminiTool } from '@firefliesai/schema-forge';
+import { classToGeminiTool, classToGeminiOldTool } from '@firefliesai/schema-forge';
 
-// Create a Gemini tool definition
-const geminiTool = classToGeminiTool(UserInput);
+/** Use with @google/genai */
+const tool = classToGeminiTool(UserInput);
+const response = await geminiClient.models.generateContent({
+  model: 'gemini-2.0-flash-001',
+  contents: userMessage,
+  config: {
+    tools: [{ functionDeclarations: [tool] }],
+  },
+});
 
-// Use with Google @google/generative-ai
-const model = genAI.getGenerativeModel({
+/** Use with Google @google/generative-ai */
+const geminiTool = classToGeminiOldTool(UserInput);
+const model = geminiOldClient.getGenerativeModel({
   model: "gemini-2.0-flash-001",
   tools: { functionDeclarations: [geminiTool] },
 });
+const result = await model.generateContent([userMessage]);
 ```
 
 ## Advanced Usage

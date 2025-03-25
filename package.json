@@ -1,6 +1,6 @@
 {
   "name": "@firefliesai/schema-forge",
-  "version": "1.0.0-rc.2",
+  "version": "1.0.0",
   "main": "dist/lib/index.js",
   "types": "dist/lib/index.d.ts",
   "exports": {
@@ -10,6 +10,12 @@
       "types": "./dist/lib/index.d.ts"
     }
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
   "scripts": {
     "test": "npm run jest",
     "jest": "env-cmd jest",
@@ -62,7 +68,8 @@
     "convert",
     "conversion",
     "transform",
-    "agent"
+    "agent",
+    "class"
   ],
   "description": "Transform TypeScript classes into JSON Schema definitions with automatic support for OpenAI, Anthropic, and Google Gemini function calling (tool) formats",
   "devDependencies": {
