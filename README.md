@@ -696,9 +696,13 @@ roles: string[];
 - `jsonSchemaToOpenAIResponseFormat(schema, metadata, options?)`: Converts JSON Schema to OpenAI response format for Chat Completions API
 - `jsonSchemaToOpenAIResponseApiTextSchema(schema, metadata, options?)`: Converts JSON Schema to OpenAI text format for Response API
 - `jsonSchemaToAnthropicTool(schema, metadata)`: Converts JSON Schema to Anthropic Claude tool format
-- `jsonSchemaToGeminiTool(schema, metadata)`: Converts JSON Schema to Google Gemini tool format
-- `jsonSchemaToGeminiResponseSchema(schema, metadata)`: Converts JSON Schema to Gemini response schema format
-
+- `jsonSchemaToGeminiTool(schema, metadata)`: Converts JSON Schema to Google Gemini tool format for new `@google/genai` API
+- `jsonSchemaToGeminiResponseSchema(schema, metadata)`: Converts JSON Schema to Gemini response schema format for new `@google/genai` API
+- `jsonSchemaToGeminiOldTool(schema, metadata)`: Converts JSON Schema to Google Gemini old tool format for legacy `@google/generative-ai` API
+- `jsonSchemaToGeminiOldResponseSchema(schema, metadata)`: Converts JSON Schema to Gemini old response schema format for legacy `@google/generative-ai` API
+- `jsonSchemaToGeminiVertexTool(schema, metadata)`: Converts JSON Schema to Gemini response schema format for legacy `@google-cloud/vertexai` API
+- `jsonSchemaToGeminiVertexResponseSchema(schema, metadata)`: Converts JSON Schema to Gemini old response schema format for legacy `@google/generative-ai` API
+ 
 #### LLM Format to JSON Schema Converters
 
 - `openAIToolToJsonSchema(openAITool)`: Extracts JSON Schema and metadata from an OpenAI Chat Completions API tool

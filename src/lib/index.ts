@@ -28,8 +28,12 @@ export {
   classToOpenAITool,
   // Direct JSON Schema converters
   jsonSchemaToAnthropicTool,
+  jsonSchemaToGeminiOldResponseSchema,
+  jsonSchemaToGeminiOldTool,
   jsonSchemaToGeminiResponseSchema,
   jsonSchemaToGeminiTool,
+  jsonSchemaToGeminiVertexResponseSchema,
+  jsonSchemaToGeminiVertexTool,
   jsonSchemaToOpenAIResponseApiTextSchema,
   jsonSchemaToOpenAIResponseApiTool,
   jsonSchemaToOpenAIResponseFormat,
