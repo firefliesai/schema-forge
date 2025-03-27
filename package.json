@@ -1,6 +1,6 @@
 {
   "name": "@firefliesai/schema-forge",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "main": "dist/lib/index.js",
   "types": "dist/lib/index.d.ts",
   "exports": {
@@ -93,6 +93,6 @@
     "typescript-eslint": "^8.27.0"
   },
   "peerDependencies": {
-    "reflect-metadata": "^0.2.2"
+    "reflect-metadata": "^0.1.14 || ^0.2.0"
   }
 }
