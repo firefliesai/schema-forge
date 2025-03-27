@@ -9,11 +9,13 @@ on:
 
 jobs:
   test:
+    name: Test with Node ${{ matrix.node-version }} and reflect-metadata ${{ matrix.reflect-metadata-version }}
     runs-on: ubuntu-latest
 
     strategy:
       matrix:
         node-version: [20.x]
+        reflect-metadata-version: ["0.1.14", "0.2"] # Test 0.1.14 and latest 0.2.x
 
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -28,6 +30,17 @@ jobs:
           cache: 'npm'
       - name: Install dependencies
         run: npm ci
+      - name: Install specific reflect-metadata version
+        run: |
+          if [[ "${{ matrix.reflect-metadata-version }}" == "0.2" ]]; then
+            echo "Installing latest 0.2.x version of reflect-metadata"
+            npm install reflect-metadata@^0.2.0
+          else
+            echo "Installing reflect-metadata ${{ matrix.reflect-metadata-version }}"
+            npm install reflect-metadata@${{ matrix.reflect-metadata-version }}
+          fi
+      - name: Verify reflect-metadata version
+        run: npm list reflect-metadata
       - name: Run linting
         run: npm run lint
       - name: Create empty .env file
