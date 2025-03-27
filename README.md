@@ -145,6 +145,14 @@ Make sure to enable experimental decorators in your `tsconfig.json`:
 
 ## Quick Start
 
+> **Important**: The `@ToolMeta` decorator is required when using `classToOpenAITool`, `classToAnthropicTool`, or any LLM-specific converter function, but is optional when using just `classToJsonSchema`. If you only need to generate JSON Schema without LLM integration, you can omit the `@ToolMeta` decorator.
+
+> **Note on Type Specifications**: TypeScript's type system automatically infers most property types, but there are two cases where you must explicitly specify types in the `@ToolProp` decorator:
+> - **Arrays**: Use `items: { type: 'string' }` or `items: { type: CustomClass }` for arrays
+> - **Enums**: Use `enum: ['value1', 'value2']` or `enum: EnumType` for enumerated values
+>
+> See examples below for details.
+
 ### Define a Class with Decorators
 
 ```typescript
@@ -437,6 +445,56 @@ class User {
   scores: number[];
 }
 ```
+
+### When to Specify Types Explicitly
+
+Schema Forge uses TypeScript's reflection capabilities to automatically infer most property types, but there are two specific cases where you **must** provide explicit type information:
+
+1. **Arrays**: TypeScript's type reflection can determine that a property is an array, but it cannot identify the element type
+   ```typescript
+   // INCORRECT - will not properly identify element type
+   @ToolProp({ description: 'List of tags' })
+   tags: string[]; // TypeScript knows this is Array, but not that elements are strings
+   
+   // CORRECT - explicitly specify element type
+   @ToolProp({
+     description: 'List of tags',
+     items: { type: 'string' } // Required for primitive arrays
+   })
+   tags: string[];
+   
+   // CORRECT - for arrays of custom classes 
+   @ToolProp({
+     description: 'Previous addresses',
+     items: { type: Address } // Pass the class directly
+   })
+   previousAddresses: Address[];
+   ```
+
+2. **Enums**: TypeScript enums need explicit handling to generate proper schema enumeration values
+   ```typescript
+   enum UserRole { Admin = 'admin', User = 'user', Guest = 'guest' }
+   
+   // INCORRECT - will not include enum values in schema
+   @ToolProp({ description: 'User role' })
+   role: UserRole;
+   
+   // CORRECT - explicitly specify enum
+   @ToolProp({
+     description: 'User role',
+     enum: UserRole // Pass the enum directly
+   })
+   role: UserRole;
+   
+   // CORRECT - alternatively, provide values directly
+   @ToolProp({
+     description: 'User role',
+     enum: ['admin', 'user', 'guest']
+   })
+   role: string;
+   ```
+
+All other primitive types (string, number, boolean) and custom classes are automatically inferred without additional type specification.
 
 ### Using TypeScript Enums
 
