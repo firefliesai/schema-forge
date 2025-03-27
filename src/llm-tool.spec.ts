@@ -7,6 +7,8 @@ import { GoogleGenAI } from '@google/genai';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import OpenAI from 'openai';
 
+import { GameCharacterV2 } from './fixture/complex-class.tool.dto';
+import { MathToolDto } from './fixture/math.tool.dto';
 import {
   ToolMeta,
   ToolProp,
@@ -101,6 +103,61 @@ describe('LLM Tool Call and Structured Output Tests', () => {
       completion.choices[0].message.tool_calls[0].function.arguments,
     );
     expect(data.name).toBeDefined();
+  });
+
+  it('OpenAI (Chat Completions API) - Function calling with direct class conversion, with complex structured tool setup', async () => {
+    /** a simpler one first */
+    const messages = ['4+2=?'];
+    const mathTool = classToOpenAITool(MathToolDto);
+    const completion1 = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'user',
+          content: messages[0],
+        },
+      ],
+      tools: [mathTool],
+      tool_choice: 'required',
+    });
+    const jsonResp: MathToolDto = JSON.parse(
+      completion1.choices[0].message?.tool_calls[0].function.arguments,
+    );
+    expect(jsonResp.sum).toBe(6);
+
+    /** real complex one */
+    const userMessage = `You are a helpful AI assistant. Based on the following JSON schema for a game character, please generate a mock response that follows the schema exactly. Make the data realistic and consistent with a game character context.
+        `;
+    const expGameCharV2Tool = classToOpenAITool(GameCharacterV2);
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'user',
+          content: userMessage,
+        },
+      ],
+      tools: [expGameCharV2Tool],
+      tool_choice: 'required',
+    });
+
+    const data: GameCharacterV2 = JSON.parse(
+      completion.choices[0].message?.tool_calls[0].function.arguments,
+    );
+    expect(data.location).toBeDefined();
+    expect(data.location.city).toBeDefined();
+    expect(data.location.country).toBeDefined();
+    expect(data.banks[0].account).toBeDefined();
+    expect(data.banks[0].bankName).toBeDefined();
+    expect(data.level).toBeDefined();
+    expect(data.name).toBeDefined();
+    expect(data.rank).toBeDefined();
+    expect(data.status).toBeDefined();
+    expect(data.location).toBeDefined();
+    expect(data.titles[0]).toBeDefined();
+    expect(data.scores[0]).toBeGreaterThan(0);
+    expect(data.availableStatuses[0]).toBeDefined();
   });
 
   it('OpenAI (Chat Completions API) - Structured output with response_format', async () => {
