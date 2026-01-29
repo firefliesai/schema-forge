@@ -860,3 +860,155 @@ exports[`schema-forge test 9 optional properties handling for different LLM prov
   "type": "OBJECT",
 }
 `;
+
+exports[`schema-forge test 10 Date type support with format date-time: 10-1 Date type JSON Schema 1`] = `
+{
+  "properties": {
+    "endDate": {
+      "description": "Event end date and time",
+      "format": "date-time",
+      "type": "string",
+    },
+    "name": {
+      "description": "Event name",
+      "type": "string",
+    },
+    "startDate": {
+      "description": "Event start date and time",
+      "format": "date-time",
+      "type": "string",
+    },
+  },
+  "required": [
+    "name",
+    "startDate",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`schema-forge test 10 Date type support with format date-time: 10-2 Date type OpenAI tool format 1`] = `
+{
+  "function": {
+    "name": "",
+    "parameters": {
+      "properties": {
+        "endDate": {
+          "description": "Event end date and time",
+          "format": "date-time",
+          "type": "string",
+        },
+        "name": {
+          "description": "Event name",
+          "type": "string",
+        },
+        "startDate": {
+          "description": "Event start date and time",
+          "format": "date-time",
+          "type": "string",
+        },
+      },
+      "required": [
+        "name",
+        "startDate",
+      ],
+      "type": "object",
+    },
+  },
+  "type": "function",
+}
+`;
+
+exports[`schema-forge test 10 Date type support with format date-time: 10-3 Date type Gemini tool format 1`] = `
+{
+  "name": "",
+  "parameters": {
+    "properties": {
+      "endDate": {
+        "description": "Event end date and time",
+        "format": "date-time",
+        "type": "string",
+      },
+      "name": {
+        "description": "Event name",
+        "type": "string",
+      },
+      "startDate": {
+        "description": "Event start date and time",
+        "format": "date-time",
+        "type": "string",
+      },
+    },
+    "required": [
+      "name",
+      "startDate",
+    ],
+    "type": "OBJECT",
+  },
+}
+`;
+
+exports[`schema-forge test 10 Date type support with format date-time: 10-4 Date type Anthropic tool format 1`] = `
+{
+  "input_schema": {
+    "properties": {
+      "endDate": {
+        "description": "Event end date and time",
+        "format": "date-time",
+        "type": "string",
+      },
+      "name": {
+        "description": "Event name",
+        "type": "string",
+      },
+      "startDate": {
+        "description": "Event start date and time",
+        "format": "date-time",
+        "type": "string",
+      },
+    },
+    "required": [
+      "name",
+      "startDate",
+    ],
+    "type": "object",
+  },
+  "name": "",
+}
+`;
+
+exports[`schema-forge test 10 Date type support with format date-time: 10-5 Date type OpenAI structured output 1`] = `
+{
+  "function": {
+    "name": "",
+    "parameters": {
+      "additionalProperties": false,
+      "properties": {
+        "endDate": {
+          "description": "Event end date and time",
+          "type": [
+            "string",
+            "null",
+          ],
+        },
+        "name": {
+          "description": "Event name",
+          "type": "string",
+        },
+        "startDate": {
+          "description": "Event start date and time",
+          "type": "string",
+        },
+      },
+      "required": [
+        "name",
+        "startDate",
+        "endDate",
+      ],
+      "type": "object",
+    },
+    "strict": true,
+  },
+  "type": "function",
+}
+`;

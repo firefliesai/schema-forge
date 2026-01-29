@@ -38,10 +38,12 @@ export interface BaseSchemaProperty {
 export interface PropertyOptions extends BaseSchemaProperty {
   isOptional?: boolean;
   type?: 'string' | 'number' | 'boolean' | 'array' | 'object';
+  format?: 'date-time' | string;
 }
 
 export interface JSONSchemaProperty extends BaseSchemaProperty {
   type: string;
+  format?: 'date-time' | string;
   properties?: {
     [key: string]: JSONSchemaProperty;
   };

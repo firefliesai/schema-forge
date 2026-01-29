@@ -9,7 +9,13 @@ import {
   PropertyPath,
   REQUIRED_PROPS_METADATA_KEY,
 } from './types';
-import { cloneMetadata, extractEnumValues, getJsonSchemaType, isCustomClass } from './utils';
+import {
+  cloneMetadata,
+  extractEnumValues,
+  getJsonSchemaType,
+  isCustomClass,
+  isDateType,
+} from './utils';
 
 /**
  * Applies property updates for a given property path
@@ -244,6 +250,9 @@ export function ToolProp(options: PropertyOptions = {}) {
       finalOptions.type = 'object';
       finalOptions.properties = nestedSchema.properties;
       finalOptions.required = nestedSchema.required;
+    } else if (isDateType(type)) {
+      finalOptions.type = 'string';
+      finalOptions.format = 'date-time';
     }
 
     currentProperties[propertyKey] = {

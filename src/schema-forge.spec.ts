@@ -270,4 +270,50 @@ describe('schema-forge test', () => {
     const addressRequired = addressProps.required || [];
     expect(addressRequired).not.toContain('city');
   });
+
+  it('10 Date type support with format date-time', async () => {
+    // Test class with Date property
+    class EventDto {
+      @ToolProp({ description: 'Event name' })
+      name: string;
+
+      @ToolProp({ description: 'Event start date and time' })
+      startDate: Date;
+
+      @ToolProp({ description: 'Event end date and time', isOptional: true })
+      endDate?: Date;
+    }
+
+    // Test basic JSON Schema generation
+    const schema = classToJsonSchema(EventDto);
+    expect(schema.properties.startDate.type).toBe('string');
+    expect(schema.properties.startDate.format).toBe('date-time');
+    expect(schema.properties.endDate.type).toBe('string');
+    expect(schema.properties.endDate.format).toBe('date-time');
+    expect(schema).toMatchSnapshot('10-1 Date type JSON Schema');
+
+    // Test OpenAI tool format
+    const openaiTool = classToOpenAITool(EventDto);
+    expect(openaiTool.function.parameters.properties.startDate.type).toBe('string');
+    expect(openaiTool.function.parameters.properties.startDate.format).toBe('date-time');
+    expect(openaiTool).toMatchSnapshot('10-2 Date type OpenAI tool format');
+
+    // Test Gemini tool format
+    const geminiTool = classToGeminiTool(EventDto);
+    expect(geminiTool.parameters.properties.startDate.type).toBe('string');
+    expect(geminiTool.parameters.properties.startDate.format).toBe('date-time');
+    expect(geminiTool).toMatchSnapshot('10-3 Date type Gemini tool format');
+
+    // Test Anthropic tool format
+    const anthropicTool = classToAnthropicTool(EventDto);
+    expect(anthropicTool.input_schema.properties.startDate.type).toBe('string');
+    expect(anthropicTool.input_schema.properties.startDate.format).toBe('date-time');
+    expect(anthropicTool).toMatchSnapshot('10-4 Date type Anthropic tool format');
+
+    // Test structured output format (OpenAI)
+    const structuredOutput = classToOpenAITool(EventDto, { forStructuredOutput: true });
+    // Note: format is stripped for OpenAI structured output as it's not supported
+    expect(structuredOutput.function.parameters.properties.startDate.type).toBe('string');
+    expect(structuredOutput).toMatchSnapshot('10-5 Date type OpenAI structured output');
+  });
 });
