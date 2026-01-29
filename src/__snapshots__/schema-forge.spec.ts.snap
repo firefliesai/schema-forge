@@ -1013,7 +1013,7 @@ exports[`schema-forge test 10 Date type support with format date-time: 10-5 Date
 }
 `;
 
-exports[`schema-forge test 11 class-validator decorator inference: 11-1 Validation constraints JSON Schema 1`] = `
+exports[`schema-forge test 11 ToolProp validation constraint options: 11-1 Validation constraints JSON Schema 1`] = `
 {
   "properties": {
     "age": {
@@ -1059,7 +1059,7 @@ exports[`schema-forge test 11 class-validator decorator inference: 11-1 Validati
 }
 `;
 
-exports[`schema-forge test 11 class-validator decorator inference: 11-2 Validation constraints OpenAI tool format 1`] = `
+exports[`schema-forge test 11 ToolProp validation constraint options: 11-2 Validation constraints OpenAI tool format 1`] = `
 {
   "function": {
     "name": "",
@@ -1111,7 +1111,7 @@ exports[`schema-forge test 11 class-validator decorator inference: 11-2 Validati
 }
 `;
 
-exports[`schema-forge test 11 class-validator decorator inference: 11-3 Validation constraints Gemini tool format 1`] = `
+exports[`schema-forge test 11 ToolProp validation constraint options: 11-3 Validation constraints Gemini tool format 1`] = `
 {
   "name": "",
   "parameters": {
@@ -1160,7 +1160,7 @@ exports[`schema-forge test 11 class-validator decorator inference: 11-3 Validati
 }
 `;
 
-exports[`schema-forge test 11 class-validator decorator inference: 11-4 Validation constraints Anthropic tool format 1`] = `
+exports[`schema-forge test 11 ToolProp validation constraint options: 11-4 Validation constraints Anthropic tool format 1`] = `
 {
   "input_schema": {
     "properties": {

@@ -314,15 +314,16 @@ describe('schema-forge test', () => {
     const structuredOutput = classToOpenAITool(EventDto, { forStructuredOutput: true });
     // Note: format is stripped for OpenAI structured output as it's not supported
     expect(structuredOutput.function.parameters.properties.startDate.type).toBe('string');
+    expect(structuredOutput.function.parameters.properties.startDate.format).toBeUndefined();
     expect(structuredOutput).toMatchSnapshot('10-5 Date type OpenAI structured output');
   });
 
-  it('11 class-validator decorator inference', () => {
-    // Note: This test verifies that the class-validator integration works
-    // when class-validator decorators are present on a class.
-    // The integration reads metadata from class-validator's global storage.
+  it('11 ToolProp validation constraint options', () => {
+    // Note: This test verifies that ToolProp correctly passes through
+    // validation constraint options (minimum, maximum, minLength, etc.) to the schema.
+    // These options can be set manually or inferred from class-validator decorators.
 
-    // Test class with manual schema properties that mimic class-validator behavior
+    // Test class with manual schema properties
     class ValidationTestDto {
       @ToolProp({
         description: 'User age',

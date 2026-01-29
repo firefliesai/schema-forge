@@ -75,13 +75,7 @@ function getPropertyValidationMetadata(
 
   try {
     // Get all validation metadata for the target class
-    const allMetadata = storage.getTargetValidationMetadatas(
-      target,
-      undefined,
-      false,
-      false,
-      undefined,
-    );
+    const allMetadata = storage.getTargetValidationMetadatas(target, '', false, false, undefined);
 
     // Filter for the specific property
     return allMetadata.filter(

@@ -265,26 +265,26 @@ export function ToolProp(options: PropertyOptions = {}) {
       type: classValidatorProps.type || finalOptions.type || getJsonSchemaType(type),
     };
 
-    // Apply class-validator inferred properties
-    if (classValidatorProps.maxItems !== undefined) {
+    // Apply class-validator inferred properties only if not explicitly set in ToolProp options
+    if (classValidatorProps.maxItems !== undefined && propertySchema.maxItems === undefined) {
       propertySchema.maxItems = classValidatorProps.maxItems;
     }
-    if (classValidatorProps.minItems !== undefined) {
+    if (classValidatorProps.minItems !== undefined && propertySchema.minItems === undefined) {
       propertySchema.minItems = classValidatorProps.minItems;
     }
-    if (classValidatorProps.maximum !== undefined) {
+    if (classValidatorProps.maximum !== undefined && propertySchema.maximum === undefined) {
       propertySchema.maximum = classValidatorProps.maximum;
     }
-    if (classValidatorProps.minimum !== undefined) {
+    if (classValidatorProps.minimum !== undefined && propertySchema.minimum === undefined) {
       propertySchema.minimum = classValidatorProps.minimum;
     }
-    if (classValidatorProps.minLength !== undefined) {
+    if (classValidatorProps.minLength !== undefined && propertySchema.minLength === undefined) {
       propertySchema.minLength = classValidatorProps.minLength;
     }
-    if (classValidatorProps.maxLength !== undefined) {
+    if (classValidatorProps.maxLength !== undefined && propertySchema.maxLength === undefined) {
       propertySchema.maxLength = classValidatorProps.maxLength;
     }
-    if (classValidatorProps.format !== undefined) {
+    if (classValidatorProps.format !== undefined && propertySchema.format === undefined) {
       propertySchema.format = classValidatorProps.format;
     }
 
