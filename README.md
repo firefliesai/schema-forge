@@ -508,12 +508,15 @@ Supported class-validator decorators:
 |-----------|---------------------|
 | `@ArrayMaxSize(n)` | `maxItems: n` |
 | `@ArrayMinSize(n)` | `minItems: n` |
+| `@ArrayUnique()` | `uniqueItems: true` |
+| `@ArrayNotEmpty()` | `minItems: 1` |
 | `@Max(n)` | `maximum: n` |
 | `@Min(n)` | `minimum: n` |
 | `@IsInt()` | `type: 'integer'` |
 | `@MinLength(n)` | `minLength: n` |
 | `@MaxLength(n)` | `maxLength: n` |
 | `@IsUrl()` | `format: 'uri'` |
+| `@IsEmail()` | `format: 'email'` |
 | `@IsPositive()` | `minimum: 1` |
 
 Example:

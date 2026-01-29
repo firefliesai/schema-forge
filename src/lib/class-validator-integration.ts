@@ -10,12 +10,15 @@
 const VALIDATION_TYPES = {
   ARRAY_MAX_SIZE: 'arrayMaxSize',
   ARRAY_MIN_SIZE: 'arrayMinSize',
+  ARRAY_UNIQUE: 'arrayUnique',
+  ARRAY_NOT_EMPTY: 'arrayNotEmpty',
   MAX: 'max',
   MIN: 'min',
   IS_INT: 'isInt',
   MIN_LENGTH: 'minLength',
   MAX_LENGTH: 'maxLength',
   IS_URL: 'isUrl',
+  IS_EMAIL: 'isEmail',
   IS_POSITIVE: 'isPositive',
 } as const;
 
@@ -37,6 +40,7 @@ interface ClassValidatorMetadata {
 export interface InferredSchemaProperties {
   maxItems?: number;
   minItems?: number;
+  uniqueItems?: boolean;
   maximum?: number;
   minimum?: number;
   type?: 'integer' | 'string' | 'number';
@@ -92,12 +96,15 @@ function getPropertyValidationMetadata(
  * Supported decorators:
  * - ArrayMaxSize -> maxItems
  * - ArrayMinSize -> minItems
+ * - ArrayUnique -> uniqueItems: true
+ * - ArrayNotEmpty -> minItems: 1
  * - Max -> maximum (for numbers)
  * - Min -> minimum (for numbers)
  * - IsInt -> type: 'integer'
  * - MinLength -> minLength (for strings)
  * - MaxLength -> maxLength (for strings)
  * - IsUrl -> format: 'uri'
+ * - IsEmail -> format: 'email'
  * - IsPositive -> minimum: 1
  */
 export function inferClassValidatorProperties(
@@ -119,6 +126,14 @@ export function inferClassValidatorProperties(
         if (meta.constraints && meta.constraints[0] !== undefined) {
           inferred.minItems = meta.constraints[0];
         }
+        break;
+
+      case VALIDATION_TYPES.ARRAY_UNIQUE:
+        inferred.uniqueItems = true;
+        break;
+
+      case VALIDATION_TYPES.ARRAY_NOT_EMPTY:
+        inferred.minItems = 1;
         break;
 
       case VALIDATION_TYPES.MAX:
@@ -151,6 +166,10 @@ export function inferClassValidatorProperties(
 
       case VALIDATION_TYPES.IS_URL:
         inferred.format = 'uri';
+        break;
+
+      case VALIDATION_TYPES.IS_EMAIL:
+        inferred.format = 'email';
         break;
 
       case VALIDATION_TYPES.IS_POSITIVE:

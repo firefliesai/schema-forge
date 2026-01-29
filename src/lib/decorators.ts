@@ -287,6 +287,9 @@ export function ToolProp(options: PropertyOptions = {}) {
     if (classValidatorProps.format !== undefined && propertySchema.format === undefined) {
       propertySchema.format = classValidatorProps.format;
     }
+    if (classValidatorProps.uniqueItems !== undefined && propertySchema.uniqueItems === undefined) {
+      propertySchema.uniqueItems = classValidatorProps.uniqueItems;
+    }
 
     currentProperties[propertyKey] = propertySchema;
 
