@@ -270,4 +270,137 @@ describe('schema-forge test', () => {
     const addressRequired = addressProps.required || [];
     expect(addressRequired).not.toContain('city');
   });
+
+  it('10 Date type support with format date-time', () => {
+    // Test class with Date property
+    class EventDto {
+      @ToolProp({ description: 'Event name' })
+      name: string;
+
+      @ToolProp({ description: 'Event start date and time' })
+      startDate: Date;
+
+      @ToolProp({ description: 'Event end date and time', isOptional: true })
+      endDate?: Date;
+    }
+
+    // Test basic JSON Schema generation
+    const schema = classToJsonSchema(EventDto);
+    expect(schema.properties.startDate.type).toBe('string');
+    expect(schema.properties.startDate.format).toBe('date-time');
+    expect(schema.properties.endDate.type).toBe('string');
+    expect(schema.properties.endDate.format).toBe('date-time');
+    expect(schema).toMatchSnapshot('10-1 Date type JSON Schema');
+
+    // Test OpenAI tool format
+    const openaiTool = classToOpenAITool(EventDto);
+    expect(openaiTool.function.parameters.properties.startDate.type).toBe('string');
+    expect(openaiTool.function.parameters.properties.startDate.format).toBe('date-time');
+    expect(openaiTool).toMatchSnapshot('10-2 Date type OpenAI tool format');
+
+    // Test Gemini tool format
+    const geminiTool = classToGeminiTool(EventDto);
+    expect(geminiTool.parameters.properties.startDate.type).toBe('string');
+    expect(geminiTool.parameters.properties.startDate.format).toBe('date-time');
+    expect(geminiTool).toMatchSnapshot('10-3 Date type Gemini tool format');
+
+    // Test Anthropic tool format
+    const anthropicTool = classToAnthropicTool(EventDto);
+    expect(anthropicTool.input_schema.properties.startDate.type).toBe('string');
+    expect(anthropicTool.input_schema.properties.startDate.format).toBe('date-time');
+    expect(anthropicTool).toMatchSnapshot('10-4 Date type Anthropic tool format');
+
+    // Test structured output format (OpenAI)
+    const structuredOutput = classToOpenAITool(EventDto, { forStructuredOutput: true });
+    // Note: format is stripped for OpenAI structured output as it's not supported
+    expect(structuredOutput.function.parameters.properties.startDate.type).toBe('string');
+    expect(structuredOutput.function.parameters.properties.startDate.format).toBeUndefined();
+    expect(structuredOutput).toMatchSnapshot('10-5 Date type OpenAI structured output');
+  });
+
+  it('11 ToolProp validation constraint options', () => {
+    // Note: This test verifies that ToolProp correctly passes through
+    // validation constraint options (minimum, maximum, minLength, etc.) to the schema.
+    // These options can be set manually or inferred from class-validator decorators.
+
+    // Test class with manual schema properties
+    class ValidationTestDto {
+      @ToolProp({
+        description: 'User age',
+        minimum: 0,
+        maximum: 120,
+      })
+      age: number;
+
+      @ToolProp({
+        description: 'User name',
+        minLength: 2,
+        maxLength: 50,
+      })
+      name: string;
+
+      @ToolProp({
+        description: 'User website',
+        format: 'uri',
+      })
+      website: string;
+
+      @ToolProp({
+        description: 'User tags',
+        items: { type: 'string' },
+        minItems: 1,
+        maxItems: 10,
+      })
+      tags: string[];
+
+      @ToolProp({
+        description: 'User score',
+        type: 'integer',
+        minimum: 1,
+      })
+      score: number;
+    }
+
+    // Test basic JSON Schema generation with validation constraints
+    const schema = classToJsonSchema(ValidationTestDto);
+
+    // Verify number constraints
+    expect(schema.properties.age.minimum).toBe(0);
+    expect(schema.properties.age.maximum).toBe(120);
+
+    // Verify string constraints
+    expect(schema.properties.name.minLength).toBe(2);
+    expect(schema.properties.name.maxLength).toBe(50);
+
+    // Verify format
+    expect(schema.properties.website.format).toBe('uri');
+
+    // Verify array constraints
+    expect(schema.properties.tags.minItems).toBe(1);
+    expect(schema.properties.tags.maxItems).toBe(10);
+
+    // Verify integer type and positive constraint
+    expect(schema.properties.score.type).toBe('integer');
+    expect(schema.properties.score.minimum).toBe(1);
+
+    expect(schema).toMatchSnapshot('11-1 Validation constraints JSON Schema');
+
+    // Test OpenAI tool format
+    const openaiTool = classToOpenAITool(ValidationTestDto);
+    expect(openaiTool.function.parameters.properties.age.minimum).toBe(0);
+    expect(openaiTool.function.parameters.properties.age.maximum).toBe(120);
+    expect(openaiTool).toMatchSnapshot('11-2 Validation constraints OpenAI tool format');
+
+    // Test Gemini tool format
+    const geminiTool = classToGeminiTool(ValidationTestDto);
+    expect(geminiTool.parameters.properties.age.minimum).toBe(0);
+    expect(geminiTool.parameters.properties.age.maximum).toBe(120);
+    expect(geminiTool).toMatchSnapshot('11-3 Validation constraints Gemini tool format');
+
+    // Test Anthropic tool format
+    const anthropicTool = classToAnthropicTool(ValidationTestDto);
+    expect(anthropicTool.input_schema.properties.age.minimum).toBe(0);
+    expect(anthropicTool.input_schema.properties.age.maximum).toBe(120);
+    expect(anthropicTool).toMatchSnapshot('11-4 Validation constraints Anthropic tool format');
+  });
 });
