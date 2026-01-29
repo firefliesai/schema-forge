@@ -5,6 +5,36 @@ All notable changes to Schema Forge will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-01-29
+
+### Added
+
+- **Date Type Support**: Properties with `Date` type are now automatically mapped to JSON Schema `{ type: "string", format: "date-time" }`.
+
+- **Class-Validator Integration**: Automatic inference of JSON Schema constraints from class-validator decorators when used in your project. Supported decorators:
+  - `@ArrayMaxSize(n)` → `maxItems: n`
+  - `@ArrayMinSize(n)` → `minItems: n`
+  - `@ArrayUnique()` → `uniqueItems: true`
+  - `@ArrayNotEmpty()` → `minItems: 1`
+  - `@Max(n)` → `maximum: n`
+  - `@Min(n)` → `minimum: n`
+  - `@IsInt()` → `type: 'integer'`
+  - `@MinLength(n)` → `minLength: n`
+  - `@MaxLength(n)` → `maxLength: n`
+  - `@IsUrl()` → `format: 'uri'`
+  - `@IsEmail()` → `format: 'email'`
+  - `@IsPositive()` → `minimum: 1`
+
+- **Validation Constraint Options in ToolProp**: New options for `@ToolProp` decorator to manually specify validation constraints:
+  - `minimum`, `maximum` for number constraints
+  - `minLength`, `maxLength` for string constraints
+  - `minItems`, `maxItems`, `uniqueItems` for array constraints
+  - `format` for string format specification
+
+### Changed
+
+- When both class-validator decorators and explicit `@ToolProp` options are present, the explicit options take precedence.
+
 ## [1.0.3] - 2025-03-28
 
 1. update README.md
