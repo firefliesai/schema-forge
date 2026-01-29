@@ -9,7 +9,14 @@ import {
   PropertyPath,
   REQUIRED_PROPS_METADATA_KEY,
 } from './types';
-import { cloneMetadata, extractEnumValues, getJsonSchemaType, isCustomClass } from './utils';
+import {
+  cloneMetadata,
+  extractEnumValues,
+  getJsonSchemaType,
+  isCustomClass,
+  isDateType,
+} from './utils';
+import { inferClassValidatorProperties } from './class-validator-integration';
 
 /**
  * Applies property updates for a given property path
@@ -244,12 +251,47 @@ export function ToolProp(options: PropertyOptions = {}) {
       finalOptions.type = 'object';
       finalOptions.properties = nestedSchema.properties;
       finalOptions.required = nestedSchema.required;
+    } else if (isDateType(type)) {
+      finalOptions.type = 'string';
+      finalOptions.format = 'date-time';
     }
 
-    currentProperties[propertyKey] = {
+    // Infer properties from class-validator decorators if available
+    const classValidatorProps = inferClassValidatorProperties(target, propertyKey);
+
+    // Build the property schema
+    const propertySchema: any = {
       ...finalOptions,
-      type: finalOptions.type || getJsonSchemaType(type),
+      type: classValidatorProps.type || finalOptions.type || getJsonSchemaType(type),
     };
+
+    // Apply class-validator inferred properties only if not explicitly set in ToolProp options
+    if (classValidatorProps.maxItems !== undefined && propertySchema.maxItems === undefined) {
+      propertySchema.maxItems = classValidatorProps.maxItems;
+    }
+    if (classValidatorProps.minItems !== undefined && propertySchema.minItems === undefined) {
+      propertySchema.minItems = classValidatorProps.minItems;
+    }
+    if (classValidatorProps.maximum !== undefined && propertySchema.maximum === undefined) {
+      propertySchema.maximum = classValidatorProps.maximum;
+    }
+    if (classValidatorProps.minimum !== undefined && propertySchema.minimum === undefined) {
+      propertySchema.minimum = classValidatorProps.minimum;
+    }
+    if (classValidatorProps.minLength !== undefined && propertySchema.minLength === undefined) {
+      propertySchema.minLength = classValidatorProps.minLength;
+    }
+    if (classValidatorProps.maxLength !== undefined && propertySchema.maxLength === undefined) {
+      propertySchema.maxLength = classValidatorProps.maxLength;
+    }
+    if (classValidatorProps.format !== undefined && propertySchema.format === undefined) {
+      propertySchema.format = classValidatorProps.format;
+    }
+    if (classValidatorProps.uniqueItems !== undefined && propertySchema.uniqueItems === undefined) {
+      propertySchema.uniqueItems = classValidatorProps.uniqueItems;
+    }
+
+    currentProperties[propertyKey] = propertySchema;
 
     // Handle required props only, don't store isOptional
     if (!options.isOptional) {

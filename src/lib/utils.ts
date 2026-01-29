@@ -158,7 +158,8 @@ export function isCustomClass(type: any): boolean {
     type !== Number &&
     type !== Boolean &&
     type !== Array &&
-    type !== Object
+    type !== Object &&
+    type !== Date
   );
 }
 
@@ -197,7 +198,16 @@ export function getJsonSchemaType(type: any): string {
       return 'array';
     case Object:
       return 'object';
+    case Date:
+      return 'string';
     default:
       return 'string';
   }
+}
+
+/**
+ * Checks if a type is a Date type
+ */
+export function isDateType(type: any): boolean {
+  return type === Date;
 }

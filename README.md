@@ -24,6 +24,7 @@ Schema Forge is a powerful TypeScript library that transforms your TypeScript cl
     - [Structured Output Formatting](#structured-output-formatting)
     - [Property Overrides](#property-overrides)
     - [Nested Objects and Arrays](#nested-objects-and-arrays)
+    - [Class-Validator Integration](#class-validator-integration)
     - [Using TypeScript Enums](#using-typescript-enums)
     - [Dynamic Schema Updates](#dynamic-schema-updates)
     - [Using Direct JSON Schema Converters](#using-direct-json-schema-converters)
@@ -67,6 +68,7 @@ Schema Forge is a powerful TypeScript library that transforms your TypeScript cl
 - 📝 Built-in structured output formatting for various LLM providers
 - 📦 TypeScript-first with full type safety and inference
 - 🪶 Lightweight with minimal dependencies (only requires reflect-metadata)
+- 🔗 Automatic class-validator integration: infers JSON Schema constraints from validation decorators when used
 
 ## Who Should Use This Library?
 
@@ -144,6 +146,14 @@ Make sure to enable experimental decorators in your `tsconfig.json`:
 ```
 
 ## Quick Start
+
+> **Important**: The `@ToolMeta` decorator is required when using `classToOpenAITool`, `classToAnthropicTool`, or any LLM-specific converter function, but is optional when using just `classToJsonSchema`. If you only need to generate JSON Schema without LLM integration, you can omit the `@ToolMeta` decorator.
+
+> **Note on Type Specifications**: TypeScript's type system automatically infers most property types, but there are two cases where you must explicitly specify types in the `@ToolProp` decorator:
+> - **Arrays**: Use `items: { type: 'string' }` or `items: { type: CustomClass }` for arrays
+> - **Enums**: Use `enum: ['value1', 'value2']` or `enum: EnumType` for enumerated values
+>
+> See examples below for details.
 
 ### Define a Class with Decorators
 
@@ -437,6 +447,137 @@ class User {
   scores: number[];
 }
 ```
+
+### When to Specify Types Explicitly
+
+Schema Forge uses TypeScript's reflection capabilities to automatically infer most property types, but there are two specific cases where you **must** provide explicit type information:
+
+1. **Arrays**: TypeScript's type reflection can determine that a property is an array, but it cannot identify the element type
+   ```typescript
+   // INCORRECT - will not properly identify element type
+   @ToolProp({ description: 'List of tags' })
+   tags: string[]; // TypeScript knows this is Array, but not that elements are strings
+   
+   // CORRECT - explicitly specify element type
+   @ToolProp({
+     description: 'List of tags',
+     items: { type: 'string' } // Required for primitive arrays
+   })
+   tags: string[];
+   
+   // CORRECT - for arrays of custom classes 
+   @ToolProp({
+     description: 'Previous addresses',
+     items: { type: Address } // Pass the class directly
+   })
+   previousAddresses: Address[];
+   ```
+
+2. **Enums**: TypeScript enums need explicit handling to generate proper schema enumeration values
+   ```typescript
+   enum UserRole { Admin = 'admin', User = 'user', Guest = 'guest' }
+   
+   // INCORRECT - will not include enum values in schema
+   @ToolProp({ description: 'User role' })
+   role: UserRole;
+   
+   // CORRECT - explicitly specify enum
+   @ToolProp({
+     description: 'User role',
+     enum: UserRole // Pass the enum directly
+   })
+   role: UserRole;
+   
+   // CORRECT - alternatively, provide values directly
+   @ToolProp({
+     description: 'User role',
+     enum: ['admin', 'user', 'guest']
+   })
+   role: string;
+   ```
+
+All other primitive types (string, number, boolean) and custom classes are automatically inferred without additional type specification.
+
+### Class-Validator Integration
+
+If you're using [class-validator](https://github.com/typestack/class-validator) decorators in your project, Schema Forge will automatically infer JSON Schema constraints from them. This means you can define validation rules once and have them reflected in your generated schemas.
+
+Supported class-validator decorators:
+
+| Decorator | JSON Schema Property |
+|-----------|---------------------|
+| `@ArrayMaxSize(n)` | `maxItems: n` |
+| `@ArrayMinSize(n)` | `minItems: n` |
+| `@ArrayUnique()` | `uniqueItems: true` |
+| `@ArrayNotEmpty()` | `minItems: 1` |
+| `@Max(n)` | `maximum: n` |
+| `@Min(n)` | `minimum: n` |
+| `@IsInt()` | `type: 'integer'` |
+| `@MinLength(n)` | `minLength: n` |
+| `@MaxLength(n)` | `maxLength: n` |
+| `@IsUrl()` | `format: 'uri'` |
+| `@IsEmail()` | `format: 'email'` |
+| `@IsPositive()` | `minimum: 1` |
+
+Example:
+
+```typescript
+import { ToolProp } from '@firefliesai/schema-forge';
+import { Min, Max, IsInt, MinLength, MaxLength, IsUrl, IsPositive } from 'class-validator';
+
+class ProductInput {
+  @ToolProp({ description: 'Product name' })
+  @MinLength(2)
+  @MaxLength(100)
+  name: string;
+
+  @ToolProp({ description: 'Product price in cents' })
+  @IsInt()
+  @IsPositive()
+  price: number;
+
+  @ToolProp({ description: 'Stock quantity' })
+  @Min(0)
+  @Max(10000)
+  quantity: number;
+
+  @ToolProp({ description: 'Product page URL' })
+  @IsUrl()
+  url: string;
+}
+
+// The generated schema will include the constraints:
+// {
+//   properties: {
+//     name: { type: 'string', minLength: 2, maxLength: 100, ... },
+//     price: { type: 'integer', minimum: 1, ... },
+//     quantity: { type: 'number', minimum: 0, maximum: 10000, ... },
+//     url: { type: 'string', format: 'uri', ... }
+//   }
+// }
+```
+
+You can also specify these constraints directly in `@ToolProp` options without using class-validator:
+
+```typescript
+class ProductInput {
+  @ToolProp({ 
+    description: 'Product name',
+    minLength: 2,
+    maxLength: 100
+  })
+  name: string;
+
+  @ToolProp({ 
+    description: 'Product price in cents',
+    type: 'integer',
+    minimum: 1
+  })
+  price: number;
+}
+```
+
+When both class-validator decorators and explicit `@ToolProp` options are present, the explicit options take precedence.
 
 ### Using TypeScript Enums
 
