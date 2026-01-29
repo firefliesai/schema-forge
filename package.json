@@ -78,6 +78,7 @@
     "@google/generative-ai": "^0.24.0",
     "@types/jest": "^29.5.14",
     "@types/reflect-metadata": "^0.0.5",
+    "class-validator": "^0.14.3",
     "env-cmd": "^10.1.0",
     "eslint": "^9.22.0",
     "eslint-config-prettier": "^10.1.1",

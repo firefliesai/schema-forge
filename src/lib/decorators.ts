@@ -16,6 +16,7 @@ import {
   isCustomClass,
   isDateType,
 } from './utils';
+import { inferClassValidatorProperties } from './class-validator-integration';
 
 /**
  * Applies property updates for a given property path
@@ -255,10 +256,39 @@ export function ToolProp(options: PropertyOptions = {}) {
       finalOptions.format = 'date-time';
     }
 
-    currentProperties[propertyKey] = {
+    // Infer properties from class-validator decorators if available
+    const classValidatorProps = inferClassValidatorProperties(target, propertyKey);
+
+    // Build the property schema
+    const propertySchema: any = {
       ...finalOptions,
-      type: finalOptions.type || getJsonSchemaType(type),
+      type: classValidatorProps.type || finalOptions.type || getJsonSchemaType(type),
     };
+
+    // Apply class-validator inferred properties
+    if (classValidatorProps.maxItems !== undefined) {
+      propertySchema.maxItems = classValidatorProps.maxItems;
+    }
+    if (classValidatorProps.minItems !== undefined) {
+      propertySchema.minItems = classValidatorProps.minItems;
+    }
+    if (classValidatorProps.maximum !== undefined) {
+      propertySchema.maximum = classValidatorProps.maximum;
+    }
+    if (classValidatorProps.minimum !== undefined) {
+      propertySchema.minimum = classValidatorProps.minimum;
+    }
+    if (classValidatorProps.minLength !== undefined) {
+      propertySchema.minLength = classValidatorProps.minLength;
+    }
+    if (classValidatorProps.maxLength !== undefined) {
+      propertySchema.maxLength = classValidatorProps.maxLength;
+    }
+    if (classValidatorProps.format !== undefined) {
+      propertySchema.format = classValidatorProps.format;
+    }
+
+    currentProperties[propertyKey] = propertySchema;
 
     // Handle required props only, don't store isOptional
     if (!options.isOptional) {

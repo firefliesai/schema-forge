@@ -37,13 +37,25 @@ export interface BaseSchemaProperty {
 
 export interface PropertyOptions extends BaseSchemaProperty {
   isOptional?: boolean;
-  type?: 'string' | 'number' | 'boolean' | 'array' | 'object';
-  format?: 'date-time' | string;
+  type?: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'integer';
+  format?: 'date-time' | 'uri' | string;
+  minimum?: number;
+  maximum?: number;
+  minLength?: number;
+  maxLength?: number;
+  minItems?: number;
+  maxItems?: number;
 }
 
 export interface JSONSchemaProperty extends BaseSchemaProperty {
   type: string;
-  format?: 'date-time' | string;
+  format?: 'date-time' | 'uri' | string;
+  minimum?: number;
+  maximum?: number;
+  minLength?: number;
+  maxLength?: number;
+  minItems?: number;
+  maxItems?: number;
   properties?: {
     [key: string]: JSONSchemaProperty;
   };

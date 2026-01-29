@@ -1012,3 +1012,199 @@ exports[`schema-forge test 10 Date type support with format date-time: 10-5 Date
   "type": "function",
 }
 `;
+
+exports[`schema-forge test 11 class-validator decorator inference: 11-1 Validation constraints JSON Schema 1`] = `
+{
+  "properties": {
+    "age": {
+      "description": "User age",
+      "maximum": 120,
+      "minimum": 0,
+      "type": "number",
+    },
+    "name": {
+      "description": "User name",
+      "maxLength": 50,
+      "minLength": 2,
+      "type": "string",
+    },
+    "score": {
+      "description": "User score",
+      "minimum": 1,
+      "type": "integer",
+    },
+    "tags": {
+      "description": "User tags",
+      "items": {
+        "type": "string",
+      },
+      "maxItems": 10,
+      "minItems": 1,
+      "type": "array",
+    },
+    "website": {
+      "description": "User website",
+      "format": "uri",
+      "type": "string",
+    },
+  },
+  "required": [
+    "age",
+    "name",
+    "website",
+    "tags",
+    "score",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`schema-forge test 11 class-validator decorator inference: 11-2 Validation constraints OpenAI tool format 1`] = `
+{
+  "function": {
+    "name": "",
+    "parameters": {
+      "properties": {
+        "age": {
+          "description": "User age",
+          "maximum": 120,
+          "minimum": 0,
+          "type": "number",
+        },
+        "name": {
+          "description": "User name",
+          "maxLength": 50,
+          "minLength": 2,
+          "type": "string",
+        },
+        "score": {
+          "description": "User score",
+          "minimum": 1,
+          "type": "integer",
+        },
+        "tags": {
+          "description": "User tags",
+          "items": {
+            "type": "string",
+          },
+          "maxItems": 10,
+          "minItems": 1,
+          "type": "array",
+        },
+        "website": {
+          "description": "User website",
+          "format": "uri",
+          "type": "string",
+        },
+      },
+      "required": [
+        "age",
+        "name",
+        "website",
+        "tags",
+        "score",
+      ],
+      "type": "object",
+    },
+  },
+  "type": "function",
+}
+`;
+
+exports[`schema-forge test 11 class-validator decorator inference: 11-3 Validation constraints Gemini tool format 1`] = `
+{
+  "name": "",
+  "parameters": {
+    "properties": {
+      "age": {
+        "description": "User age",
+        "maximum": 120,
+        "minimum": 0,
+        "type": "number",
+      },
+      "name": {
+        "description": "User name",
+        "maxLength": 50,
+        "minLength": 2,
+        "type": "string",
+      },
+      "score": {
+        "description": "User score",
+        "minimum": 1,
+        "type": "integer",
+      },
+      "tags": {
+        "description": "User tags",
+        "items": {
+          "type": "string",
+        },
+        "maxItems": 10,
+        "minItems": 1,
+        "type": "array",
+      },
+      "website": {
+        "description": "User website",
+        "format": "uri",
+        "type": "string",
+      },
+    },
+    "required": [
+      "age",
+      "name",
+      "website",
+      "tags",
+      "score",
+    ],
+    "type": "OBJECT",
+  },
+}
+`;
+
+exports[`schema-forge test 11 class-validator decorator inference: 11-4 Validation constraints Anthropic tool format 1`] = `
+{
+  "input_schema": {
+    "properties": {
+      "age": {
+        "description": "User age",
+        "maximum": 120,
+        "minimum": 0,
+        "type": "number",
+      },
+      "name": {
+        "description": "User name",
+        "maxLength": 50,
+        "minLength": 2,
+        "type": "string",
+      },
+      "score": {
+        "description": "User score",
+        "minimum": 1,
+        "type": "integer",
+      },
+      "tags": {
+        "description": "User tags",
+        "items": {
+          "type": "string",
+        },
+        "maxItems": 10,
+        "minItems": 1,
+        "type": "array",
+      },
+      "website": {
+        "description": "User website",
+        "format": "uri",
+        "type": "string",
+      },
+    },
+    "required": [
+      "age",
+      "name",
+      "website",
+      "tags",
+      "score",
+    ],
+    "type": "object",
+  },
+  "name": "",
+}
+`;
