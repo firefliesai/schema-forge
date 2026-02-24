@@ -43,7 +43,7 @@ interface ClassValidatorMetadata {
  */
 export interface InferredArrayItems {
   type?: 'string' | 'number' | 'integer' | 'boolean';
-  enum?: (string | number)[];
+  enum?: (string | number | boolean)[];
   minimum?: number;
   maximum?: number;
   minLength?: number;
@@ -189,7 +189,7 @@ export function inferClassValidatorProperties(
             const firstType = typeof values[0];
             items.type =
               firstType === 'string' ? 'string' : firstType === 'number' ? 'number' : 'boolean';
-            items.enum = values as (string | number)[];
+            items.enum = values as (string | number | boolean)[];
           }
         }
         break;
