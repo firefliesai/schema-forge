@@ -230,7 +230,9 @@ export function normalizeItemsType(items: any): any {
 
     if (items.type === Date) {
       normalizedItems.type = 'string';
-      normalizedItems.format = 'date-time';
+      if (!normalizedItems.format) {
+        normalizedItems.format = 'date-time';
+      }
       return normalizedItems;
     } else if (items.type === String) {
       normalizedItems.type = 'string';
