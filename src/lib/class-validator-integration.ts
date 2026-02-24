@@ -188,9 +188,12 @@ export function inferClassValidatorProperties(
               typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean',
           );
           if (allPrimitive && values.length > 0) {
-            const firstType = typeof values[0];
-            items.type =
-              firstType === 'string' ? 'string' : firstType === 'number' ? 'number' : 'boolean';
+            const allSameType = values.every((v: unknown) => typeof v === typeof values[0]);
+            if (allSameType) {
+              const firstType = typeof values[0];
+              items.type =
+                firstType === 'string' ? 'string' : firstType === 'number' ? 'number' : 'boolean';
+            }
             items.enum = values as (string | number | boolean)[];
           }
         }
