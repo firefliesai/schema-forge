@@ -576,7 +576,7 @@ export function classToGeminiVertexTool<T extends object>(
  *
  * // Use with Anthropic API:
  * const message = await anthropic.messages.create({
- *   model: "claude-3-7-sonnet-20250219",
+ *   model: "claude-sonnet-4-6",
  *   max_tokens: 1000,
  *   messages: [...],
  *   tools: [tool],
