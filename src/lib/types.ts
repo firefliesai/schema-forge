@@ -23,6 +23,11 @@ export type Constructor<T> = new (...args: any[]) => T;
 export interface SchemaItemType {
   type?: 'string' | 'number' | 'boolean' | Constructor<any>;
   enum?: (string | number)[];
+  format?: 'date-time' | 'uri' | 'email' | string;
+  minimum?: number;
+  maximum?: number;
+  minLength?: number;
+  maxLength?: number;
 }
 
 export interface BaseSchemaProperty {

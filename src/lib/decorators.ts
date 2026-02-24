@@ -2,6 +2,7 @@
  * Decorators for schema-forge
  */
 
+import { inferClassValidatorProperties } from './class-validator-integration';
 import { classToJsonSchema } from './core';
 import {
   JSON_SCHEMA_METADATA_KEY,
@@ -15,8 +16,8 @@ import {
   getJsonSchemaType,
   isCustomClass,
   isDateType,
+  normalizeItemsType,
 } from './utils';
-import { inferClassValidatorProperties } from './class-validator-integration';
 
 /**
  * Applies property updates for a given property path
@@ -181,11 +182,20 @@ export function applyPropertyUpdates(
     }
 
     const { enum: _, ...remainingUpdates } = updates;
+    // Normalize items if present in updates
+    if (remainingUpdates.items) {
+      remainingUpdates.items = normalizeItemsType(remainingUpdates.items);
+    }
     Object.assign(properties[current], remainingUpdates);
   } else {
+    const normalizedUpdates = { ...updates };
+    // Normalize items if present in updates
+    if (normalizedUpdates.items) {
+      normalizedUpdates.items = normalizeItemsType(normalizedUpdates.items);
+    }
     properties[current] = {
       ...currentProperty,
-      ...updates,
+      ...normalizedUpdates,
     };
   }
 }
@@ -196,6 +206,7 @@ export function applyPropertyUpdates(
 export function ToolProp(options: PropertyOptions = {}) {
   return function (target: any, propertyKey: string) {
     const type = Reflect.getMetadata('design:type', target, propertyKey);
+    const classValidatorProps = inferClassValidatorProperties(target, propertyKey);
     // Exclude isOptional, keep only other options
     const { isOptional: _isOptional, ...finalOptions } = options;
 
@@ -221,7 +232,7 @@ export function ToolProp(options: PropertyOptions = {}) {
     currentProperties = { ...currentProperties, ...ownProperties };
     currentRequiredProps = [...new Set([...currentRequiredProps, ...ownRequiredProps])];
 
-    if (type === Array) {
+    if (type === Array || classValidatorProps.isArray) {
       if (options.enum) {
         const enumValues = extractEnumValues(options.enum);
         const enumType = typeof enumValues[0] === 'string' ? 'string' : 'number';
@@ -231,6 +242,10 @@ export function ToolProp(options: PropertyOptions = {}) {
           enum: enumValues,
         };
         delete finalOptions.enum;
+      } else if (classValidatorProps.items && !options.items) {
+        // Use class-validator inferred items (e.g. from @ArrayContains, or each: true decorators)
+        finalOptions.type = 'array';
+        finalOptions.items = classValidatorProps.items as PropertyOptions['items'];
       } else if (!options.items) {
         throw new Error(`Array property "${propertyKey}" needs explicit type information.`);
       } else if (isCustomClass(options.items.type)) {
@@ -239,7 +254,14 @@ export function ToolProp(options: PropertyOptions = {}) {
         finalOptions.items = nestedSchema;
       } else {
         finalOptions.type = 'array';
-        finalOptions.items = options.items;
+        // Normalize constructor types (Date, String, Number, Boolean) to string literals
+        const normalizedItems = normalizeItemsType(options.items);
+        // Merge class-validator item constraints (e.g. from each: true) into explicit items
+        const explicitItems = normalizedItems as Record<string, unknown>;
+        finalOptions.items =
+          classValidatorProps.items && Object.keys(classValidatorProps.items).length > 0
+            ? { ...classValidatorProps.items, ...explicitItems }
+            : explicitItems;
       }
     } else if (options.enum) {
       const enumValues = extractEnumValues(options.enum);
@@ -255,9 +277,6 @@ export function ToolProp(options: PropertyOptions = {}) {
       finalOptions.type = 'string';
       finalOptions.format = 'date-time';
     }
-
-    // Infer properties from class-validator decorators if available
-    const classValidatorProps = inferClassValidatorProperties(target, propertyKey);
 
     // Build the property schema
     const propertySchema: any = {
@@ -388,10 +407,12 @@ export function addSchemaProperty<T extends object>(
   }
 
   if (finalOptions.items) {
+    // Normalize constructor types (Date, String, Number, Boolean) to string literals
+    const normalizedItems = normalizeItemsType(finalOptions.items);
     current[propertyKey] = {
       type: 'array',
       description: finalOptions.description,
-      items: finalOptions.items,
+      items: normalizedItems,
     };
   }
 
