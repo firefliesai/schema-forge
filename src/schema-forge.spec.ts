@@ -403,4 +403,216 @@ describe('schema-forge test', () => {
     expect(anthropicTool.input_schema.properties.age.maximum).toBe(120);
     expect(anthropicTool).toMatchSnapshot('11-4 Validation constraints Anthropic tool format');
   });
+
+  it('12 class-validator array integration: array constraints and each:true merge', () => {
+    // Dynamic import to avoid test failure when class-validator is not installed
+    let ArrayMinSize: (min: number, options?: any) => PropertyDecorator;
+    let ArrayMaxSize: (max: number, options?: any) => PropertyDecorator;
+    let Min: (min: number, options?: any) => PropertyDecorator;
+    let Max: (max: number, options?: any) => PropertyDecorator;
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const cv = require('class-validator');
+      ArrayMinSize = cv.ArrayMinSize;
+      ArrayMaxSize = cv.ArrayMaxSize;
+      Min = cv.Min;
+      Max = cv.Max;
+    } catch {
+      return; // Skip if class-validator not available
+    }
+
+    class ArrayIntegrationDto {
+      @ArrayMinSize(1)
+      @ArrayMaxSize(5)
+      @ToolProp({ description: 'Tags with class-validator constraints', items: { type: 'string' } })
+      tags: string[];
+
+      @ToolProp({ description: 'Scores with Min/Max each', items: { type: 'number' } })
+      @Min(0, { each: true })
+      @Max(100, { each: true })
+      scores: number[];
+
+      @ToolProp({ description: 'URLs with format', items: { type: 'string', format: 'uri' } })
+      urls: string[];
+    }
+
+    const schema = classToJsonSchema(ArrayIntegrationDto);
+
+    // ArrayMinSize/ArrayMaxSize should be inferred and applied
+    expect(schema.properties.tags.type).toBe('array');
+    expect(schema.properties.tags.minItems).toBe(1);
+    expect(schema.properties.tags.maxItems).toBe(5);
+    expect(schema.properties.tags.items).toEqual({ type: 'string' });
+
+    // Min/Max with each:true should merge into items
+    expect(schema.properties.scores.type).toBe('array');
+    expect(schema.properties.scores.items).toMatchObject({
+      type: 'number',
+      minimum: 0,
+      maximum: 100,
+    });
+
+    // Format should be preserved in array items
+    expect(schema.properties.urls.type).toBe('array');
+    expect(schema.properties.urls.items).toMatchObject({
+      type: 'string',
+      format: 'uri',
+    });
+  });
+
+  it('13 array items with format support', () => {
+    class ArrayFormatDto {
+      @ToolProp({
+        description: 'Array of dates',
+        items: { type: 'string', format: 'date-time' },
+      })
+      dates: string[];
+
+      @ToolProp({
+        description: 'Array of URLs',
+        items: { type: 'string', format: 'uri' },
+      })
+      urls: string[];
+
+      @ToolProp({
+        description: 'Array of emails',
+        items: { type: 'string', format: 'email' },
+      })
+      emails: string[];
+
+      @ToolProp({
+        description: 'Array of numbers with constraints',
+        items: { type: 'number', minimum: 0, maximum: 100 },
+      })
+      numbers: number[];
+    }
+
+    const schema = classToJsonSchema(ArrayFormatDto);
+
+    // Verify format is preserved in array items
+    expect(schema.properties.dates.type).toBe('array');
+    expect(schema.properties.dates.items).toEqual({
+      type: 'string',
+      format: 'date-time',
+    });
+
+    expect(schema.properties.urls.type).toBe('array');
+    expect(schema.properties.urls.items).toEqual({
+      type: 'string',
+      format: 'uri',
+    });
+
+    expect(schema.properties.emails.type).toBe('array');
+    expect(schema.properties.emails.items).toEqual({
+      type: 'string',
+      format: 'email',
+    });
+
+    expect(schema.properties.numbers.type).toBe('array');
+    expect(schema.properties.numbers.items).toEqual({
+      type: 'number',
+      minimum: 0,
+      maximum: 100,
+    });
+  });
+
+  it('14 array items with constructor types auto-transformation', () => {
+    class ConstructorTypesDto {
+      @ToolProp({
+        description: 'Array of dates using Date constructor',
+        items: { type: Date },
+      })
+      dates: Date[];
+
+      @ToolProp({
+        description: 'Array of strings using String constructor',
+        items: { type: String },
+      })
+      strings: string[];
+
+      @ToolProp({
+        description: 'Array of numbers using Number constructor',
+        items: { type: Number },
+      })
+      numbers: number[];
+
+      @ToolProp({
+        description: 'Array of booleans using Boolean constructor',
+        items: { type: Boolean },
+      })
+      booleans: boolean[];
+
+      @ToolProp({
+        description: 'Array of dates with format preserved',
+        items: { type: Date, format: 'date-time' },
+      })
+      datesWithFormat: Date[];
+    }
+
+    const schema = classToJsonSchema(ConstructorTypesDto);
+
+    // Date constructor should be transformed to { type: 'string', format: 'date-time' }
+    expect(schema.properties.dates.type).toBe('array');
+    expect(schema.properties.dates.items).toEqual({
+      type: 'string',
+      format: 'date-time',
+    });
+
+    // String constructor should be transformed to { type: 'string' }
+    expect(schema.properties.strings.type).toBe('array');
+    expect(schema.properties.strings.items).toEqual({
+      type: 'string',
+    });
+
+    // Number constructor should be transformed to { type: 'number' }
+    expect(schema.properties.numbers.type).toBe('array');
+    expect(schema.properties.numbers.items).toEqual({
+      type: 'number',
+    });
+
+    // Boolean constructor should be transformed to { type: 'boolean' }
+    expect(schema.properties.booleans.type).toBe('array');
+    expect(schema.properties.booleans.items).toEqual({
+      type: 'boolean',
+    });
+
+    // Date with explicit format should preserve format
+    expect(schema.properties.datesWithFormat.type).toBe('array');
+    expect(schema.properties.datesWithFormat.items).toEqual({
+      type: 'string',
+      format: 'date-time',
+    });
+  });
+
+  it('15 updateSchemaProperty with constructor types in items', () => {
+    class UpdateConstructorDto {
+      @ToolProp({
+        description: 'Array property',
+        items: { type: 'string' },
+      })
+      items: string[];
+    }
+
+    // Update with Date constructor
+    updateSchemaProperty(UpdateConstructorDto, 'items', {
+      items: { type: Date },
+    });
+
+    const schema = classToJsonSchema(UpdateConstructorDto);
+    expect(schema.properties.items.items).toEqual({
+      type: 'string',
+      format: 'date-time',
+    });
+
+    // Update with Number constructor
+    updateSchemaProperty(UpdateConstructorDto, 'items', {
+      items: { type: Number },
+    });
+
+    const schema2 = classToJsonSchema(UpdateConstructorDto);
+    expect(schema2.properties.items.items).toEqual({
+      type: 'number',
+    });
+  });
 });

@@ -211,3 +211,40 @@ export function getJsonSchemaType(type: any): string {
 export function isDateType(type: any): boolean {
   return type === Date;
 }
+
+/**
+ * Normalizes array items type, converting constructors to string literals
+ * Date -> { type: 'string', format: 'date-time' }
+ * String -> { type: 'string' }
+ * Number -> { type: 'number' }
+ * Boolean -> { type: 'boolean' }
+ */
+export function normalizeItemsType(items: any): any {
+  if (!items || typeof items !== 'object') {
+    return items;
+  }
+
+  // If items has a type property that's a constructor, normalize it
+  if (items.type) {
+    const normalizedItems = { ...items };
+
+    if (items.type === Date) {
+      normalizedItems.type = 'string';
+      if (!normalizedItems.format) {
+        normalizedItems.format = 'date-time';
+      }
+      return normalizedItems;
+    } else if (items.type === String) {
+      normalizedItems.type = 'string';
+      return normalizedItems;
+    } else if (items.type === Number) {
+      normalizedItems.type = 'number';
+      return normalizedItems;
+    } else if (items.type === Boolean) {
+      normalizedItems.type = 'boolean';
+      return normalizedItems;
+    }
+  }
+
+  return items;
+}

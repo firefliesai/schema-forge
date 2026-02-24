@@ -47,7 +47,11 @@ export {
 export { prepareForOpenAIStructuredOutput } from './utils';
 
 // Re-export class-validator integration
-export { inferClassValidatorProperties } from './class-validator-integration';
+export {
+  inferClassValidatorProperties,
+  type InferredArrayItems,
+  type InferredSchemaProperties,
+} from './class-validator-integration';
 
 // Legacy import name for backwards compatibility
 export { classToOpenAITool as classToLLMTool } from './llm-formats';
