@@ -24,6 +24,7 @@ Schema Forge is a powerful TypeScript library that transforms your TypeScript cl
     - [Structured Output Formatting](#structured-output-formatting)
     - [Property Overrides](#property-overrides)
     - [Nested Objects and Arrays](#nested-objects-and-arrays)
+    - [When to Specify Types Explicitly](#when-to-specify-types-explicitly)
     - [Class-Validator Integration](#class-validator-integration)
     - [Using TypeScript Enums](#using-typescript-enums)
     - [Dynamic Schema Updates](#dynamic-schema-updates)
@@ -283,7 +284,7 @@ const claudeTool = classToAnthropicTool(UserInput);
 
 // Use with Anthropic API
 const message = await anthropic.messages.create({
-  model: "claude-3-7-sonnet-20250219",
+  model: "claude-sonnet-4-6",
   max_tokens: 1000,
   messages: [...messages],
   tools: [claudeTool],
@@ -504,20 +505,20 @@ If you're using [class-validator](https://github.com/typestack/class-validator) 
 
 Supported class-validator decorators:
 
-| Decorator | JSON Schema Property |
-|-----------|---------------------|
-| `@ArrayMaxSize(n)` | `maxItems: n` |
-| `@ArrayMinSize(n)` | `minItems: n` |
-| `@ArrayUnique()` | `uniqueItems: true` |
-| `@ArrayNotEmpty()` | `minItems: 1` |
-| `@Max(n)` | `maximum: n` |
-| `@Min(n)` | `minimum: n` |
-| `@IsInt()` | `type: 'integer'` |
-| `@MinLength(n)` | `minLength: n` |
-| `@MaxLength(n)` | `maxLength: n` |
-| `@IsUrl()` | `format: 'uri'` |
-| `@IsEmail()` | `format: 'email'` |
-| `@IsPositive()` | `minimum: 1` |
+| Decorator          | JSON Schema Property |
+| ------------------ | -------------------- |
+| `@ArrayMaxSize(n)` | `maxItems: n`        |
+| `@ArrayMinSize(n)` | `minItems: n`        |
+| `@ArrayUnique()`   | `uniqueItems: true`  |
+| `@ArrayNotEmpty()` | `minItems: 1`        |
+| `@Max(n)`          | `maximum: n`         |
+| `@Min(n)`          | `minimum: n`         |
+| `@IsInt()`         | `type: 'integer'`    |
+| `@MinLength(n)`    | `minLength: n`       |
+| `@MaxLength(n)`    | `maxLength: n`       |
+| `@IsUrl()`         | `format: 'uri'`      |
+| `@IsEmail()`       | `format: 'email'`    |
+| `@IsPositive()`    | `minimum: 1`         |
 
 Example:
 
@@ -706,7 +707,7 @@ const anthropicTool = jsonSchemaToAnthropicTool(schema, metadata);
 
 // Use with Anthropic
 const message = await anthropic.messages.create({
-  model: "claude-3-7-sonnet-20250219",
+  model: "claude-sonnet-4-6",
   messages: [...],
   tools: [anthropicTool],
 });
