@@ -74,6 +74,11 @@ export interface InferredSchemaProperties {
  * Tries to get the class-validator metadata storage if available
  */
 function getClassValidatorMetadataStorage(): any | null {
+  const getGlobalStorage = () => {
+    const g = globalThis as any;
+    return g.classValidatorMetadataStorage || null;
+  };
+
   try {
     // Prefer getMetadataStorage() if class-validator is loaded - ensures same instance
     // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -81,12 +86,9 @@ function getClassValidatorMetadataStorage(): any | null {
     if (typeof cv.getMetadataStorage === 'function') {
       return cv.getMetadataStorage();
     }
-    // Fallback to global storage (populated when class-validator decorators run)
-    const global = globalThis as any;
-    return global.classValidatorMetadataStorage || null;
+    return getGlobalStorage();
   } catch {
-    const global = globalThis as any;
-    return global.classValidatorMetadataStorage || null;
+    return getGlobalStorage();
   }
 }
 
