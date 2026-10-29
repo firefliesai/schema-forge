@@ -167,6 +167,23 @@ export function getClassValidatorPropertyNames(targetConstructor: any): string[]
   ];
 }
 
+const LOWER_BOUNDS = new Set(['minimum', 'minLength', 'minItems', 'exclusiveMinimum']);
+
+/**
+ * Sets a bound keyword, keeping the strictest value when several decorators set it
+ * (`@Length(2, 10)` with `@MinLength(5)` gives `minLength: 5`).
+ */
+function setBound(target: object, key: string, value: unknown): void {
+  if (typeof value !== 'number') return;
+  const scope = target as Record<string, unknown>;
+  const current = scope[key];
+  if (typeof current !== 'number') {
+    scope[key] = value;
+    return;
+  }
+  scope[key] = LOWER_BOUNDS.has(key) ? Math.max(current, value) : Math.min(current, value);
+}
+
 const isPrimitive = (v: unknown): v is string | number | boolean =>
   typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean';
 
@@ -220,12 +237,12 @@ export function analyzeClassValidatorProperty(
 
       case VALIDATION_TYPES.ARRAY_MAX_SIZE:
         inferred.isArray = true;
-        if (constraint !== undefined) inferred.maxItems = constraint;
+        setBound(inferred, 'maxItems', constraint);
         break;
 
       case VALIDATION_TYPES.ARRAY_MIN_SIZE:
         inferred.isArray = true;
-        if (constraint !== undefined) inferred.minItems = constraint;
+        setBound(inferred, 'minItems', constraint);
         break;
 
       case VALIDATION_TYPES.ARRAY_UNIQUE:
@@ -235,7 +252,7 @@ export function analyzeClassValidatorProperty(
 
       case VALIDATION_TYPES.ARRAY_NOT_EMPTY:
         inferred.isArray = true;
-        inferred.minItems = 1;
+        setBound(inferred, 'minItems', 1);
         break;
 
       case VALIDATION_TYPES.ARRAY_CONTAINS:
@@ -250,19 +267,19 @@ export function analyzeClassValidatorProperty(
         break;
 
       case VALIDATION_TYPES.MAX:
-        if (constraint !== undefined) scope.maximum = constraint;
+        setBound(scope, 'maximum', constraint);
         break;
 
       case VALIDATION_TYPES.MIN:
-        if (constraint !== undefined) scope.minimum = constraint;
+        setBound(scope, 'minimum', constraint);
         break;
 
       case VALIDATION_TYPES.IS_POSITIVE:
-        scope.exclusiveMinimum = 0;
+        setBound(scope, 'exclusiveMinimum', 0);
         break;
 
       case VALIDATION_TYPES.IS_NEGATIVE:
-        scope.exclusiveMaximum = 0;
+        setBound(scope, 'exclusiveMaximum', 0);
         break;
 
       case VALIDATION_TYPES.IS_DIVISIBLE_BY:
@@ -292,16 +309,16 @@ export function analyzeClassValidatorProperty(
         break;
 
       case VALIDATION_TYPES.MIN_LENGTH:
-        if (constraint !== undefined) scope.minLength = constraint;
+        setBound(scope, 'minLength', constraint);
         break;
 
       case VALIDATION_TYPES.MAX_LENGTH:
-        if (constraint !== undefined) scope.maxLength = constraint;
+        setBound(scope, 'maxLength', constraint);
         break;
 
       case VALIDATION_TYPES.IS_LENGTH:
-        if (typeof constraint === 'number') scope.minLength = constraint;
-        if (typeof meta.constraints?.[1] === 'number') scope.maxLength = meta.constraints[1];
+        setBound(scope, 'minLength', constraint);
+        setBound(scope, 'maxLength', meta.constraints?.[1]);
         break;
 
       case VALIDATION_TYPES.IS_NOT_EMPTY:

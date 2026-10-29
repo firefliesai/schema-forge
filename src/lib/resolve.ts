@@ -110,7 +110,7 @@ const describeDesign = (design: DesignKind): string =>
 
 const sameValue = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
 
-const typeIncludes = (type: unknown, name: string): boolean =>
+export const typeIncludes = (type: unknown, name: string): boolean =>
   type === name || (Array.isArray(type) && type.includes(name));
 
 /**
@@ -140,6 +140,7 @@ export function makeNullable(schema: Record<string, any>): void {
   const onlyBranching =
     schema.type === undefined &&
     schema.const === undefined &&
+    schema.enum === undefined &&
     compositions.length === 1 &&
     compositions[0] !== 'allOf';
   if (onlyBranching) {

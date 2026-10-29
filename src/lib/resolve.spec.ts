@@ -22,6 +22,7 @@ import {
   Max,
   MaxLength,
   Min,
+  MinLength,
 } from 'class-validator';
 
 import {
@@ -32,6 +33,7 @@ import {
   ToolProp,
   updateSchemaProperty,
 } from './index';
+import { makeNullable } from './resolve';
 
 enum Color {
   Red = 'red',
@@ -180,6 +182,15 @@ describe('3.0.0 schema resolution', () => {
       });
     });
 
+    it('wraps a composition with a sibling enum, which would otherwise still reject null', () => {
+      const schema: Record<string, any> = { enum: ['a'], anyOf: [{ type: 'string' }] };
+      makeNullable(schema);
+
+      expect(schema).toStrictEqual({
+        anyOf: [{ enum: ['a'], anyOf: [{ type: 'string' }] }, { type: 'null' }],
+      });
+    });
+
     it('becomes nullable: true in the Gemini formats', () => {
       class GeminiNullable {
         @ToolProp({ enum: Color, nullable: true }) color: Color | null;
@@ -230,6 +241,7 @@ describe('3.0.0 schema resolution', () => {
         @IsUUID() @ToolProp() id: string;
         @Matches(/^[a-z]+$/) @ToolProp() slug: string;
         @Length(2, 5) @ToolProp() code: string;
+        @MinLength(3) @Length(2, 10) @MaxLength(8) @ToolProp() combined: string;
         @IsNotEmpty() @ToolProp() name: string;
         @IsNotEmpty() @ToolProp() amount: number;
         @IsPositive() @ToolProp() price: number;
@@ -244,6 +256,7 @@ describe('3.0.0 schema resolution', () => {
         id: { type: 'string', format: 'uuid' },
         slug: { type: 'string', pattern: '^[a-z]+$' },
         code: { type: 'string', minLength: 2, maxLength: 5 },
+        combined: { type: 'string', minLength: 3, maxLength: 8 },
         name: { type: 'string', minLength: 1 },
         amount: { type: 'number' },
         price: { type: 'number', exclusiveMinimum: 0 },
@@ -324,6 +337,41 @@ describe('3.0.0 schema resolution', () => {
       }
 
       expect(() => classToJsonSchema(NoItems)).toThrow('NoItems.tags: an array needs an item type');
+    });
+
+    it('accepts the explicit-object workaround for a self-reference', () => {
+      class LinkedNode {
+        @ToolProp() label: string;
+        @ToolProp({ type: 'object', isOptional: true }) next?: LinkedNode;
+        @ToolProp({ items: { type: 'object' }, isOptional: true }) children?: LinkedNode[];
+      }
+
+      expect(classToJsonSchema(LinkedNode).properties).toStrictEqual({
+        label: { type: 'string' },
+        next: { type: 'object' },
+        children: { type: 'array', items: { type: 'object' } },
+      });
+    });
+
+    it('follows override paths through a nullable nested object', () => {
+      class Child {
+        @ToolProp() name: string;
+      }
+      class Parent {
+        @ToolProp({ nullable: true }) child: Child;
+      }
+      class Root {
+        @ToolProp() parent: Parent;
+      }
+
+      const schema = classToJsonSchema(Root, {
+        propertyOverrides: { 'parent.child.name': { description: 'child name' } },
+      });
+      expect((schema.properties.parent.properties as any).child).toStrictEqual({
+        type: ['object', 'null'],
+        properties: { name: { type: 'string', description: 'child name' } },
+        required: ['name'],
+      });
     });
 
     it('rejects a class that refers to itself', () => {

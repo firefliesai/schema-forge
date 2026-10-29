@@ -9,6 +9,7 @@ import {
   markExplicit,
   PROPERTY_SOURCES_METADATA_KEY,
   PropertySource,
+  typeIncludes,
 } from './resolve';
 import {
   JSON_SCHEMA_METADATA_KEY,
@@ -61,7 +62,7 @@ export function applyPropertyUpdates(
       const enumType = enumSchemaType(enumValues);
 
       const targetProp = properties[current];
-      if (targetProp.type === 'array') {
+      if (typeIncludes(targetProp.type, 'array')) {
         // Update in items.properties
         if (!targetProp.items.properties) {
           targetProp.items.properties = {};
@@ -73,7 +74,7 @@ export function applyPropertyUpdates(
             current[path] = { type: 'object', properties: {} };
           }
           // If this is an array type property
-          if (current[path].type === 'array') {
+          if (typeIncludes(current[path].type, 'array')) {
             if (!current[path].items.properties) {
               current[path].items.properties = {};
             }
@@ -91,7 +92,7 @@ export function applyPropertyUpdates(
         const lastPath = rest[rest.length - 1];
 
         // Check if the target property should be an array of enums or just an enum
-        if (current[lastPath] && current[lastPath].type === 'array') {
+        if (current[lastPath] && typeIncludes(current[lastPath].type, 'array')) {
           // Update items of an array property
           current[lastPath].items = {
             type: enumType,
@@ -106,7 +107,7 @@ export function applyPropertyUpdates(
             description: current[lastPath]?.description || currentMetadata.description,
           };
         }
-      } else if (targetProp.type === 'object') {
+      } else if (typeIncludes(targetProp.type, 'object')) {
         // Update in object properties
         if (!targetProp.properties) {
           targetProp.properties = {};
@@ -118,7 +119,7 @@ export function applyPropertyUpdates(
             current[path] = { type: 'object', properties: {} };
           }
           // If this is an array type property
-          if (current[path].type === 'array') {
+          if (typeIncludes(current[path].type, 'array')) {
             if (!current[path].items.properties) {
               current[path].items.properties = {};
             }
@@ -145,14 +146,14 @@ export function applyPropertyUpdates(
       }
     } else {
       // Update general nested path
-      if (properties[current].type === 'array') {
+      if (typeIncludes(properties[current].type, 'array')) {
         if (!properties[current].items.properties) {
           properties[current].items.properties = {};
         }
         applyPropertyUpdates(properties[current].items.properties, rest, updates, target);
       }
       // Handle nested object properties
-      else if (properties[current].type === 'object') {
+      else if (typeIncludes(properties[current].type, 'object')) {
         if (!properties[current].properties) {
           properties[current].properties = {};
         }
@@ -308,7 +309,10 @@ export function ToolProp(options: PropertyOptions = {}) {
       const enumValues = extractEnumValues(options.enum);
       finalOptions.enum = enumValues;
       if (!options.type) finalOptions.type = enumSchemaType(enumValues);
-    } else if (design === 'class' && (!options.type || options.type === 'object')) {
+    } else if (
+      design === 'class' &&
+      (!options.type || (options.type === 'object' && type !== target.constructor))
+    ) {
       assertNotSelfReference(target, propertyKey, type);
       const nestedSchema = classToJsonSchema(type);
       finalOptions.type = 'object';
@@ -406,7 +410,7 @@ export function addSchemaProperty<T extends object>(
   let current = existingProperties;
   for (let i = 0; i < paths.length - 1; i++) {
     const path = paths[i];
-    if (current[path]?.type === 'array') {
+    if (typeIncludes(current[path]?.type, 'array')) {
       if (!current[path].items.properties) {
         current[path].items.properties = {};
       }

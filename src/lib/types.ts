@@ -30,7 +30,7 @@ export type JSONSchemaTypeName =
   | 'null';
 
 export interface SchemaItemType {
-  type?: 'string' | 'number' | 'boolean' | 'integer' | Constructor<any>;
+  type?: 'string' | 'number' | 'boolean' | 'integer' | 'object' | Constructor<any>;
   enum?: (string | number | boolean)[];
   format?: 'date-time' | 'uri' | 'email' | 'uuid' | string;
   pattern?: string;

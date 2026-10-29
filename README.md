@@ -584,6 +584,8 @@ Supported class-validator decorators (with `{ each: true }`, the rule applies to
 | `@Matches(regex)` | `pattern` (only when the regex has no flags other than `u`) |
 | `@IsEnum(E)`, `@IsIn([...])` | `enum` |
 
+When several decorators set the same bound (for example `@Length(2, 10)` with `@MinLength(5)`), the strictest value is used.
+
 Rules with no JSON Schema equivalent (for example `@IsTimeZone()`, `@IsISO8601()`, `@IsDateString()`, `@Matches(/x/i)` or a custom validator) are not in the schema. Schema Forge prints a warning for each one (`console.warn`, prefixed `[schema-forge]`, once per message). An explicit `format`, `pattern` or `enum` on the property means you have described the value yourself, and silences that warning.
 
 Example:
