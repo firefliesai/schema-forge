@@ -412,15 +412,21 @@ describe('3.0.0 schema resolution', () => {
         @ToolProp() @IsString() sku: string;
         @IsInt() costCents: number;
       }
+      class Customer {
+        @ToolProp() @IsString() name: string;
+        @IsEmail() email: string;
+      }
       class Order {
         @ToolProp() @IsString() id: string;
         @IsString() ownerId: string;
         @ToolProp({ items: { type: Line } }) lines: Line[];
+        @ToolProp() customer: Customer;
       }
 
       expect(findUndeclaredValidatedProperties(Order)).toStrictEqual([
         { path: 'ownerId', className: 'Order', property: 'ownerId' },
         { path: 'lines.costCents', className: 'Line', property: 'costCents' },
+        { path: 'customer.email', className: 'Customer', property: 'email' },
       ]);
     });
   });
