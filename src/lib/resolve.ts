@@ -296,7 +296,7 @@ export function resolveProperties(
     if (inferred.enum) {
       if (schema.enum === undefined && !isArray) {
         schema.enum = inferred.enum;
-        if (!explicit.has('type')) schema.type = enumSchemaType(inferred.enum);
+        if (!explicit.has('type') && !inferred.type) schema.type = enumSchemaType(inferred.enum);
       } else if (
         schema.enum !== undefined &&
         !sameValue([...schema.enum].sort(), [...inferred.enum].sort())
@@ -405,10 +405,13 @@ export function findUndeclaredValidatedProperties(
   target: new (...args: any[]) => any,
 ): UndeclaredValidatedProperty[] {
   const found: UndeclaredValidatedProperty[] = [];
-  const visited = new Set<unknown>();
-  const visit = (cls: new (...args: any[]) => any, prefix: string): void => {
-    if (visited.has(cls)) return;
-    visited.add(cls);
+  const visit = (
+    cls: new (...args: any[]) => any,
+    prefix: string,
+    ancestors: ReadonlySet<unknown>,
+  ): void => {
+    if (ancestors.has(cls)) return;
+    const path = new Set([...ancestors, cls]);
     const declared = Object.keys(
       Reflect.getMetadata(JSON_SCHEMA_METADATA_KEY, cls.prototype) || {},
     );
@@ -419,9 +422,9 @@ export function findUndeclaredValidatedProperties(
     }
     for (const property of declared) {
       const nested = Reflect.getMetadata(NESTED_CLASS_METADATA_KEY, cls.prototype, property);
-      if (typeof nested === 'function') visit(nested, `${prefix}${property}.`);
+      if (typeof nested === 'function') visit(nested, `${prefix}${property}.`, path);
     }
   };
-  visit(target, '');
+  visit(target, '', new Set());
   return found;
 }

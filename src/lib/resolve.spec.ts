@@ -429,6 +429,22 @@ describe('3.0.0 schema resolution', () => {
         { path: 'customer.email', className: 'Customer', property: 'email' },
       ]);
     });
+
+    it('reports a nested class once per path that reaches it', () => {
+      class Address {
+        @ToolProp() @IsString() street: string;
+        @IsString() postcode: string;
+      }
+      class Shipment {
+        @ToolProp() billing: Address;
+        @ToolProp() shipping: Address;
+      }
+
+      expect(findUndeclaredValidatedProperties(Shipment).map(({ path }) => path)).toStrictEqual([
+        'billing.postcode',
+        'shipping.postcode',
+      ]);
+    });
   });
 
   describe('arrays and nesting', () => {
@@ -499,6 +515,33 @@ describe('3.0.0 schema resolution', () => {
         mixed: { type: ['string', 'number'], enum: ['a', 2] },
         level: { type: 'number', enum: [1, 2] },
       });
+    });
+
+    it('keeps a class-validator type when @IsIn or @IsEnum supplies the enum', () => {
+      class InferredEnums {
+        @IsInt() @IsIn([1, 1.5]) @ToolProp() step: number;
+        @IsIn([1, 2]) @ToolProp() level: string;
+      }
+
+      expect(classToJsonSchema(InferredEnums).properties).toStrictEqual({
+        step: { type: 'integer', enum: [1, 1.5] },
+        level: { type: 'number', enum: [1, 2] },
+      });
+    });
+  });
+
+  it('does not put a design type beside an explicit composition', () => {
+    class Leaf {
+      @ToolProp() x: string;
+    }
+    class Compositions {
+      @ToolProp({ anyOf: [{ type: 'string' }, { type: 'number' }] }) when: Date;
+      @ToolProp({ oneOf: [{ type: 'string' }, { type: 'object' }] }) leaf: Leaf;
+    }
+
+    expect(classToJsonSchema(Compositions).properties).toStrictEqual({
+      when: { anyOf: [{ type: 'string' }, { type: 'number' }] },
+      leaf: { oneOf: [{ type: 'string' }, { type: 'object' }] },
     });
   });
 

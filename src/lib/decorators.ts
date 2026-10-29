@@ -289,6 +289,9 @@ export function ToolProp(options: PropertyOptions = {}) {
     currentSources = { ...currentSources, ...ownSources };
 
     const isArray = type === Array || options.type === 'array' || options.items !== undefined;
+    const hasComposition = Boolean(
+      options.anyOf || options.oneOf || options.allOf || options.const !== undefined,
+    );
     let nestedClass: unknown = null;
 
     if (isArray) {
@@ -316,7 +319,8 @@ export function ToolProp(options: PropertyOptions = {}) {
       if (!options.type) finalOptions.type = enumSchemaType(enumValues);
     } else if (
       design === 'class' &&
-      (!options.type || (options.type === 'object' && type !== target.constructor))
+      ((!options.type && !hasComposition) ||
+        (options.type === 'object' && type !== target.constructor))
     ) {
       assertNotSelfReference(target, propertyKey, type);
       const nestedSchema = classToJsonSchema(type);
@@ -324,12 +328,15 @@ export function ToolProp(options: PropertyOptions = {}) {
       finalOptions.type = 'object';
       finalOptions.properties = nestedSchema.properties;
       if (nestedSchema.required) finalOptions.required = nestedSchema.required;
-    } else if (design === 'date' && (!options.type || options.type === 'string')) {
+    } else if (
+      design === 'date' &&
+      ((!options.type && !hasComposition) || options.type === 'string')
+    ) {
       finalOptions.type = 'string';
       if (!options.format) finalOptions.format = 'date-time';
     } else if (options.type) {
       // An explicit type wins over the design type
-    } else if (options.anyOf || options.oneOf || options.allOf || options.const !== undefined) {
+    } else if (hasComposition) {
       // A composition describes the value; no type is forced next to it
     } else if (design === 'string' || design === 'number' || design === 'boolean') {
       finalOptions.type = design;
