@@ -69,7 +69,8 @@ Schema Forge is a powerful TypeScript library that transforms your TypeScript cl
 - 📝 Built-in structured output formatting for various LLM providers
 - 📦 TypeScript-first with full type safety and inference
 - 🪶 Lightweight with minimal dependencies (only requires reflect-metadata)
-- 🔗 Automatic class-validator integration: infers JSON Schema constraints from validation decorators when used
+- 🔗 Automatic class-validator integration: infers JSON Schema constraints from validation decorators when used, independent of decorator order
+- 🛑 Fails at load time instead of emitting a schema that does not match the class
 
 ## Who Should Use This Library?
 
@@ -497,28 +498,93 @@ Schema Forge uses TypeScript's reflection capabilities to automatically infer mo
    role: string;
    ```
 
-All other primitive types (string, number, boolean) and custom classes are automatically inferred without additional type specification.
+3. **Unions, nullable fields, interfaces, generics, `any` and `Record`**: TypeScript reports these as `Object`, which says nothing about the value. Schema Forge throws instead of guessing (see [Errors](#errors-at-load-time)). Give the type explicitly, or let a class-validator type decorator supply it:
+   ```typescript
+   // With strictNullChecks, `string | null` is reported as Object
+   @ToolProp({ type: 'string', nullable: true, isOptional: true })
+   note?: string | null; // { type: ['string', 'null'] }, not required
+
+   @ToolProp({ isOptional: true })
+   @IsString() // also resolves the type
+   title?: string | null; // { type: 'string' }, not required; null is rejected
+
+   @ToolProp({ type: 'object' })
+   metadata: Record<string, string>;
+
+   @ToolProp({ anyOf: [{ type: 'string' }, { type: 'number' }] })
+   id: string | number;
+   ```
+
+All other primitive types (string, number, boolean), `Date` and custom classes are automatically inferred without additional type specification.
+
+### Nullable and Optional
+
+`isOptional` and `nullable` are independent:
+
+| Option | Effect |
+| --- | --- |
+| `isOptional: true` | The property is left out of `required`; the caller may omit it. `null` is still rejected. |
+| `nullable: true` | `null` is an allowed value: `type` becomes `[type, "null"]`, `enum` gains `null`, and a composition gains a `{ "type": "null" }` branch. |
+
+The Gemini formatters turn `nullable: true` into Gemini's own `nullable: true` keyword.
+
+### Closed Objects
+
+By default, objects do not set `additionalProperties`, so extra keys are allowed. Pass `additionalProperties: false` to add `additionalProperties: false` to every object in the schema (the root, nested classes and array items). Strict structured-output modes require this. The option is accepted by `classToJsonSchema` and by every `classTo…` formatter:
+
+```typescript
+const schema = classToJsonSchema(User, { additionalProperties: false });
+const tool = classToAnthropicTool(User, { additionalProperties: false });
+```
+
+`forStructuredOutput: true` already closes objects (and makes every property required), as before. Gemini does not accept `additionalProperties`, so the Gemini formatters leave it out.
+
+### Errors at Load Time
+
+Schema Forge throws instead of emitting a schema that does not describe the class:
+
+| Error | Cause | Fix |
+| --- | --- | --- |
+| `cannot determine the JSON Schema type` | The design type is `Object` (union, `T \| null`, interface, generic, `any`, `unknown`, `Record`) and nothing else gives a type | Set `type`, `items` or `enum`, or add a class-validator type decorator |
+| `an array needs an item type` | An array property with no `items` and no `{ each: true }` validator | Set `items` |
+| `has class-validator decorators but no @ToolProp` | A validated property would be missing from the schema | Add `@ToolProp` |
+| `refers to its own class` | A recursive class (`children: Node[]` inside `Node`) | Describe the field explicitly, e.g. `items: { type: 'object' }` |
+
+`classToJsonSchema` reports every problem of a class in one error. Errors in a nested class are raised when the outer class is loaded, because nested schemas are built then.
 
 ### Class-Validator Integration
 
-If you're using [class-validator](https://github.com/typestack/class-validator) decorators in your project, Schema Forge will automatically infer JSON Schema constraints from them. This means you can define validation rules once and have them reflected in your generated schemas.
+If you're using [class-validator](https://github.com/typestack/class-validator) (0.14 or 0.15) decorators in your project, Schema Forge will automatically infer JSON Schema constraints from them. This means you can define validation rules once and have them reflected in your generated schemas.
 
-Supported class-validator decorators:
+The decorators are read when the schema is generated, so their position relative to `@ToolProp` does not matter. Every property that has class-validator decorators must also have `@ToolProp`.
 
-| Decorator          | JSON Schema Property |
-| ------------------ | -------------------- |
-| `@ArrayMaxSize(n)` | `maxItems: n`        |
-| `@ArrayMinSize(n)` | `minItems: n`        |
-| `@ArrayUnique()`   | `uniqueItems: true`  |
-| `@ArrayNotEmpty()` | `minItems: 1`        |
-| `@Max(n)`          | `maximum: n`         |
-| `@Min(n)`          | `minimum: n`         |
-| `@IsInt()`         | `type: 'integer'`    |
-| `@MinLength(n)`    | `minLength: n`       |
-| `@MaxLength(n)`    | `maxLength: n`       |
-| `@IsUrl()`         | `format: 'uri'`      |
-| `@IsEmail()`       | `format: 'email'`    |
-| `@IsPositive()`    | `minimum: 1`         |
+Supported class-validator decorators (with `{ each: true }`, the rule applies to array `items`):
+
+| Decorator | JSON Schema Property |
+| --- | --- |
+| `@IsString()`, `@IsNumber()`, `@IsInt()`, `@IsBoolean()`, `@IsObject()` | `type: 'string'`, `'number'`, `'integer'`, `'boolean'`, `'object'` |
+| `@IsArray()` | `type: 'array'` |
+| `@ArrayMaxSize(n)` | `maxItems: n` |
+| `@ArrayMinSize(n)` | `minItems: n` |
+| `@ArrayUnique()` | `uniqueItems: true` |
+| `@ArrayNotEmpty()` | `minItems: 1` |
+| `@ArrayContains([...])` | `items.enum` (primitive values) |
+| `@Max(n)` | `maximum: n` |
+| `@Min(n)` | `minimum: n` |
+| `@IsPositive()` | `exclusiveMinimum: 0` |
+| `@IsNegative()` | `exclusiveMaximum: 0` |
+| `@IsDivisibleBy(n)` | `multipleOf: n` |
+| `@MinLength(n)` | `minLength: n` |
+| `@MaxLength(n)` | `maxLength: n` |
+| `@Length(min, max)` | `minLength`, `maxLength` |
+| `@IsNotEmpty()` | `minLength: 1` (strings only) |
+| `@IsUrl()` | `format: 'uri'` |
+| `@IsEmail()` | `format: 'email'` |
+| `@IsUUID()` | `format: 'uuid'` |
+| `@Matches(regex)` | `pattern` (only when the regex has no flags other than `u`) |
+| `@IsEnum(E)`, `@IsIn([...])` | `enum` |
+
+Rules with no JSON Schema equivalent (for example `@IsTimeZone()`, `@IsISO8601()`, `@IsDateString()`, `@Matches(/x/i)` or a custom validator) are not in the schema. Schema Forge prints a warning for each one (`console.warn`, prefixed `[schema-forge]`, once per message). An explicit `format`, `pattern` or `enum` on the property means you have described the value yourself, and silences that warning.
 
 Example:
 
@@ -551,7 +617,7 @@ class ProductInput {
 // {
 //   properties: {
 //     name: { type: 'string', minLength: 2, maxLength: 100, ... },
-//     price: { type: 'integer', minimum: 1, ... },
+//     price: { type: 'integer', exclusiveMinimum: 0, ... },
 //     quantity: { type: 'number', minimum: 0, maximum: 10000, ... },
 //     url: { type: 'string', format: 'uri', ... }
 //   }
@@ -578,7 +644,7 @@ class ProductInput {
 }
 ```
 
-When both class-validator decorators and explicit `@ToolProp` options are present, the explicit options take precedence.
+When both class-validator decorators and explicit `@ToolProp` options are present, the explicit options take precedence, and a conflicting class-validator rule prints a warning. The full order is: explicit `@ToolProp` options (including `propertyOverrides` and `updateSchemaProperty`), then class-validator, then the TypeScript design type.
 
 ### Using TypeScript Enums
 
@@ -786,7 +852,8 @@ options = {
   enum?: any[] | object;  // Enum values - can be a TS enum or array of values
   items?: object;         // For array properties - required for arrays of primitives or custom types
   isOptional?: boolean;   // If true, property won't be in required array
-  // ...other JSON Schema properties
+  nullable?: boolean;     // If true, null is an allowed value (independent of isOptional)
+  // ...constraints, annotations and anyOf/oneOf/allOf; see "Supported JSON Schema Properties"
 }
 ```
 
@@ -1021,29 +1088,27 @@ The `@ToolProp` decorator currently supports these JSON Schema properties:
 
 ```typescript
 @ToolProp({
-  description: string,       // Provides description for the property
-  type: string,              // Explicit type (usually inferred)
-  enum: string[] | number[], // Enumeration values
-  items: object,             // For array properties
-  isOptional: boolean,       // Controls if property is in required array
-  // ...other basic JSON Schema properties
+  description: string,        // Provides description for the property
+  type: string,               // 'string' | 'number' | 'integer' | 'boolean' | 'array' | 'object'
+  enum: E | unknown[],        // Enumeration values (TypeScript enum or array)
+  items: object,              // For array properties
+  isOptional: boolean,        // Leaves the property out of `required`
+  nullable: boolean,          // Allows null as a value
+  // Constraints
+  format, pattern,
+  minimum, maximum, exclusiveMinimum, exclusiveMaximum, multipleOf,
+  minLength, maxLength, minItems, maxItems, uniqueItems,
+  // Annotations and composition (no `type` is forced next to a composition)
+  title, default, examples, deprecated, const, anyOf, oneOf, allOf,
 })
 ```
 
 #### Current Limitations
 
-Some JSON Schema properties are not yet directly supported through decorators, including:
-
-- Array constraints: `minItems`, `maxItems`, `uniqueItems`
-- String constraints: `minLength`, `maxLength`, `pattern`, `format`
-- Number constraints: `minimum`, `maximum`, `multipleOf`
-- Object constraints: `minProperties`, `maxProperties`
-
-The following JSON Schema features are also not yet supported, despite being supported by OpenAI structured output:
-
-- Recursive schemas using `$ref`
-- Complex schema composition with `anyOf`
-- `"type": "integer"`
+- Recursive classes (`$ref` / `$defs`) are not supported; a class that refers to itself throws.
+- Object constraints `minProperties`, `maxProperties`, `patternProperties` and `propertyNames` have no option.
+- A class-transformer `@Type(() => X)` is not read; array items still need `items`.
+- `@IsOptional()` is not read; use `isOptional`.
 
 ## Common Issues and Solutions
 
@@ -1077,6 +1142,17 @@ class UserData {
   age?: number; // Optional property using both ? syntax and isOptional
 }
 ```
+
+An optional property still rejects `null`. If `null` is a valid value, add `nullable: true` (see [Nullable and Optional](#nullable-and-optional)).
+
+## Migrating from 2.x
+
+3.0.0 throws where 2.x emitted a wrong schema, and translates more class-validator rules. Most classes produce the same schema. To upgrade:
+
+1. Load every class you convert (for example, run your test suite) and fix each error from [Errors at Load Time](#errors-at-load-time). The common one is a field typed `T | null` under `strictNullChecks`: 2.x emitted `{ "type": "object" }` for it, which rejected every string or number sent for it.
+2. Read the `[schema-forge]` warnings. A conflict warning means an explicit option and a class-validator rule disagree; the explicit option is used. A "no JSON Schema equivalent" warning lists a rule the schema does not enforce.
+3. Check the schemas that changed. A diff of `classToJsonSchema` output before and after the upgrade shows them. The differences come from the items under "Breaking changes" in the 3.0.0 entry of the [CHANGELOG](CHANGELOG.md): `exclusiveMinimum` for `@IsPositive`, new translations, decorator order, enum types, compositions.
+4. If code reads `JSONSchemaProperty.type` as a `string`, allow `string[]` and `undefined`.
 
 ## Contributing
 
