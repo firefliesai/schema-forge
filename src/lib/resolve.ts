@@ -167,6 +167,29 @@ export function makeNullable(schema: Record<string, any>): void {
 }
 
 /**
+ * Reverses `makeNullable` (for `nullable: false` on a property whose schema already allows null,
+ * such as a property of a nested class).
+ */
+export function removeNullable(schema: Record<string, any>): void {
+  if (Array.isArray(schema.type) && schema.type.includes('null')) {
+    const types = schema.type.filter((type: string) => type !== 'null');
+    schema.type = types.length === 1 ? types[0] : types;
+  }
+  if (Array.isArray(schema.enum))
+    schema.enum = schema.enum.filter((value: unknown) => value !== null);
+  for (const key of ['anyOf', 'oneOf']) {
+    if (!Array.isArray(schema[key]) || !schema[key].some(isNullBranch)) continue;
+    const rest = schema[key].filter((branch: any) => !isNullBranch(branch));
+    if (key === 'anyOf' && rest.length === 1 && schema.type === undefined) {
+      delete schema.anyOf;
+      Object.assign(schema, rest[0]);
+    } else {
+      schema[key] = rest;
+    }
+  }
+}
+
+/**
  * Adds `additionalProperties: false` to every object schema that declares `properties`, at every
  * level (nested objects, array items, composition branches). An object with no declared
  * properties (a free-form `Record`) is left open: closing it would accept only `{}`.
@@ -214,8 +237,9 @@ export function resolveProperties(
       schema.type = schema.type ?? 'array';
       if (!explicitType && !typeIncludes(schema.type, 'array')) schema.type = 'array';
       if (!schema.items) {
-        if (inferred.items && Object.keys(inferred.items).length > 0) {
-          schema.items = { ...inferred.items };
+        if (inferred.items && Object.keys(inferred.items).some((key) => key !== 'notEmpty')) {
+          const { notEmpty: _notEmpty, ...itemSchema } = inferred.items;
+          schema.items = itemSchema;
         } else {
           problems.push(
             `${name}: an array needs an item type. Set \`items\` in @ToolProp ` +
@@ -242,6 +266,14 @@ export function resolveProperties(
       }
       if (schema.items && Array.isArray(schema.items.enum) && schema.items.type === undefined) {
         schema.items.type = enumSchemaType(schema.items.enum);
+      }
+      if (
+        inferred.items?.notEmpty &&
+        schema.items &&
+        typeIncludes(schema.items.type, 'string') &&
+        schema.items.minLength === undefined
+      ) {
+        schema.items.minLength = 1;
       }
     }
 

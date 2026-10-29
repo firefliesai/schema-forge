@@ -526,7 +526,7 @@ All other primitive types (string, number, boolean), `Date` and custom classes a
 | `isOptional: true` | The property is left out of `required`; the caller may omit it. `null` is still rejected. |
 | `nullable: true` | `null` is an allowed value: `type` becomes `[type, "null"]` and `enum` gains `null`; an `anyOf` / `oneOf` gains a `{ "type": "null" }` branch; `const`, `allOf` or a composition beside a `type` becomes `anyOf: [schema, { "type": "null" }]`. |
 
-The Gemini formatters turn a `"null"` type or a `{ "type": "null" }` branch into Gemini's own `nullable: true` keyword.
+The Gemini formatters turn a `"null"` type or a `{ "type": "null" }` branch into Gemini's own `nullable: true` keyword, and a type array with several types (a mixed enum) into one typed `anyOf` branch per type.
 
 ### Closed Objects
 
@@ -573,11 +573,11 @@ Supported class-validator decorators (with `{ each: true }`, the rule applies to
 | `@Min(n)` | `minimum: n` |
 | `@IsPositive()` | `exclusiveMinimum: 0` |
 | `@IsNegative()` | `exclusiveMaximum: 0` |
-| `@IsDivisibleBy(n)` | `multipleOf: n` |
+| `@IsDivisibleBy(n)` | `multipleOf: \|n\|` (a zero divisor is not translated) |
 | `@MinLength(n)` | `minLength: n` |
 | `@MaxLength(n)` | `maxLength: n` |
 | `@Length(min, max)` | `minLength`, `maxLength` |
-| `@IsNotEmpty()` | `minLength: 1` (strings only) |
+| `@IsNotEmpty()` | `minLength: 1` (strings, or string items with `{ each: true }`) |
 | `@IsUrl()` | `format: 'uri'` |
 | `@IsEmail()` | `format: 'email'` |
 | `@IsUUID()` | `format: 'uuid'` |

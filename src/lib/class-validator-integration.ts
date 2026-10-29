@@ -81,6 +81,8 @@ export interface InferredArrayItems {
   maxLength?: number;
   pattern?: string;
   format?: string;
+  /** @IsNotEmpty({ each: true }): `minLength: 1` when the items resolve to strings */
+  notEmpty?: boolean;
 }
 
 /**
@@ -283,7 +285,11 @@ export function analyzeClassValidatorProperty(
         break;
 
       case VALIDATION_TYPES.IS_DIVISIBLE_BY:
-        if (typeof constraint === 'number') scope.multipleOf = constraint;
+        if (typeof constraint === 'number' && constraint !== 0) {
+          scope.multipleOf = Math.abs(constraint);
+        } else {
+          untranslated.push(metaType);
+        }
         break;
 
       case VALIDATION_TYPES.IS_INT:
@@ -322,7 +328,7 @@ export function analyzeClassValidatorProperty(
         break;
 
       case VALIDATION_TYPES.IS_NOT_EMPTY:
-        if (!appliesToItems) inferred.notEmpty = true;
+        scope.notEmpty = true;
         break;
 
       case VALIDATION_TYPES.IS_URL:

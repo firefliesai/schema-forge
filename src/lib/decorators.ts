@@ -8,6 +8,7 @@ import {
   makeNullable,
   markExplicit,
   PROPERTY_SOURCES_METADATA_KEY,
+  removeNullable,
   PropertySource,
   typeIncludes,
 } from './resolve';
@@ -212,7 +213,8 @@ export function applyPropertyUpdates(
   // is resolved (or right away for a property with no recorded source).
   delete properties[current].isOptional;
   delete properties[current].nullable;
-  if (updates.nullable && !sources?.[current]) makeNullable(properties[current]);
+  if (!sources?.[current] && updates.nullable === true) makeNullable(properties[current]);
+  if (!sources?.[current] && updates.nullable === false) removeNullable(properties[current]);
 }
 
 /**

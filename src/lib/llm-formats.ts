@@ -41,12 +41,23 @@ function toGeminiSchema(node: any): any {
       out[key] = value.map(toGeminiSchema);
     } else out[key] = value;
   }
-  if (Array.isArray(out.type) && out.type.includes('null')) {
+  if (Array.isArray(out.type)) {
     const types = out.type.filter((type: string) => type !== 'null');
-    if (types.length === 1) {
-      out.type = types[0];
+    if (types.length < out.type.length) {
       out.nullable = true;
       if (Array.isArray(out.enum)) out.enum = out.enum.filter((value: unknown) => value !== null);
+    }
+    if (types.length === 1) {
+      out.type = types[0];
+    } else {
+      // Gemini's `type` is a single value: one typed branch per type, each with its enum values
+      const values: unknown[] | undefined = out.enum;
+      out.anyOf = types.map((type: string) => ({
+        type,
+        ...(values && { enum: values.filter((value) => matchesJsonType(value, type)) }),
+      }));
+      delete out.type;
+      delete out.enum;
     }
   }
   for (const key of ['anyOf', 'oneOf']) {
@@ -63,6 +74,9 @@ function toGeminiSchema(node: any): any {
   }
   return out;
 }
+
+const matchesJsonType = (value: unknown, type: string): boolean =>
+  type === 'integer' ? Number.isInteger(value) : typeof value === type;
 
 const isNullBranch = (branch: any): boolean =>
   !!branch &&

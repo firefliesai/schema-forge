@@ -168,6 +168,27 @@ describe('3.0.0 schema resolution', () => {
       expect(classToJsonSchema(NullableOff).properties.b).toStrictEqual({ type: 'string' });
     });
 
+    it('can be turned off on a property of a nested class', () => {
+      class NullableLeaf {
+        @ToolProp({ type: 'string', nullable: true }) name: string | null;
+        @ToolProp({ enum: Color, nullable: true }) color: Color | null;
+      }
+      class NullableHolder {
+        @ToolProp() leaf: NullableLeaf;
+      }
+
+      const leaf = classToJsonSchema(NullableHolder, {
+        propertyOverrides: {
+          'leaf.name': { nullable: false },
+          'leaf.color': { nullable: false },
+        },
+      }).properties.leaf;
+      expect(leaf.properties).toStrictEqual({
+        name: { type: 'string' },
+        color: { type: 'string', enum: ['red', 'blue'] },
+      });
+    });
+
     it('makes const and typed compositions an alternative with null', () => {
       class NullableAlternatives {
         @ToolProp({ const: 'yes', nullable: true, description: 'flag' }) yes: unknown;
@@ -197,12 +218,20 @@ describe('3.0.0 schema resolution', () => {
         @ToolProp({ anyOf: [{ type: 'string' }], nullable: true }) single: unknown;
         @ToolProp({ anyOf: [{ type: 'string' }, { type: 'number' }], nullable: true })
         pair: unknown;
+        @ToolProp({ enum: ['a', 2], nullable: true }) mixed: string | number | null;
       }
 
       expect(classToGeminiTool(GeminiNullable).parameters.properties).toStrictEqual({
         color: { type: 'string', enum: ['red', 'blue'], nullable: true },
         single: { type: 'string', nullable: true },
         pair: { anyOf: [{ type: 'string' }, { type: 'number' }], nullable: true },
+        mixed: {
+          anyOf: [
+            { type: 'string', enum: ['a'] },
+            { type: 'number', enum: [2] },
+          ],
+          nullable: true,
+        },
       });
     });
 
@@ -278,6 +307,23 @@ describe('3.0.0 schema resolution', () => {
         type: 'array',
         items: { type: 'integer', minimum: 1 },
       });
+    });
+
+    it('applies @IsNotEmpty({ each: true }) to string items and keeps multipleOf positive', () => {
+      class EachNotEmpty {
+        @IsString({ each: true }) @IsNotEmpty({ each: true }) @ToolProp() names: string[];
+        @IsDivisibleBy(-2) @ToolProp() even: number;
+        @IsDivisibleBy(0) @ToolProp() zero: number;
+      }
+
+      expect(classToJsonSchema(EachNotEmpty).properties).toStrictEqual({
+        names: { type: 'array', items: { type: 'string', minLength: 1 } },
+        even: { type: 'number', multipleOf: 2 },
+        zero: { type: 'number' },
+      });
+      expect(warnings()).toStrictEqual([
+        expect.stringContaining('EachNotEmpty.zero: class-validator rule "isDivisibleBy"'),
+      ]);
     });
 
     it('keeps explicit options and warns on a conflict', () => {
