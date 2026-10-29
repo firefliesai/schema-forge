@@ -2,7 +2,7 @@
  * Core schema generation functionality
  */
 
-import { inferClassValidatorProperties } from './class-validator-integration';
+import { closeObjects, getPropertySources, resolveProperties } from './resolve';
 import {
   JSON_SCHEMA_METADATA_KEY,
   JSONSchemaDefinition,
@@ -12,84 +12,11 @@ import {
 import { cloneMetadata, prepareForOpenAIStructuredOutput } from './utils';
 
 /**
- * Enriches schema properties with class-validator inferred constraints.
- * Called at schema generation time when all decorators have run and metadata is available.
- */
-function enrichWithClassValidatorMetadata(
-  properties: Record<string, any>,
-  target: new (...args: any[]) => any,
-): void {
-  for (const propName of Object.keys(properties)) {
-    const inferred = inferClassValidatorProperties(target.prototype, propName);
-    const prop = properties[propName];
-    if (!prop || Object.keys(inferred).length === 0) continue;
-
-    if (inferred.maxItems !== undefined && prop.maxItems === undefined) {
-      prop.maxItems = inferred.maxItems;
-    }
-    if (inferred.minItems !== undefined && prop.minItems === undefined) {
-      prop.minItems = inferred.minItems;
-    }
-    if (inferred.uniqueItems !== undefined && prop.uniqueItems === undefined) {
-      prop.uniqueItems = inferred.uniqueItems;
-    }
-    if (inferred.maximum !== undefined && prop.maximum === undefined) {
-      prop.maximum = inferred.maximum;
-    }
-    if (inferred.minimum !== undefined && prop.minimum === undefined) {
-      prop.minimum = inferred.minimum;
-    }
-    if (inferred.minLength !== undefined && prop.minLength === undefined) {
-      prop.minLength = inferred.minLength;
-    }
-    if (inferred.maxLength !== undefined && prop.maxLength === undefined) {
-      prop.maxLength = inferred.maxLength;
-    }
-    if (inferred.format !== undefined && prop.format === undefined) {
-      prop.format = inferred.format;
-    }
-    if (inferred.type !== undefined && prop.type === undefined) {
-      prop.type = inferred.type;
-    }
-    // Merge inferred items into array items (e.g. from each: true decorators)
-    if (
-      prop.type === 'array' &&
-      prop.items &&
-      inferred.items &&
-      Object.keys(inferred.items).length > 0
-    ) {
-      // Merge inferred items into existing items
-      // preserving explicit properties but filling in missing ones
-      const mergedItems = { ...prop.items };
-      // Only add inferred properties that don't exist in explicit items
-      if (inferred.items.format !== undefined && mergedItems.format === undefined) {
-        mergedItems.format = inferred.items.format;
-      }
-      if (inferred.items.type !== undefined && mergedItems.type === undefined) {
-        mergedItems.type = inferred.items.type;
-      }
-      if (inferred.items.minimum !== undefined && mergedItems.minimum === undefined) {
-        mergedItems.minimum = inferred.items.minimum;
-      }
-      if (inferred.items.maximum !== undefined && mergedItems.maximum === undefined) {
-        mergedItems.maximum = inferred.items.maximum;
-      }
-      if (inferred.items.minLength !== undefined && mergedItems.minLength === undefined) {
-        mergedItems.minLength = inferred.items.minLength;
-      }
-      if (inferred.items.maxLength !== undefined && mergedItems.maxLength === undefined) {
-        mergedItems.maxLength = inferred.items.maxLength;
-      }
-      if (inferred.items.enum !== undefined && mergedItems.enum === undefined) {
-        mergedItems.enum = inferred.items.enum;
-      }
-      prop.items = mergedItems;
-    }
-  }
-}
-
-/**
  * Converts a TypeScript class to a JSON Schema
+ *
+ * Throws when a property's type cannot be determined (for example `x?: string | null` with no
+ * explicit `type`), when an array property has no item type, or when a property has
+ * class-validator decorators but no `@ToolProp`.
  *
  * @param target The class to convert
  * @param options Options for schema generation
@@ -105,7 +32,7 @@ function enrichWithClassValidatorMetadata(
  *   propertyOverrides: {
  *     'username': { description: 'Custom description' }
  *   },
- *   structuredOutputFormat: 'openai', // unused
+ *   additionalProperties: false, // closed objects at every level
  * });
  */
 export function classToJsonSchema<T extends object>(
@@ -118,16 +45,17 @@ export function classToJsonSchema<T extends object>(
   const requiredProps = [
     ...(Reflect.getMetadata(REQUIRED_PROPS_METADATA_KEY, target.prototype) || []),
   ];
-
-  // Enrich with class-validator metadata (decorators have all run by schema generation time)
-  enrichWithClassValidatorMetadata(properties, target);
+  const sources = cloneMetadata(getPropertySources(target.prototype));
 
   if (options?.propertyOverrides) {
     Object.entries(options.propertyOverrides).forEach(([path, updates]) => {
       const paths = path.split('.');
-      applyPropertyUpdates(properties, paths, updates, target);
+      applyPropertyUpdates(properties, paths, updates as any, target, sources);
     });
   }
+
+  // class-validator inference, type checks and `nullable` (decorators have all run by now)
+  resolveProperties(target, properties, sources);
 
   const schema: JSONSchemaDefinition = {
     type: 'object',
@@ -136,6 +64,10 @@ export function classToJsonSchema<T extends object>(
 
   if (requiredProps.length > 0) {
     schema.required = requiredProps;
+  }
+
+  if (options?.additionalProperties === false) {
+    closeObjects(schema);
   }
 
   // Handle structured output formatting based on provider

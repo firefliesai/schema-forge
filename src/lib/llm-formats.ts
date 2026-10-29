@@ -26,6 +26,35 @@ import {
 import { prepareForOpenAIStructuredOutput } from './utils';
 
 /**
+ * Gemini takes an OpenAPI-style schema: `nullable: true` instead of a `"null"` type, and no
+ * `additionalProperties`. Applied to each property schema, recursively.
+ */
+function toGeminiSchema(node: any): any {
+  if (Array.isArray(node)) return node.map(toGeminiSchema);
+  if (!node || typeof node !== 'object') return node;
+  const out: any = {};
+  for (const [key, value] of Object.entries(node)) {
+    if (key === 'additionalProperties') continue;
+    out[key] = key === 'properties' ? toGeminiProperties(value) : toGeminiSchema(value);
+  }
+  if (Array.isArray(out.type) && out.type.includes('null')) {
+    const types = out.type.filter((type: string) => type !== 'null');
+    if (types.length === 1) {
+      out.type = types[0];
+      out.nullable = true;
+      if (Array.isArray(out.enum)) out.enum = out.enum.filter((value: unknown) => value !== null);
+    }
+  }
+  return out;
+}
+
+function toGeminiProperties(properties: any): Record<string, any> {
+  return Object.fromEntries(
+    Object.entries(properties || {}).map(([name, schema]) => [name, toGeminiSchema(schema)]),
+  );
+}
+
+/**
  * Converts a JSON Schema to OpenAI tool format for Chat Completions API
  *
  * @example
@@ -180,6 +209,7 @@ export function jsonSchemaToAnthropicTool(
       type: 'object',
       properties: schema.properties,
       required: schema.required || [],
+      ...(schema.additionalProperties === false && { additionalProperties: false }),
     },
   };
 }
@@ -210,7 +240,7 @@ export function jsonSchemaToGeminiTool(
     parameters: {
       type: Type.OBJECT, //'OBJECT',
       ...(metadata.description && { description: metadata.description }),
-      properties: schema.properties,
+      properties: toGeminiProperties(schema.properties),
       required: schema.required || [],
     },
   };
@@ -227,7 +257,7 @@ export function jsonSchemaToGeminiOldTool(
     parameters: {
       type: SchemaType.OBJECT,
       ...(metadata.description && { description: metadata.description }),
-      properties: schema.properties,
+      properties: toGeminiProperties(schema.properties),
       required: schema.required || [],
     },
   };
@@ -264,7 +294,7 @@ export function jsonSchemaToGeminiResponseSchema(
   return {
     type: Type.OBJECT,
     ...(metadata.description && { description: metadata.description }),
-    properties: schema.properties,
+    properties: toGeminiProperties(schema.properties),
     required: schema.required || [],
   };
 }
@@ -277,7 +307,7 @@ export function jsonSchemaToGeminiOldResponseSchema(
   return {
     type: SchemaType.OBJECT,
     ...(metadata.description && { description: metadata.description }),
-    properties: schema.properties,
+    properties: toGeminiProperties(schema.properties),
     required: schema.required || [],
   };
 }
@@ -321,6 +351,7 @@ export function classToOpenAITool<T extends object>(
   // Get basic JSON schema without OpenAI-specific processing
   let jsonSchema = classToJsonSchema(target, {
     propertyOverrides: options?.propertyOverrides,
+    additionalProperties: options?.additionalProperties,
   });
 
   // Apply OpenAI structured output processing if requested
@@ -372,6 +403,7 @@ export function classToOpenAIResponseApiTool<T extends object>(
   // Get basic JSON schema
   let jsonSchema = classToJsonSchema(target, {
     propertyOverrides: options?.propertyOverrides,
+    additionalProperties: options?.additionalProperties,
   });
 
   // Always apply OpenAI structured output processing for Response API
@@ -417,6 +449,7 @@ export function classToOpenAIResponseFormatJsonSchema<T extends object>(
   // Get basic JSON schema
   let jsonSchema = classToJsonSchema(target, {
     propertyOverrides: options?.propertyOverrides,
+    additionalProperties: options?.additionalProperties,
   });
 
   // Apply OpenAI structured output processing if requested
@@ -474,6 +507,7 @@ export function classToOpenAIResponseApiTextSchema<T extends object>(
   // Get basic JSON schema
   let jsonSchema = classToJsonSchema(target, {
     propertyOverrides: options?.propertyOverrides,
+    additionalProperties: options?.additionalProperties,
   });
 
   // Apply OpenAI structured output processing if requested
@@ -522,6 +556,7 @@ export function classToGeminiTool<T extends object>(
   // Get basic JSON schema
   const jsonSchema = classToJsonSchema(target, {
     propertyOverrides: options?.propertyOverrides,
+    additionalProperties: options?.additionalProperties,
   });
 
   // Note: Gemini has broader JSON Schema support and doesn't require special processing
@@ -544,6 +579,7 @@ export function classToGeminiOldTool<T extends object>(
   // Get basic JSON schema
   const jsonSchema = classToJsonSchema(target, {
     propertyOverrides: options?.propertyOverrides,
+    additionalProperties: options?.additionalProperties,
   });
 
   // Note: Gemini has broader JSON Schema support and doesn't require special processing
@@ -640,6 +676,7 @@ export function classToGeminiResponseSchema<T extends object>(
   // Get basic JSON schema
   const jsonSchema = classToJsonSchema(target, {
     propertyOverrides: options?.propertyOverrides,
+    additionalProperties: options?.additionalProperties,
   });
 
   // Note: Gemini has broader JSON Schema support and doesn't require special processing
@@ -661,6 +698,7 @@ export function classToGeminiOldResponseSchema<T extends object>(
   // Get basic JSON schema
   const jsonSchema = classToJsonSchema(target, {
     propertyOverrides: options?.propertyOverrides,
+    additionalProperties: options?.additionalProperties,
   });
 
   // Note: Gemini has broader JSON Schema support and doesn't require special processing

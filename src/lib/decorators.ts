@@ -2,8 +2,14 @@
  * Decorators for schema-forge
  */
 
-import { inferClassValidatorProperties } from './class-validator-integration';
 import { classToJsonSchema } from './core';
+import {
+  DesignKind,
+  makeNullable,
+  markExplicit,
+  PROPERTY_SOURCES_METADATA_KEY,
+  PropertySource,
+} from './resolve';
 import {
   JSON_SCHEMA_METADATA_KEY,
   PropertyOptions,
@@ -12,8 +18,8 @@ import {
 } from './types';
 import {
   cloneMetadata,
+  enumSchemaType,
   extractEnumValues,
-  getJsonSchemaType,
   isCustomClass,
   isDateType,
   normalizeItemsType,
@@ -27,6 +33,7 @@ export function applyPropertyUpdates(
   paths: string[],
   updates: Partial<PropertyOptions>,
   target: any,
+  sources?: Record<string, PropertySource>,
 ) {
   const [current, ...rest] = paths;
 
@@ -51,7 +58,7 @@ export function applyPropertyUpdates(
     // Handle enum update for nested property
     if (updates.enum) {
       const enumValues = extractEnumValues(updates.enum);
-      const enumType = typeof enumValues[0] === 'string' ? 'string' : 'number';
+      const enumType = enumSchemaType(enumValues);
 
       const targetProp = properties[current];
       if (targetProp.type === 'array') {
@@ -157,10 +164,11 @@ export function applyPropertyUpdates(
 
   // Handle non-nested path
   const currentProperty = properties[current] || {};
+  if (sources) markExplicit(sources, current, Object.keys(updates));
 
   if (updates.enum) {
     const enumValues = extractEnumValues(updates.enum);
-    const enumType = typeof enumValues[0] === 'string' ? 'string' : 'number';
+    const enumType = enumSchemaType(enumValues);
 
     const type = Reflect.getMetadata('design:type', target.prototype, current);
 
@@ -198,24 +206,63 @@ export function applyPropertyUpdates(
       ...normalizedUpdates,
     };
   }
+
+  // Option-only keys never belong in the emitted schema. `nullable` is applied when the schema
+  // is resolved (or right away for a property with no recorded source).
+  delete properties[current].isOptional;
+  delete properties[current].nullable;
+  if (updates.nullable && !sources?.[current]) makeNullable(properties[current]);
 }
 
 /**
- * Decorator for adding schema metadata to a class property
+ * The kind of TypeScript design type a property has
+ */
+function designKindOf(type: any): DesignKind {
+  if (type === undefined) return 'unknown';
+  if (type === String) return 'string';
+  if (type === Number) return 'number';
+  if (type === Boolean) return 'boolean';
+  if (isDateType(type)) return 'date';
+  if (type === Array) return 'array';
+  if (type === Object) return 'object';
+  if (isCustomClass(type)) return 'class';
+  return 'unknown';
+}
+
+function assertNotSelfReference(target: any, propertyKey: string, type: unknown): void {
+  if (type !== undefined && type === target.constructor) {
+    throw new Error(
+      `schema-forge: ${target.constructor.name}.${propertyKey} refers to its own class. ` +
+        'Recursive classes are not supported; describe the field explicitly ' +
+        "(e.g. type: 'object' or items: { type: 'object' }).",
+    );
+  }
+}
+
+/**
+ * Decorator for adding schema metadata to a class property.
+ *
+ * It records the explicit options and the TypeScript design type. class-validator decorators are
+ * read later, when a schema is generated, so their position relative to @ToolProp does not matter.
  */
 export function ToolProp(options: PropertyOptions = {}) {
   return function (target: any, propertyKey: string) {
     const type = Reflect.getMetadata('design:type', target, propertyKey);
-    const classValidatorProps = inferClassValidatorProperties(target, propertyKey);
-    // Exclude isOptional, keep only other options
-    const { isOptional: _isOptional, ...finalOptions } = options;
+    const design = designKindOf(type);
+    const {
+      isOptional: _isOptional,
+      nullable,
+      ...finalOptions
+    } = options as PropertyOptions & Record<string, any>;
 
     const ownProperties = Reflect.getMetadata(JSON_SCHEMA_METADATA_KEY, target) || {};
     const ownRequiredProps = Reflect.getMetadata(REQUIRED_PROPS_METADATA_KEY, target) || [];
+    const ownSources = Reflect.getMetadata(PROPERTY_SOURCES_METADATA_KEY, target) || {};
 
     const parentTarget = Object.getPrototypeOf(target);
     let currentProperties = {};
     let currentRequiredProps: string[] = [];
+    let currentSources: Record<string, PropertySource> = {};
 
     if (parentTarget && parentTarget !== Object.prototype) {
       const parentProperties = cloneMetadata(
@@ -224,93 +271,68 @@ export function ToolProp(options: PropertyOptions = {}) {
       const parentRequiredProps = [
         ...(Reflect.getMetadata(REQUIRED_PROPS_METADATA_KEY, parentTarget) || []),
       ];
+      const parentSources = cloneMetadata(
+        Reflect.getMetadata(PROPERTY_SOURCES_METADATA_KEY, parentTarget) || {},
+      );
 
       currentProperties = { ...parentProperties };
       currentRequiredProps = [...parentRequiredProps];
+      currentSources = { ...parentSources };
     }
 
     currentProperties = { ...currentProperties, ...ownProperties };
     currentRequiredProps = [...new Set([...currentRequiredProps, ...ownRequiredProps])];
+    currentSources = { ...currentSources, ...ownSources };
 
-    if (type === Array || classValidatorProps.isArray) {
+    const isArray = type === Array || options.type === 'array' || options.items !== undefined;
+
+    if (isArray) {
+      finalOptions.type = 'array';
       if (options.enum) {
         const enumValues = extractEnumValues(options.enum);
-        const enumType = typeof enumValues[0] === 'string' ? 'string' : 'number';
-        finalOptions.type = 'array';
         finalOptions.items = {
-          type: enumType,
+          type: enumSchemaType(enumValues),
           enum: enumValues,
         };
         delete finalOptions.enum;
-      } else if (classValidatorProps.items && !options.items) {
-        // Use class-validator inferred items (e.g. from @ArrayContains, or each: true decorators)
-        finalOptions.type = 'array';
-        finalOptions.items = classValidatorProps.items as PropertyOptions['items'];
-      } else if (!options.items) {
-        throw new Error(`Array property "${propertyKey}" needs explicit type information.`);
-      } else if (isCustomClass(options.items.type)) {
+      } else if (options.items && isCustomClass(options.items.type)) {
+        assertNotSelfReference(target, propertyKey, options.items.type);
         const nestedSchema = classToJsonSchema(options.items.type as any);
-        finalOptions.type = 'array';
         finalOptions.items = nestedSchema;
-      } else {
-        finalOptions.type = 'array';
+      } else if (options.items) {
         // Normalize constructor types (Date, String, Number, Boolean) to string literals
-        const normalizedItems = normalizeItemsType(options.items);
-        // Merge class-validator item constraints (e.g. from each: true) into explicit items
-        const explicitItems = normalizedItems as Record<string, unknown>;
-        finalOptions.items =
-          classValidatorProps.items && Object.keys(classValidatorProps.items).length > 0
-            ? { ...classValidatorProps.items, ...explicitItems }
-            : explicitItems;
+        finalOptions.items = normalizeItemsType(options.items);
       }
+      // No `items`: class-validator may still supply them when the schema is generated
     } else if (options.enum) {
       const enumValues = extractEnumValues(options.enum);
-      const enumType = typeof enumValues[0] === 'string' ? 'string' : 'number';
-      finalOptions.type = enumType;
       finalOptions.enum = enumValues;
-    } else if (isCustomClass(type)) {
+      if (!options.type) finalOptions.type = enumSchemaType(enumValues);
+    } else if (design === 'class' && (!options.type || options.type === 'object')) {
+      assertNotSelfReference(target, propertyKey, type);
       const nestedSchema = classToJsonSchema(type);
       finalOptions.type = 'object';
       finalOptions.properties = nestedSchema.properties;
-      finalOptions.required = nestedSchema.required;
-    } else if (isDateType(type)) {
+      if (nestedSchema.required) finalOptions.required = nestedSchema.required;
+    } else if (design === 'date' && (!options.type || options.type === 'string')) {
       finalOptions.type = 'string';
-      finalOptions.format = 'date-time';
+      if (!options.format) finalOptions.format = 'date-time';
+    } else if (options.type) {
+      // An explicit type wins over the design type
+    } else if (options.anyOf || options.oneOf || options.allOf || options.const !== undefined) {
+      // A composition describes the value; no type is forced next to it
+    } else if (design === 'string' || design === 'number' || design === 'boolean') {
+      finalOptions.type = design;
     }
+    // design 'object' / 'unknown' with nothing explicit: left without a type, resolved (or
+    // reported) when the schema is generated
 
-    // Build the property schema
-    const propertySchema: any = {
-      ...finalOptions,
-      type: classValidatorProps.type || finalOptions.type || getJsonSchemaType(type),
+    currentProperties[propertyKey] = finalOptions;
+    currentSources[propertyKey] = {
+      explicit: Object.keys(options).filter((key) => key !== 'description'),
+      design,
+      ...(nullable && { nullable: true }),
     };
-
-    // Apply class-validator inferred properties only if not explicitly set in ToolProp options
-    if (classValidatorProps.maxItems !== undefined && propertySchema.maxItems === undefined) {
-      propertySchema.maxItems = classValidatorProps.maxItems;
-    }
-    if (classValidatorProps.minItems !== undefined && propertySchema.minItems === undefined) {
-      propertySchema.minItems = classValidatorProps.minItems;
-    }
-    if (classValidatorProps.maximum !== undefined && propertySchema.maximum === undefined) {
-      propertySchema.maximum = classValidatorProps.maximum;
-    }
-    if (classValidatorProps.minimum !== undefined && propertySchema.minimum === undefined) {
-      propertySchema.minimum = classValidatorProps.minimum;
-    }
-    if (classValidatorProps.minLength !== undefined && propertySchema.minLength === undefined) {
-      propertySchema.minLength = classValidatorProps.minLength;
-    }
-    if (classValidatorProps.maxLength !== undefined && propertySchema.maxLength === undefined) {
-      propertySchema.maxLength = classValidatorProps.maxLength;
-    }
-    if (classValidatorProps.format !== undefined && propertySchema.format === undefined) {
-      propertySchema.format = classValidatorProps.format;
-    }
-    if (classValidatorProps.uniqueItems !== undefined && propertySchema.uniqueItems === undefined) {
-      propertySchema.uniqueItems = classValidatorProps.uniqueItems;
-    }
-
-    currentProperties[propertyKey] = propertySchema;
 
     // Handle required props only, don't store isOptional
     if (!options.isOptional) {
@@ -323,6 +345,7 @@ export function ToolProp(options: PropertyOptions = {}) {
 
     Reflect.defineMetadata(JSON_SCHEMA_METADATA_KEY, currentProperties, target);
     Reflect.defineMetadata(REQUIRED_PROPS_METADATA_KEY, currentRequiredProps, target);
+    Reflect.defineMetadata(PROPERTY_SOURCES_METADATA_KEY, currentSources, target);
   };
 }
 
@@ -351,9 +374,13 @@ export function updateSchemaProperty<T extends object>(
   const paths = (propertyPath as string).split('.');
   const existingProperties = Reflect.getMetadata(JSON_SCHEMA_METADATA_KEY, target.prototype) || {};
 
-  applyPropertyUpdates(existingProperties, paths, updates, target);
+  const existingSources =
+    Reflect.getMetadata(PROPERTY_SOURCES_METADATA_KEY, target.prototype) || {};
+
+  applyPropertyUpdates(existingProperties, paths, updates, target, existingSources);
 
   Reflect.defineMetadata(JSON_SCHEMA_METADATA_KEY, existingProperties, target.prototype);
+  Reflect.defineMetadata(PROPERTY_SOURCES_METADATA_KEY, existingSources, target.prototype);
 }
 
 /**
@@ -367,7 +394,7 @@ export function addSchemaProperty<T extends object>(
   const finalOptions = { ...options };
   if (options.enum) {
     const enumValues = extractEnumValues(options.enum);
-    const enumType = typeof enumValues[0] === 'string' ? 'string' : 'number';
+    const enumType = enumSchemaType(enumValues);
     finalOptions.type = enumType;
   } else if (!options.type) {
     throw new Error('Either type or enum must be specified');
@@ -415,6 +442,8 @@ export function addSchemaProperty<T extends object>(
       items: normalizedItems,
     };
   }
+
+  if (finalOptions.nullable) makeNullable(current[propertyKey]);
 
   Reflect.defineMetadata(JSON_SCHEMA_METADATA_KEY, existingProperties, target.prototype);
 

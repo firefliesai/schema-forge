@@ -1,6 +1,6 @@
 {
   "name": "@firefliesai/schema-forge",
-  "version": "2.1.0",
+  "version": "3.0.0",
   "main": "dist/lib/index.js",
   "types": "dist/lib/index.d.ts",
   "exports": {
@@ -20,7 +20,7 @@
     "test": "npm run jest",
     "jest": "env-cmd jest",
     "jest:u": "env-cmd jest -u",
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
     "lint": "eslint \"src/**/*.ts\"",
     "lint:fix": "eslint \"src/**/*.ts\" --fix",
     "format": "prettier --write \"src/**/*.ts\"",
@@ -94,6 +94,12 @@
     "typescript-eslint": "^8.27.0"
   },
   "peerDependencies": {
+    "class-validator": "^0.14.0 || ^0.15.0",
     "reflect-metadata": "^0.1.14 || ^0.2.0"
+  },
+  "peerDependenciesMeta": {
+    "class-validator": {
+      "optional": true
+    }
   }
 }

@@ -95,7 +95,7 @@ export function prepareForOpenAIStructuredOutput(obj: any, handleOptionals = fal
     (Array.isArray(newObj.type) && newObj.type.includes('number'))
   ) {
     // Remove unsupported number properties
-    ['minimum', 'maximum', 'multipleOf'].forEach((prop) => {
+    ['minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum', 'multipleOf'].forEach((prop) => {
       if (prop in newObj) delete newObj[prop];
     });
   } else if (
@@ -180,29 +180,19 @@ export function extractEnumValues(enumType: any): any[] {
 }
 
 /**
- * Gets the corresponding JSON Schema type for a TypeScript type
+ * The JSON Schema type of an enum, from all of its values: `string`, `number` or `boolean`, or a
+ * type array when the values mix types (`null` values are ignored).
  */
-export function getJsonSchemaType(type: any): string {
-  if (isCustomClass(type)) {
-    return 'object';
+export function enumSchemaType(values: unknown[]): any {
+  const types: string[] = [];
+  for (const value of values) {
+    if (value === null) continue;
+    const type =
+      typeof value === 'string' ? 'string' : typeof value === 'boolean' ? 'boolean' : 'number';
+    if (!types.includes(type)) types.push(type);
   }
-
-  switch (type) {
-    case String:
-      return 'string';
-    case Number:
-      return 'number';
-    case Boolean:
-      return 'boolean';
-    case Array:
-      return 'array';
-    case Object:
-      return 'object';
-    case Date:
-      return 'string';
-    default:
-      return 'string';
-  }
+  if (types.length === 0) return 'string';
+  return types.length === 1 ? types[0] : types;
 }
 
 /**
