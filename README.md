@@ -547,7 +547,7 @@ Schema Forge throws instead of emitting a schema that does not describe the clas
 | --- | --- | --- |
 | `cannot determine the JSON Schema type` | The design type is `Object` (union, `T \| null`, interface, generic, `any`, `unknown`, `Record`) and nothing else gives a type | Set `type`, `items` or `enum`, or add a class-validator type decorator |
 | `an array needs an item type` | An array property with no `items` and no `{ each: true }` validator | Set `items` |
-| `has class-validator decorators but no @ToolProp` | A validated property would be missing from the schema | Add `@ToolProp` |
+| `the class declares no property with @ToolProp` | The class has class-validator decorated properties but no `@ToolProp` at all, so its schema would be empty. Usually a `PickType` / `OmitType` / `PartialType` copy, which keeps class-validator metadata but not `@ToolProp` | Add `@ToolProp` to the properties the schema should contain |
 | `refers to its own class` | A recursive class (`children: Node[]` inside `Node`) | Describe the field explicitly, e.g. `items: { type: 'object' }` |
 
 `classToJsonSchema` reports every problem of a class in one error. Errors in a nested class are raised when the outer class is loaded, because nested schemas are built then.
@@ -556,7 +556,16 @@ Schema Forge throws instead of emitting a schema that does not describe the clas
 
 If you're using [class-validator](https://github.com/typestack/class-validator) (0.14 or 0.15) decorators in your project, Schema Forge will automatically infer JSON Schema constraints from them. This means you can define validation rules once and have them reflected in your generated schemas.
 
-The decorators are read when the schema is generated, so their position relative to `@ToolProp` does not matter. Every property that has class-validator decorators must also have `@ToolProp`.
+The decorators are read when the schema is generated, so their position relative to `@ToolProp` does not matter.
+
+**Only `@ToolProp` declares a property; class-validator only adds to properties `@ToolProp` declared.** A property with class-validator decorators and no `@ToolProp` is not in the schema. That lets one class serve as an API DTO and as a tool schema with different fields (for example, an `ownerId` the API validates but the model must not set). When a class is meant to expose every validated field, check it in a test:
+
+```typescript
+import { findUndeclaredValidatedProperties } from '@firefliesai/schema-forge';
+
+expect(findUndeclaredValidatedProperties(CreateBookingInput)).toEqual([]);
+// otherwise: [{ path: 'booking.ownerId', className: 'BookingDto', property: 'ownerId' }]
+```
 
 Supported class-validator decorators (with `{ each: true }`, the rule applies to array `items`):
 

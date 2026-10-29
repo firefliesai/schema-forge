@@ -15,8 +15,10 @@ import { cloneMetadata, prepareForOpenAIStructuredOutput } from './utils';
  * Converts a TypeScript class to a JSON Schema
  *
  * Throws when a property's type cannot be determined (for example `x?: string | null` with no
- * explicit `type`), when an array property has no item type, or when a property has
- * class-validator decorators but no `@ToolProp`.
+ * explicit `type`), when an array property has no item type, or when a class has
+ * class-validator decorated properties but no `@ToolProp` at all. A validated property without
+ * `@ToolProp` in a class that does declare others is left out: only `@ToolProp` declares
+ * properties (see `findUndeclaredValidatedProperties`).
  *
  * @param target The class to convert
  * @param options Options for schema generation

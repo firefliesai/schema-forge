@@ -30,6 +30,7 @@ import {
   classToGeminiTool,
   classToJsonSchema,
   classToOpenAITool,
+  findUndeclaredValidatedProperties,
   ToolProp,
   updateSchemaProperty,
 } from './index';
@@ -364,15 +365,63 @@ describe('3.0.0 schema resolution', () => {
       ]);
     });
 
-    it('throws for a property with class-validator decorators but no @ToolProp', () => {
-      class Forgotten {
-        @ToolProp() kept: string;
-        @IsInt() @Min(1) dropped: number;
+    it('leaves out a validated property without @ToolProp, in a class and in a nested class', () => {
+      class SharedBookingDto {
+        @ToolProp() @IsString() title: string;
+        @IsInt() ownerId: number;
+      }
+      class BookingToolInput {
+        @ToolProp() booking: SharedBookingDto;
+        @IsInt() @Min(1) internalPriority: number;
       }
 
-      expect(() => classToJsonSchema(Forgotten)).toThrow(
-        'Forgotten.dropped: has class-validator decorators but no @ToolProp',
+      expect(classToJsonSchema(BookingToolInput)).toStrictEqual({
+        type: 'object',
+        properties: {
+          booking: {
+            type: 'object',
+            properties: { title: { type: 'string' } },
+            required: ['title'],
+          },
+        },
+        required: ['booking'],
+      });
+      expect(warnings()).toStrictEqual([]);
+    });
+
+    it('throws when a class has validated properties but no @ToolProp at all', () => {
+      // What PickType / OmitType / PartialType produce from a @ToolProp class
+      class CopiedWithoutToolProp {
+        @IsString() title: string;
+        @IsInt() count: number;
+      }
+      class NoValidatedProperties {}
+
+      expect(() => classToJsonSchema(CopiedWithoutToolProp)).toThrow(
+        'CopiedWithoutToolProp.title, count: have class-validator decorators, but the class ' +
+          'declares no property with @ToolProp',
       );
+      expect(classToJsonSchema(NoValidatedProperties)).toStrictEqual({
+        type: 'object',
+        properties: {},
+      });
+    });
+
+    it('lists validated properties without @ToolProp through findUndeclaredValidatedProperties', () => {
+      class Line {
+        @ToolProp() @IsString() sku: string;
+        @IsInt() costCents: number;
+      }
+      class Order {
+        @ToolProp() @IsString() id: string;
+        @IsString() ownerId: string;
+        @ToolProp({ items: { type: Line } }) lines: Line[];
+      }
+
+      expect(findUndeclaredValidatedProperties(Order)).toStrictEqual([
+        { path: 'ownerId', className: 'Order', property: 'ownerId' },
+        { path: 'lines.costCents', className: 'Line', property: 'costCents' },
+      ]);
     });
   });
 

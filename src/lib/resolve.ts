@@ -14,9 +14,12 @@ import {
   analyzeClassValidatorProperty,
   getClassValidatorPropertyNames,
 } from './class-validator-integration';
+import { JSON_SCHEMA_METADATA_KEY } from './types';
 import { enumSchemaType } from './utils';
 
 export const PROPERTY_SOURCES_METADATA_KEY = Symbol('jsonSchema:propertySources');
+/** Per property: the class whose schema was nested there (`null` when none) */
+export const NESTED_CLASS_METADATA_KEY = Symbol('jsonSchema:nestedClass');
 
 export type DesignKind =
   | 'string'
@@ -355,12 +358,21 @@ export function resolveProperties(
     if (source?.nullable) makeNullable(schema);
   }
 
-  const missing = getClassValidatorPropertyNames(target).filter((name) => !(name in properties));
-  for (const name of missing) {
-    problems.push(
-      `${name}: has class-validator decorators but no @ToolProp, so it would be missing from the ` +
-        'schema. Add @ToolProp.',
-    );
+  // Only @ToolProp declares properties; class-validator adds to them. A property with
+  // class-validator decorators and no @ToolProp is, by that contract, not part of the schema (an
+  // API-only field of a DTO shared with REST). A class with such properties and no @ToolProp at
+  // all is a mistake, though: typically a PickType / OmitType / PartialType copy, which keeps
+  // class-validator metadata but not @ToolProp.
+  if (Object.keys(properties).length === 0) {
+    const validated = getClassValidatorPropertyNames(target);
+    if (validated.length > 0) {
+      problems.push(
+        `${validated.join(', ')}: ${validated.length === 1 ? 'has' : 'have'} class-validator ` +
+          'decorators, but the class declares no property with @ToolProp, so its schema would be ' +
+          'empty. Add @ToolProp to the properties the schema should contain. (A class built with ' +
+          "PickType / OmitType / PartialType keeps class-validator metadata but not @ToolProp's.)",
+      );
+    }
   }
 
   if (problems.length > 0) {
@@ -369,4 +381,47 @@ export function resolveProperties(
         problems.map((problem) => `  - ${className}.${problem}`).join('\n'),
     );
   }
+}
+
+/**
+ * A property that has class-validator decorators but no `@ToolProp`, and so is not in the schema
+ */
+export interface UndeclaredValidatedProperty {
+  /** Dotted path from the class passed in, as `propertyOverrides` writes it (`booking.ownerId`) */
+  path: string;
+  /** The class that holds the property */
+  className: string;
+  property: string;
+}
+
+/**
+ * Lists the properties that have class-validator decorators but no `@ToolProp`, in the class and
+ * in every class nested in its schema. Such properties are left out of the schema by design (only
+ * `@ToolProp` declares properties); this is for callers that want to be told, for example a test
+ * asserting that a tool's input class exposes every validated field. It reports and never changes
+ * a schema.
+ */
+export function findUndeclaredValidatedProperties(
+  target: new (...args: any[]) => any,
+): UndeclaredValidatedProperty[] {
+  const found: UndeclaredValidatedProperty[] = [];
+  const visited = new Set<unknown>();
+  const visit = (cls: new (...args: any[]) => any, prefix: string): void => {
+    if (visited.has(cls)) return;
+    visited.add(cls);
+    const declared = Object.keys(
+      Reflect.getMetadata(JSON_SCHEMA_METADATA_KEY, cls.prototype) || {},
+    );
+    for (const property of getClassValidatorPropertyNames(cls)) {
+      if (!declared.includes(property)) {
+        found.push({ path: `${prefix}${property}`, className: cls.name, property });
+      }
+    }
+    for (const property of declared) {
+      const nested = Reflect.getMetadata(NESTED_CLASS_METADATA_KEY, cls.prototype, property);
+      if (typeof nested === 'function') visit(nested, `${prefix}${property}.`);
+    }
+  };
+  visit(target, '');
+  return found;
 }

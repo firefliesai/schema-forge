@@ -7,6 +7,7 @@ import {
   DesignKind,
   makeNullable,
   markExplicit,
+  NESTED_CLASS_METADATA_KEY,
   PROPERTY_SOURCES_METADATA_KEY,
   removeNullable,
   PropertySource,
@@ -288,6 +289,7 @@ export function ToolProp(options: PropertyOptions = {}) {
     currentSources = { ...currentSources, ...ownSources };
 
     const isArray = type === Array || options.type === 'array' || options.items !== undefined;
+    let nestedClass: unknown = null;
 
     if (isArray) {
       finalOptions.type = 'array';
@@ -302,6 +304,7 @@ export function ToolProp(options: PropertyOptions = {}) {
         assertNotSelfReference(target, propertyKey, options.items.type);
         const nestedSchema = classToJsonSchema(options.items.type as any);
         finalOptions.items = nestedSchema;
+        nestedClass = options.items.type;
       } else if (options.items) {
         // Normalize constructor types (Date, String, Number, Boolean) to string literals
         finalOptions.items = normalizeItemsType(options.items);
@@ -317,6 +320,7 @@ export function ToolProp(options: PropertyOptions = {}) {
     ) {
       assertNotSelfReference(target, propertyKey, type);
       const nestedSchema = classToJsonSchema(type);
+      nestedClass = type;
       finalOptions.type = 'object';
       finalOptions.properties = nestedSchema.properties;
       if (nestedSchema.required) finalOptions.required = nestedSchema.required;
@@ -352,6 +356,8 @@ export function ToolProp(options: PropertyOptions = {}) {
     Reflect.defineMetadata(JSON_SCHEMA_METADATA_KEY, currentProperties, target);
     Reflect.defineMetadata(REQUIRED_PROPS_METADATA_KEY, currentRequiredProps, target);
     Reflect.defineMetadata(PROPERTY_SOURCES_METADATA_KEY, currentSources, target);
+    // `null` shadows a nested class an overridden parent property had
+    Reflect.defineMetadata(NESTED_CLASS_METADATA_KEY, nestedClass, target, propertyKey);
   };
 }
 
