@@ -26,16 +26,20 @@ import {
 import { prepareForOpenAIStructuredOutput } from './utils';
 
 /**
- * Gemini takes an OpenAPI-style schema: `nullable: true` instead of a `"null"` type, and no
- * `additionalProperties`. Applied to each property schema, recursively.
+ * Gemini takes an OpenAPI-style schema: `nullable: true` instead of a `"null"` type or a
+ * `{ type: "null" }` branch, and no `additionalProperties`. Only schema keywords are rewritten;
+ * values such as `default`, `examples`, `const` and `enum` are copied unchanged.
  */
 function toGeminiSchema(node: any): any {
-  if (Array.isArray(node)) return node.map(toGeminiSchema);
-  if (!node || typeof node !== 'object') return node;
+  if (!node || typeof node !== 'object' || Array.isArray(node)) return node;
   const out: any = {};
   for (const [key, value] of Object.entries(node)) {
     if (key === 'additionalProperties') continue;
-    out[key] = key === 'properties' ? toGeminiProperties(value) : toGeminiSchema(value);
+    if (key === 'properties') out[key] = toGeminiProperties(value);
+    else if (key === 'items') out[key] = toGeminiSchema(value);
+    else if (['anyOf', 'oneOf', 'allOf'].includes(key) && Array.isArray(value)) {
+      out[key] = value.map(toGeminiSchema);
+    } else out[key] = value;
   }
   if (Array.isArray(out.type) && out.type.includes('null')) {
     const types = out.type.filter((type: string) => type !== 'null');
@@ -45,8 +49,26 @@ function toGeminiSchema(node: any): any {
       if (Array.isArray(out.enum)) out.enum = out.enum.filter((value: unknown) => value !== null);
     }
   }
+  for (const key of ['anyOf', 'oneOf']) {
+    const branches = out[key];
+    if (!Array.isArray(branches) || !branches.some(isNullBranch)) continue;
+    const rest = branches.filter((branch: any) => !isNullBranch(branch));
+    out.nullable = true;
+    if (rest.length === 1) {
+      delete out[key];
+      Object.assign(out, rest[0], { nullable: true });
+    } else {
+      out[key] = rest;
+    }
+  }
   return out;
 }
+
+const isNullBranch = (branch: any): boolean =>
+  !!branch &&
+  typeof branch === 'object' &&
+  branch.type === 'null' &&
+  Object.keys(branch).length === 1;
 
 function toGeminiProperties(properties: any): Record<string, any> {
   return Object.fromEntries(

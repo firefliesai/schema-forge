@@ -89,12 +89,21 @@ describe('3.0.0 schema resolution', () => {
     it('can be fixed through propertyOverrides', () => {
       class FixedByOverride {
         @ToolProp() meta: Record<string, string>;
+        @ToolProp() tags: unknown;
       }
 
       expect(
-        classToJsonSchema(FixedByOverride, { propertyOverrides: { meta: { type: 'object' } } })
-          .properties.meta,
-      ).toStrictEqual({ type: 'object' });
+        classToJsonSchema(FixedByOverride, {
+          // PropertyPath has no entry for an `unknown` property, hence the cast
+          propertyOverrides: {
+            meta: { type: 'object' },
+            tags: { items: { type: 'string' } },
+          } as never,
+        }).properties,
+      ).toStrictEqual({
+        meta: { type: 'object' },
+        tags: { type: 'array', items: { type: 'string' } },
+      });
     });
   });
 
@@ -141,15 +150,65 @@ describe('3.0.0 schema resolution', () => {
       expect(classToJsonSchema(NullableOverride).properties.name).toStrictEqual({ type: 'string' });
     });
 
+    it('can be turned off through propertyOverrides and updateSchemaProperty', () => {
+      class NullableOff {
+        @ToolProp({ type: 'string', nullable: true }) a: string | null;
+        @ToolProp() b: string;
+      }
+
+      expect(
+        classToJsonSchema(NullableOff, {
+          propertyOverrides: { a: { nullable: false }, b: { nullable: false } },
+        }).properties,
+      ).toStrictEqual({ a: { type: 'string' }, b: { type: 'string' } });
+
+      updateSchemaProperty(NullableOff, 'b', { nullable: false });
+      expect(classToJsonSchema(NullableOff).properties.b).toStrictEqual({ type: 'string' });
+    });
+
+    it('makes const and typed compositions an alternative with null', () => {
+      class NullableAlternatives {
+        @ToolProp({ const: 'yes', nullable: true, description: 'flag' }) yes: unknown;
+        @ToolProp({ allOf: [{ type: 'string' }, { minLength: 2 }], nullable: true }) both: unknown;
+      }
+
+      expect(classToJsonSchema(NullableAlternatives).properties).toStrictEqual({
+        yes: { description: 'flag', anyOf: [{ const: 'yes' }, { type: 'null' }] },
+        both: {
+          anyOf: [{ allOf: [{ type: 'string' }, { minLength: 2 }] }, { type: 'null' }],
+        },
+      });
+    });
+
     it('becomes nullable: true in the Gemini formats', () => {
       class GeminiNullable {
         @ToolProp({ enum: Color, nullable: true }) color: Color | null;
+        @ToolProp({ anyOf: [{ type: 'string' }], nullable: true }) single: unknown;
+        @ToolProp({ anyOf: [{ type: 'string' }, { type: 'number' }], nullable: true })
+        pair: unknown;
       }
 
-      expect(classToGeminiTool(GeminiNullable).parameters.properties.color).toStrictEqual({
-        type: 'string',
-        enum: ['red', 'blue'],
-        nullable: true,
+      expect(classToGeminiTool(GeminiNullable).parameters.properties).toStrictEqual({
+        color: { type: 'string', enum: ['red', 'blue'], nullable: true },
+        single: { type: 'string', nullable: true },
+        pair: { anyOf: [{ type: 'string' }, { type: 'number' }], nullable: true },
+      });
+    });
+
+    it('leaves literal values unchanged in the Gemini formats', () => {
+      class GeminiLiterals {
+        @ToolProp({
+          type: 'object',
+          default: { additionalProperties: 42, type: ['string', 'null'] },
+          examples: [{ additionalProperties: 1 }],
+        })
+        options: Record<string, unknown>;
+      }
+
+      expect(classToGeminiTool(GeminiLiterals).parameters.properties.options).toStrictEqual({
+        type: 'object',
+        default: { additionalProperties: 42, type: ['string', 'null'] },
+        examples: [{ additionalProperties: 1 }],
       });
     });
   });

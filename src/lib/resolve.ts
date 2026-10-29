@@ -89,18 +89,18 @@ export function getPropertySources(prototype: any): Record<string, PropertySourc
 }
 
 /**
- * Records that the given option keys of a property were set explicitly (used by
- * `updateSchemaProperty` and `propertyOverrides`, which can change a stored property later).
+ * Records the options of a property that were set explicitly after `@ToolProp` (by
+ * `updateSchemaProperty` or `propertyOverrides`, which can change a stored property later).
  */
 export function markExplicit(
   sources: Record<string, PropertySource>,
   propertyName: string,
-  keys: string[],
+  updates: Record<string, unknown>,
 ): void {
   const source = sources[propertyName];
   if (!source) return;
-  source.explicit = [...new Set([...source.explicit, ...keys])];
-  if (keys.includes('nullable')) source.nullable = true;
+  source.explicit = [...new Set([...source.explicit, ...Object.keys(updates)])];
+  if (updates.nullable !== undefined) source.nullable = updates.nullable === true;
 }
 
 const describeDesign = (design: DesignKind): string =>
@@ -123,19 +123,38 @@ function isTypeConflict(explicitType: unknown, inferredType: string): boolean {
   return true;
 }
 
+const ANNOTATION_KEYS = ['description', 'title', 'default', 'examples', 'deprecated'];
+const isNullBranch = (branch: any): boolean =>
+  branch && typeof branch === 'object' && branch.type === 'null';
+
 /**
- * Applies `nullable: true`: `type` gains `"null"` and `enum` gains `null`; a composition gains a
- * `{ type: "null" }` branch.
+ * Applies `nullable: true`.
+ * - A plain typed schema: `type` gains `"null"` and `enum` gains `null`.
+ * - Only `anyOf` / `oneOf`: a `{ type: "null" }` branch is added.
+ * - Anything else that `"null"` in `type` cannot open up (`const`, `allOf`, a composition beside
+ *   a `type`): the whole schema becomes one branch of `anyOf: [schema, { type: "null" }]`, with
+ *   the annotations kept outside.
  */
 export function makeNullable(schema: Record<string, any>): void {
-  if (COMPOSITION_KEYS.some((key) => schema[key]) && schema.type === undefined) {
-    const key = COMPOSITION_KEYS.find((k) => schema[k]) as string;
-    if (key === 'allOf') {
-      schema.anyOf = [{ allOf: schema.allOf }, { type: 'null' }];
-      delete schema.allOf;
-    } else if (!schema[key].some((branch: any) => branch?.type === 'null')) {
-      schema[key] = [...schema[key], { type: 'null' }];
+  const compositions = COMPOSITION_KEYS.filter((key) => schema[key]);
+  const onlyBranching =
+    schema.type === undefined &&
+    schema.const === undefined &&
+    compositions.length === 1 &&
+    compositions[0] !== 'allOf';
+  if (onlyBranching) {
+    const key = compositions[0];
+    if (!schema[key].some(isNullBranch)) schema[key] = [...schema[key], { type: 'null' }];
+    return;
+  }
+  if (compositions.length > 0 || schema.const !== undefined) {
+    const branch: Record<string, any> = {};
+    for (const key of Object.keys(schema)) {
+      if (ANNOTATION_KEYS.includes(key)) continue;
+      branch[key] = schema[key];
+      delete schema[key];
     }
+    schema.anyOf = [branch, { type: 'null' }];
     return;
   }
   if (schema.type !== undefined && !typeIncludes(schema.type, 'null')) {
@@ -147,7 +166,9 @@ export function makeNullable(schema: Record<string, any>): void {
 }
 
 /**
- * Adds `additionalProperties: false` to every object schema (one with `properties`).
+ * Adds `additionalProperties: false` to every object schema that declares `properties`, at every
+ * level (nested objects, array items, composition branches). An object with no declared
+ * properties (a free-form `Record`) is left open: closing it would accept only `{}`.
  */
 export function closeObjects(schema: any): void {
   if (!schema || typeof schema !== 'object') return;
@@ -186,6 +207,7 @@ export function resolveProperties(
     // Arrays: design type Array, an explicit `items`, or a class-validator array decorator
     const isArray =
       typeIncludes(schema.type, 'array') ||
+      (schema.type === undefined && schema.items !== undefined) ||
       (!explicitType && (source?.design === 'array' || inferred.isArray === true));
     if (isArray) {
       schema.type = schema.type ?? 'array';

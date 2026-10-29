@@ -524,13 +524,13 @@ All other primitive types (string, number, boolean), `Date` and custom classes a
 | Option | Effect |
 | --- | --- |
 | `isOptional: true` | The property is left out of `required`; the caller may omit it. `null` is still rejected. |
-| `nullable: true` | `null` is an allowed value: `type` becomes `[type, "null"]`, `enum` gains `null`, and a composition gains a `{ "type": "null" }` branch. |
+| `nullable: true` | `null` is an allowed value: `type` becomes `[type, "null"]` and `enum` gains `null`; an `anyOf` / `oneOf` gains a `{ "type": "null" }` branch; `const`, `allOf` or a composition beside a `type` becomes `anyOf: [schema, { "type": "null" }]`. |
 
-The Gemini formatters turn `nullable: true` into Gemini's own `nullable: true` keyword.
+The Gemini formatters turn a `"null"` type or a `{ "type": "null" }` branch into Gemini's own `nullable: true` keyword.
 
 ### Closed Objects
 
-By default, objects do not set `additionalProperties`, so extra keys are allowed. Pass `additionalProperties: false` to add `additionalProperties: false` to every object in the schema (the root, nested classes and array items). Strict structured-output modes require this. The option is accepted by `classToJsonSchema` and by every `classTo…` formatter:
+By default, objects do not set `additionalProperties`, so extra keys are allowed. Pass `additionalProperties: false` to add `additionalProperties: false` to every object that declares properties (the root, nested classes, array items and composition branches). Strict structured-output modes require this. A free-form object with no declared properties (`@ToolProp({ type: 'object' })` on a `Record`) stays open, because closing it would accept only `{}`; strict modes cannot express such a field either way. The option is accepted by `classToJsonSchema` and by every `classTo…` formatter:
 
 ```typescript
 const schema = classToJsonSchema(User, { additionalProperties: false });

@@ -272,8 +272,9 @@ export interface JsonSchemaOptions<T> {
   structuredOutputFormat?: StructuredOutputFormat;
 
   /**
-   * `false` adds `additionalProperties: false` to every object in the schema (closed objects),
-   * which strict structured-output modes require. Unset leaves objects open, as before.
+   * `false` adds `additionalProperties: false` to every object that declares properties, at every
+   * level (closed objects), which strict structured-output modes require. A free-form object with
+   * no declared properties stays open. Unset leaves objects open, as before.
    */
   additionalProperties?: boolean;
 }

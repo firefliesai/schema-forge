@@ -164,7 +164,7 @@ export function applyPropertyUpdates(
 
   // Handle non-nested path
   const currentProperty = properties[current] || {};
-  if (sources) markExplicit(sources, current, Object.keys(updates));
+  if (sources) markExplicit(sources, current, updates as Record<string, unknown>);
 
   if (updates.enum) {
     const enumValues = extractEnumValues(updates.enum);
