@@ -229,10 +229,31 @@ describe('3.0.0 schema resolution', () => {
         mixed: {
           anyOf: [
             { type: 'string', enum: ['a'] },
-            { type: 'number', enum: [2] },
+            // Gemini accepts only string enum values
+            { type: 'number' },
           ],
           nullable: true,
         },
+      });
+    });
+
+    it('gives Gemini only the bounds and enums it accepts', () => {
+      class GeminiBounds {
+        @IsInt() @IsPositive() @ToolProp() count: number;
+        @IsInt() @IsNegative() @Min(-9) @ToolProp() delta: number;
+        @IsPositive() @ToolProp() ratio: number;
+        @ToolProp({ enum: [1, 2] }) level: number;
+      }
+
+      expect(classToGeminiTool(GeminiBounds).parameters.properties).toStrictEqual({
+        count: { type: 'integer', minimum: 1 },
+        delta: { type: 'integer', minimum: -9, maximum: -1 },
+        ratio: { type: 'number' },
+        level: { type: 'number' },
+      });
+      expect(classToJsonSchema(GeminiBounds).properties.count).toStrictEqual({
+        type: 'integer',
+        exclusiveMinimum: 0,
       });
     });
 

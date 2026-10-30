@@ -72,7 +72,42 @@ function toGeminiSchema(node: any): any {
       out[key] = rest;
     }
   }
-  return out;
+  return toGeminiKeywords(out);
+}
+
+/**
+ * Keywords Gemini rejects with a 400: `exclusiveMinimum` / `exclusiveMaximum` (an integer gets the
+ * equivalent `minimum` / `maximum`; for other numbers the bound is dropped), and an `enum` whose
+ * values are not all strings (dropped; the `type` stays). Applied to a node and to the branches
+ * created for it.
+ */
+function toGeminiKeywords(node: any): any {
+  const integer = node.type === 'integer';
+  if (typeof node.exclusiveMinimum === 'number') {
+    if (integer) {
+      const bound = Math.floor(node.exclusiveMinimum) + 1;
+      node.minimum = typeof node.minimum === 'number' ? Math.max(node.minimum, bound) : bound;
+    }
+    delete node.exclusiveMinimum;
+  }
+  if (typeof node.exclusiveMaximum === 'number') {
+    if (integer) {
+      const bound = Math.ceil(node.exclusiveMaximum) - 1;
+      node.maximum = typeof node.maximum === 'number' ? Math.min(node.maximum, bound) : bound;
+    }
+    delete node.exclusiveMaximum;
+  }
+  if (Array.isArray(node.enum) && !node.enum.every((value: unknown) => typeof value === 'string')) {
+    delete node.enum;
+  }
+  for (const key of ['anyOf', 'oneOf']) {
+    if (Array.isArray(node[key])) {
+      node[key] = node[key].map((branch: any) =>
+        branch && typeof branch === 'object' ? toGeminiKeywords(branch) : branch,
+      );
+    }
+  }
+  return node;
 }
 
 const matchesJsonType = (value: unknown, type: string): boolean =>
