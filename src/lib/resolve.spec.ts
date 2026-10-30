@@ -419,7 +419,7 @@ describe('3.0.0 schema resolution', () => {
       class NoValidatedProperties {}
 
       expect(() => classToJsonSchema(CopiedWithoutToolProp)).toThrow(
-        'CopiedWithoutToolProp.title, count: have class-validator decorators, but the class ' +
+        'CopiedWithoutToolProp: title, count have class-validator decorators, but the class ' +
           'declares no property with @ToolProp',
       );
       expect(classToJsonSchema(NoValidatedProperties)).toStrictEqual({

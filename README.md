@@ -526,7 +526,7 @@ All other primitive types (string, number, boolean), `Date` and custom classes a
 | `isOptional: true` | The property is left out of `required`; the caller may omit it. `null` is still rejected. |
 | `nullable: true` | `null` is an allowed value: `type` becomes `[type, "null"]` and `enum` gains `null`; an `anyOf` / `oneOf` gains a `{ "type": "null" }` branch; `const`, `allOf` or a composition beside a `type` becomes `anyOf: [schema, { "type": "null" }]`. |
 
-The Gemini formatters turn a `"null"` type or a `{ "type": "null" }` branch into Gemini's own `nullable: true` keyword, and a type array with several types (a mixed enum) into one typed `anyOf` branch per type.
+The Gemini formatters turn a `"null"` type or a `{ "type": "null" }` branch into Gemini's own `nullable: true` keyword, and a type array with several types (a mixed enum) into one typed `anyOf` branch per type. They also leave out what the Gemini API rejects: `exclusiveMinimum` / `exclusiveMaximum` (an integer gets the equivalent `minimum` / `maximum`) and an `enum` whose values are not all strings.
 
 ### Closed Objects
 

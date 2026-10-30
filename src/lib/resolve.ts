@@ -213,8 +213,9 @@ export function closeObjects(schema: any): void {
 
 /**
  * Resolves the stored property schemas of a class in place: class-validator inference, type
- * checks, `nullable`. Throws when a property's type cannot be determined, when an array has no
- * item type, and when a class-validator decorated property has no `@ToolProp`.
+ * checks, `nullable`. Throws, listing every problem of the class, when a property's type cannot be
+ * determined, when an array has no item type, and when the class has class-validator decorated
+ * properties but no `@ToolProp` at all.
  */
 export function resolveProperties(
   target: new (...args: any[]) => any,
@@ -245,7 +246,7 @@ export function resolveProperties(
           schema.items = itemSchema;
         } else {
           problems.push(
-            `${name}: an array needs an item type. Set \`items\` in @ToolProp ` +
+            `${where}: an array needs an item type. Set \`items\` in @ToolProp ` +
               "(e.g. items: { type: 'string' }), or add a class-validator decorator with { each: true }.",
           );
           continue;
@@ -346,7 +347,7 @@ export function resolveProperties(
         schema.type = enumSchemaType(schema.enum);
       } else if (!COMPOSITION_KEYS.some((key) => schema[key]) && schema.const === undefined) {
         problems.push(
-          `${name}: cannot determine the JSON Schema type; TypeScript reports ` +
+          `${where}: cannot determine the JSON Schema type; TypeScript reports ` +
             `${describeDesign(source?.design ?? 'unknown')}. Set \`type\`, \`items\` or \`enum\` in ` +
             '@ToolProp (and `nullable: true` if null is allowed), or add a class-validator type ' +
             'decorator such as @IsString().',
@@ -367,7 +368,7 @@ export function resolveProperties(
     const validated = getClassValidatorPropertyNames(target);
     if (validated.length > 0) {
       problems.push(
-        `${validated.join(', ')}: ${validated.length === 1 ? 'has' : 'have'} class-validator ` +
+        `${className}: ${validated.join(', ')} ${validated.length === 1 ? 'has' : 'have'} class-validator ` +
           'decorators, but the class declares no property with @ToolProp, so its schema would be ' +
           'empty. Add @ToolProp to the properties the schema should contain. (A class built with ' +
           "PickType / OmitType / PartialType keeps class-validator metadata but not @ToolProp's.)",
@@ -378,7 +379,7 @@ export function resolveProperties(
   if (problems.length > 0) {
     throw new Error(
       `schema-forge: cannot generate a JSON Schema for ${className}:\n` +
-        problems.map((problem) => `  - ${className}.${problem}`).join('\n'),
+        problems.map((problem) => `  - ${problem}`).join('\n'),
     );
   }
 }
