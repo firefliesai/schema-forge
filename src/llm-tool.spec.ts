@@ -363,7 +363,7 @@ describe('LLM Tool Call and Structured Output Tests', () => {
     const tool = classToGeminiTool(CapitalTool);
 
     const response = await gemini.models.generateContent({
-      model: 'gemini-2.0-flash-001',
+      model: 'gemini-3.8-flash',
       contents: userMessage,
       config: {
         // we trust the auto choice of Gemini would work for the current case
@@ -387,7 +387,7 @@ describe('LLM Tool Call and Structured Output Tests', () => {
     const tool = classToGeminiOldTool(CapitalTool);
 
     const model = geminiOldApi.getGenerativeModel({
-      model: 'gemini-2.0-flash-001',
+      model: 'gemini-3.8-flash',
       tools: [
         {
           functionDeclarations: [tool],
@@ -409,7 +409,7 @@ describe('LLM Tool Call and Structured Output Tests', () => {
     const responseSchema = classToGeminiResponseSchema(CapitalTool);
 
     const response = await gemini.models.generateContent({
-      model: 'gemini-2.0-flash-001',
+      model: 'gemini-3.8-flash',
       contents: userMessage,
       config: {
         responseMimeType: 'application/json',
@@ -426,7 +426,7 @@ describe('LLM Tool Call and Structured Output Tests', () => {
     const responseSchema = classToGeminiOldResponseSchema(CapitalTool);
 
     const model = geminiOldApi.getGenerativeModel({
-      model: 'gemini-2.0-flash-001',
+      model: 'gemini-3.8-flash',
       generationConfig: {
         responseMimeType: 'application/json',
         responseSchema: responseSchema,
