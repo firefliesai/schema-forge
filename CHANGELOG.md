@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [3.0.0] - UNRELEASED
 
-PR: firefliesai/schema-forge#33
+PR: firefliesai/schema-forge#33, firefliesai/schema-forge#34
 
 This release makes the generated schema match what the class actually allows, and fails when the schema is generated if it cannot. Most classes produce the same schema as in 2.1.0; the changes below list every case that differs. See [Migrating from 2.x](README.md#9-migrating-from-2x).
 
