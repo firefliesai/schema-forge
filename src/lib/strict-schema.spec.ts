@@ -56,7 +56,11 @@ class Order {
   @ToolProp({ description: 'Mood or nothing', enum: Mood, nullable: true })
   maybeMood: Mood | null;
 
-  @ToolProp({ description: 'Either', anyOf: [{ type: 'string' }, { type: 'number' }], isOptional: true })
+  @ToolProp({
+    description: 'Either',
+    anyOf: [{ type: 'string' }, { type: 'number' }],
+    isOptional: true,
+  })
   either?: string | number;
 
   @ToolProp({ description: 'Where', isOptional: true })
@@ -201,8 +205,8 @@ describe('Anthropic strict tool use (forStructuredOutput)', () => {
       { strict: true },
     );
     expect(tool.strict).toBe(true);
-    expect(jsonSchemaToAnthropicTool({ type: 'object', properties: {} }, { name: 's' }).strict).toBe(
-      undefined,
-    );
+    expect(
+      jsonSchemaToAnthropicTool({ type: 'object', properties: {} }, { name: 's' }).strict,
+    ).toBe(undefined);
   });
 });
