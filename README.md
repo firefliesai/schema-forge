@@ -533,12 +533,13 @@ const user: CreateUserInput = JSON.parse(completion.choices[0].message.content ?
 | Adds `additionalProperties: false` to every object that declares properties | Anthropic requires it |
 | Keeps `required` as declared | Anthropic allows optional properties, so none becomes nullable |
 | Moves `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum` and `multipleOf` into the description | Anthropic rejects number bounds |
+| Moves `minLength` and `maxLength` into the description | Anthropic's guide lists string lengths as unsupported |
 | Moves `maxItems`, a `minItems` other than 0 or 1, `uniqueItems`, `contains`, `minContains` and `maxContains` into the description | Anthropic rejects these array rules |
 | Moves `patternProperties`, `propertyNames`, `minProperties`, `maxProperties` and `unevaluatedProperties` into the description | Anthropic rejects these object rules |
 | Moves a `format` other than `date-time`, `time`, `date`, `duration`, `email`, `hostname`, `uri`, `ipv4`, `ipv6` and `uuid` into the description | Anthropic supports only these formats |
 | Removes the `type` array next to an `enum` (a nullable or mixed-type enum) | Anthropic rejects the pair; the enum's values already say which types are allowed |
 
-A keyword moved into the description is written as `{keyword: value}`, for example `'Quantity\n\n{maximum: 100}'`, which is how Anthropic's own SDK keeps such rules visible to the model. `minLength`, `maxLength` and `pattern` stay: Anthropic's guide lists string lengths as unsupported, but the API accepted them on two models (checked November 2026).
+A keyword moved into the description is written as `{keyword: value}`, for example `'Quantity\n\n{maximum: 100}'`, which is how Anthropic's own SDK keeps such rules visible to the model. String lengths follow the guide even though the API accepted them on two models (checked November 2026), so a tool keeps working if Anthropic starts rejecting them. `pattern` stays.
 
 Anthropic also limits a request to 20 strict tools, 24 optional properties and 16 properties with a union type (`anyOf` or a type array) across all strict schemas. Schema Forge does not count these.
 
@@ -646,7 +647,7 @@ Warnings go to `console.warn`, start with `[schema-forge]`, and are printed once
 5. **Update type checks.** `JSONSchemaProperty.type` may now be an array or `undefined`.
 6. **Stored metadata.** If your code reads `Reflect.getMetadata(JSON_SCHEMA_METADATA_KEY, …)` directly: a class-typed property no longer holds its nested class's properties there. They exist only in the generated schema.
 7. **class-validator.** If you use it, version 0.14 or 0.15 is required. Inference did not work with 0.13 in 2.x either.
-8. **Strict modes.** With `forStructuredOutput: true`, OpenAI tools now keep string lengths, `pattern`, the supported formats, number bounds and array sizes, and OpenAI enforces them, so a model can no longer send a value outside them. `classToAnthropicTool` now applies Anthropic's own strict rules and sets `strict: true` instead of the OpenAI rules (optional properties stay optional). `classToOpenAIResponseApiTool` with `forStructuredOutput: false` now sends the schema as declared ([7.1](#71-openai), [7.2](#72-anthropic)).
+8. **Strict modes.** With `forStructuredOutput: true`, OpenAI tools now keep string lengths, `pattern`, the supported formats, number bounds and array sizes, and OpenAI enforces them, so a model can no longer send a value outside them. `classToAnthropicTool` now applies Anthropic's own strict rules and sets `strict: true` instead of the OpenAI rules (optional properties stay optional). `classToOpenAIResponseApiTool` with `forStructuredOutput: false` now sends the schema as declared ([7.1](#71-openai), [7.2](#72-anthropic)). If you call `prepareForOpenAIStructuredOutput` on a schema you send to Anthropic, switch to `prepareForAnthropicStrictTool`: the OpenAI helper now keeps rules Anthropic strict mode rejects.
 
 ## 10. How it works inside
 

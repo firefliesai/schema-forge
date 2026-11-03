@@ -170,14 +170,15 @@ describe('Anthropic strict tool use (forStructuredOutput)', () => {
     expect(schema.required).not.toContain('mood');
     expect(schema.properties.mood.type).toBe('string');
     expect(schema.properties.place.additionalProperties).toBe(false);
-    // Kept: string length, uri, minItems 0/1
-    expect(schema.properties.name.maxLength).toBe(50);
+    // Kept: uri, minItems 0/1. String lengths move to the description (next test).
+    expect(schema.properties.name.maxLength).toBeUndefined();
     expect(schema.properties.site.format).toBe('uri');
     expect(schema.properties.notes.minItems).toBe(1);
   });
 
-  it('moves number bounds and array sizes into the description', () => {
+  it('moves number bounds, string lengths and array sizes into the description', () => {
     const p = classToAnthropicTool(Order, { forStructuredOutput: true }).input_schema.properties;
+    expect(p.name).toEqual({ type: 'string', description: 'Customer name\n\n{maxLength: 50}' });
     expect(p.quantity).toEqual({
       type: 'integer',
       description: 'Quantity\n\n{maximum: 100, exclusiveMinimum: 0}',

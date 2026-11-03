@@ -65,6 +65,11 @@ const ANTHROPIC_RULES: StrictRules = {
     'exclusiveMinimum',
     'exclusiveMaximum',
     'multipleOf',
+    // Anthropic's JSON Schema limitations list string lengths as unsupported. The API accepted
+    // them in November 2026, but following the documented rule keeps a tool working if that
+    // changes, and matches what Anthropic's own SDK does.
+    'minLength',
+    'maxLength',
     'maxItems',
     'uniqueItems',
     'contains',
@@ -212,9 +217,10 @@ export function prepareForOpenAIStructuredOutput(schema: any, handleOptionals = 
  * - Every object that declares properties gets `additionalProperties: false`. `required` is kept
  *   as declared: Anthropic strict mode allows optional properties.
  * - Keywords Anthropic strict mode rejects are moved into the description: `minimum`, `maximum`,
- *   `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`, `maxItems`, `minItems` other than 0 or
- *   1, `uniqueItems`, `contains`, `minContains`, `maxContains`, `minProperties`, `maxProperties`,
- *   `propertyNames`, `patternProperties`, `unevaluatedProperties`, and a `format` other than
+ *   `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`, `minLength`, `maxLength`, `maxItems`,
+ *   `minItems` other than 0 or 1, `uniqueItems`, `contains`, `minContains`, `maxContains`,
+ *   `minProperties`, `maxProperties`, `propertyNames`, `patternProperties`,
+ *   `unevaluatedProperties`, and a `format` other than
  *   `date-time`, `time`, `date`, `duration`, `email`, `hostname`, `uri`, `ipv4`, `ipv6` and `uuid`.
  * - An `enum` next to a `type` array (a nullable or mixed-type enum) loses the `type`: the API
  *   rejects the pair, and the enum's values already say which types are allowed.
