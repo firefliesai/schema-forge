@@ -70,7 +70,7 @@ Schema Forge is a powerful TypeScript library that transforms your TypeScript cl
 - 📦 TypeScript-first with full type safety and inference
 - 🪶 Lightweight with minimal dependencies (only requires reflect-metadata)
 - 🔗 Automatic class-validator integration: infers JSON Schema constraints from validation decorators when used, independent of decorator order
-- 🛑 Fails at load time instead of emitting a schema that does not match the class
+- 🛑 Fails when a schema is generated instead of emitting one that does not match the class; defining or decorating a class never throws
 
 ## Who Should Use This Library?
 
@@ -498,7 +498,7 @@ Schema Forge uses TypeScript's reflection capabilities to automatically infer mo
    role: string;
    ```
 
-3. **Unions, nullable fields, interfaces, generics, `any` and `Record`**: TypeScript reports these as `Object`, which says nothing about the value. Schema Forge throws instead of guessing (see [Errors](#errors-at-load-time)). Give the type explicitly, or let a class-validator type decorator supply it:
+3. **Unions, nullable fields, interfaces, generics, `any` and `Record`**: TypeScript reports these as `Object`, which says nothing about the value. Schema Forge throws instead of guessing (see [Errors](#errors-when-a-schema-is-generated)). Give the type explicitly, or let a class-validator type decorator supply it:
    ```typescript
    // With strictNullChecks, `string | null` is reported as Object
    @ToolProp({ type: 'string', nullable: true, isOptional: true })
@@ -539,18 +539,18 @@ const tool = classToAnthropicTool(User, { additionalProperties: false });
 
 `forStructuredOutput: true` already closes objects (and makes every property required), as before. Gemini does not accept `additionalProperties`, so the Gemini formatters leave it out.
 
-### Errors at Load Time
+### Errors When a Schema Is Generated
 
-Schema Forge throws instead of emitting a schema that does not describe the class:
+Schema Forge throws instead of emitting a schema that does not describe the class. It checks when `classToJsonSchema` (or a `classTo…` formatter) runs, and only the classes that schema reaches: the class itself and, recursively, the classes nested in it. Defining or decorating a class never throws, so a class that carries `@ToolProp` but is never turned into a schema (for example a model whose shared field decorator adds `@ToolProp` to every field) cannot break an import.
 
 | Error | Cause | Fix |
 | --- | --- | --- |
 | `cannot determine the JSON Schema type` | The design type is `Object` (union, `T \| null`, interface, generic, `any`, `unknown`, `Record`) and nothing else gives a type | Set `type`, `items` or `enum`, or add a class-validator type decorator |
 | `an array needs an item type` | An array property with no `items` and no `{ each: true }` validator | Set `items` |
 | `the class declares no property with @ToolProp` | The class has class-validator decorated properties but no `@ToolProp` at all, so its schema would be empty. Usually a `PickType` / `OmitType` / `PartialType` copy, which keeps class-validator metadata but not `@ToolProp` | Add `@ToolProp` to the properties the schema should contain |
-| `refers to its own class` | A recursive class (`children: Node[]` inside `Node`) | Describe the field explicitly, e.g. `items: { type: 'object' }` |
+| `refers to its own class` / `refers back to … which contains it` | A recursive class, directly (`children: Node[]` inside `Node`) or through another class (`A.b: B` and `B.a: A`) | Describe the field that closes the loop explicitly: `type: 'object'`, or `items: { type: 'object' }` for an array |
 
-`classToJsonSchema` reports every problem of a class in one error. Errors in a nested class are raised when the outer class is loaded, because nested schemas are built then.
+`classToJsonSchema` reports every problem in one error, named after the class it was called with. A problem in a nested class carries its path, for example `Order.customer → Customer.email: …`.
 
 ### Class-Validator Integration
 
@@ -1116,7 +1116,7 @@ The `@ToolProp` decorator currently supports these JSON Schema properties:
 
 #### Current Limitations
 
-- Recursive classes (`$ref` / `$defs`) are not supported; a class that refers to itself throws.
+- Recursive classes (`$ref` / `$defs`) are not supported; a class that refers to itself, directly or through another class, throws when its schema is generated.
 - Object constraints `minProperties`, `maxProperties`, `patternProperties` and `propertyNames` have no option.
 - A class-transformer `@Type(() => X)` is not read; array items still need `items`.
 - `@IsOptional()` is not read; use `isOptional`.
@@ -1160,10 +1160,11 @@ An optional property still rejects `null`. If `null` is a valid value, add `null
 
 3.0.0 throws where 2.x emitted a wrong schema, and translates more class-validator rules. Most classes produce the same schema. To upgrade:
 
-1. Load every class you convert (for example, run your test suite) and fix each error from [Errors at Load Time](#errors-at-load-time). The common one is a field typed `T | null` under `strictNullChecks`: 2.x emitted `{ "type": "object" }` for it, which rejected every string or number sent for it.
+1. Generate the schema of every class you convert (for example, run your test suite) and fix each error from [Errors When a Schema Is Generated](#errors-when-a-schema-is-generated). The common one is a field typed `T | null` under `strictNullChecks`: 2.x emitted `{ "type": "object" }` for it, which rejected every string or number sent for it.
 2. Read the `[schema-forge]` warnings. A conflict warning means an explicit option and a class-validator rule disagree; the explicit option is used. A "no JSON Schema equivalent" warning lists a rule the schema does not enforce.
 3. Check the schemas that changed. A diff of `classToJsonSchema` output before and after the upgrade shows them. The differences come from the items under "Breaking changes" in the 3.0.0 entry of the [CHANGELOG](CHANGELOG.md): `exclusiveMinimum` for `@IsPositive`, new translations, decorator order, enum types, compositions.
 4. If code reads `JSONSchemaProperty.type` as a `string`, allow `string[]` and `undefined`.
+5. If code reads the stored decorator metadata directly (`Reflect.getMetadata(JSON_SCHEMA_METADATA_KEY, …)`), note that a class-typed property no longer holds its nested class's properties there; they exist only in the generated schema.
 
 ## Contributing
 
