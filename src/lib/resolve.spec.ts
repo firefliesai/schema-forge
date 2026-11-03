@@ -696,6 +696,33 @@ describe('3.0.0 schema resolution', () => {
       // The nested class itself is untouched
       expect(classToJsonSchema(Address).properties).toStrictEqual({ city: { type: 'string' } });
     });
+
+    it('does not apply a base class update to a subclass property that nests another class', () => {
+      class Address {
+        @ToolProp() city: string;
+      }
+      class Coordinates extends Address {
+        @ToolProp() lat: number;
+      }
+      class Place {
+        @ToolProp() location: Address;
+      }
+      updateSchemaProperty(Place, 'location.city', { description: 'City' });
+      class GeoPlace extends Place {
+        @ToolProp() location: Coordinates;
+      }
+
+      // `city` is Coordinates' own (inherited from Address), without Place's description
+      expect(classToJsonSchema(GeoPlace).properties.location).toStrictEqual({
+        type: 'object',
+        properties: { city: { type: 'string' }, lat: { type: 'number' } },
+        required: ['city', 'lat'],
+      });
+      expect((classToJsonSchema(Place).properties.location.properties as any).city).toStrictEqual({
+        type: 'string',
+        description: 'City',
+      });
+    });
   });
 
   describe('enums', () => {
