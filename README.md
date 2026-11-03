@@ -528,7 +528,7 @@ const user: CreateUserInput = JSON.parse(completion.choices[0].message.content ?
 
 The Vertex AI functions are implemented but not tested against the real API.
 
-Gemini accepts only part of JSON Schema in these fields (see its [function calling guide](https://aistudio.google.com/docs/function-calling) and the [`Schema` reference](https://aistudio.google.com/api-reference/caching)). The Gemini functions change the schema to fit:
+Gemini accepts only part of JSON Schema in these fields (see its [function calling guide](https://aistudio.google.com/docs/function-calling), and the fields of its `Schema` type in the [API reference](https://aistudio.google.com/api-reference/caching), listed under `CachedContent` → `tools` → `functionDeclarations` → `parameters`). The Gemini functions change the schema to fit:
 
 | JSON Schema from Schema Forge | Sent to Gemini |
 | --- | --- |
