@@ -89,6 +89,13 @@ const SUBSCHEMA_LIST_KEYS = ['anyOf', 'oneOf', 'allOf', 'prefixItems'];
 /** Keys whose value maps names to subschemas. */
 const SUBSCHEMA_MAP_KEYS = ['properties', 'patternProperties', '$defs', 'definitions'];
 
+/** The JSON Schema type name of an enum value (`number` for every number). */
+function jsonTypeOf(value: unknown): string {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return 'array';
+  return typeof value === 'object' ? 'object' : typeof value;
+}
+
 function strictify(schema: any, rules: StrictRules, makeOptionalNullable: boolean): any {
   if (typeof schema !== 'object' || schema === null || Array.isArray(schema)) return schema;
   const result: any = { ...schema };
@@ -144,7 +151,14 @@ function strictify(schema: any, rules: StrictRules, makeOptionalNullable: boolea
     delete result.format;
   }
   if (rules.enumWithoutTypeArray && Array.isArray(result.enum) && Array.isArray(result.type)) {
-    // The enum values already carry their types (null included); the API rejects the pair
+    // The API rejects the pair. The enum alone says which types are allowed once it keeps only
+    // the values the type array accepted (so `integer` still excludes 1.5)
+    const types: string[] = result.type;
+    result.enum = result.enum.filter(
+      (value: unknown) =>
+        types.includes(jsonTypeOf(value)) ||
+        (typeof value === 'number' && Number.isInteger(value) && types.includes('integer')),
+    );
     delete result.type;
   }
 

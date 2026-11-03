@@ -198,6 +198,17 @@ describe('Anthropic strict tool use (forStructuredOutput)', () => {
     expect(mixed.properties.code).toEqual({ enum: ['a', 2] });
   });
 
+  it('keeps only the enum values the dropped type array accepted', () => {
+    class Step {
+      @ToolProp({ description: 'Step', type: 'integer', enum: [1, 1.5, 2], nullable: true })
+      step: number | null;
+    }
+    const step = classToAnthropicTool(Step, { forStructuredOutput: true }).input_schema.properties
+      .step;
+    expect(step.type).toBeUndefined();
+    expect(step.enum).toEqual([1, 2, null]);
+  });
+
   it('sets strict on a tool built from a JSON Schema', () => {
     const tool = jsonSchemaToAnthropicTool(
       { type: 'object', properties: { q: { type: 'string' } }, required: ['q'] },
