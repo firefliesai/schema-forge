@@ -10,6 +10,22 @@ export function cloneMetadata(metadata: any): any {
 }
 
 /**
+ * Throws when a property path given by a caller (`updateSchemaProperty`, `addSchemaProperty`,
+ * `propertyOverrides`) has a segment that, used as an object key, would reach an object's
+ * prototype instead of a property schema.
+ */
+export function assertSafePropertyPath(paths: readonly string[]): void {
+  for (const segment of paths) {
+    if (segment === '__proto__' || segment === 'constructor' || segment === 'prototype') {
+      throw new Error(
+        `schema-forge: "${segment}" cannot be used as a property name or path segment ` +
+          `(in "${paths.join('.')}").`,
+      );
+    }
+  }
+}
+
+/**
  * Type inference helper
  */
 export function inferType<T>(_target: new (...args: any[]) => any): T {

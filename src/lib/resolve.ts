@@ -89,6 +89,49 @@ const ITEM_CONSTRAINT_KEYS = [
   'maxLength',
 ] as const;
 
+/**
+ * Item keywords that class-validator only sets with rules that accept one type: its numeric rules
+ * (`@Min`, `@Max`, `@IsPositive`, `@IsNegative`, `@IsDivisibleBy`) reject anything but a number,
+ * and its string rules (`@MinLength`, `@MaxLength`, `@Length`, `@Matches`, `@IsEmail`, …) reject
+ * anything but a string.
+ */
+const NUMBER_ONLY_ITEM_KEYS = [
+  'minimum',
+  'maximum',
+  'exclusiveMinimum',
+  'exclusiveMaximum',
+  'multipleOf',
+];
+const STRING_ONLY_ITEM_KEYS = ['minLength', 'maxLength', 'pattern', 'format'];
+
+/**
+ * The item type implied by class-validator item rules that carry no type of their own, or
+ * undefined when they imply none (no rules, or rules of both families, which no value satisfies).
+ */
+function impliedItemType(items: Record<string, unknown>): 'number' | 'string' | undefined {
+  const keys = Object.keys(items);
+  if (keys.length === 0) return undefined;
+  if (keys.every((key) => NUMBER_ONLY_ITEM_KEYS.includes(key))) return 'number';
+  if (keys.every((key) => STRING_ONLY_ITEM_KEYS.includes(key))) return 'string';
+  return undefined;
+}
+
+/**
+ * `@IsNotEmpty()` on a string: `minLength` becomes at least 1, the stricter of the two bounds,
+ * like other class-validator bounds. A lower `minLength` the author wrote is kept, with a warning.
+ */
+function applyNotEmpty(schema: Record<string, any>, explicitMinLength: boolean, where: string) {
+  if (schema.minLength === undefined) {
+    schema.minLength = 1;
+  } else if (schema.minLength < 1) {
+    if (explicitMinLength) {
+      warnOnce(`${where} ${schema.minLength} from @ToolProp is kept; class-validator says 1.`);
+    } else {
+      schema.minLength = 1;
+    }
+  }
+}
+
 /** Keys whose presence means the author described the type themselves */
 const TYPE_DEFINING_KEYS = ['type', 'enum', 'items', 'anyOf', 'oneOf', 'allOf', 'const'];
 const COMPOSITION_KEYS = ['anyOf', 'oneOf', 'allOf'];
@@ -147,6 +190,17 @@ function isTypeConflict(explicitType: unknown, inferredType: string): boolean {
 const ANNOTATION_KEYS = ['description', 'title', 'default', 'examples', 'deprecated'];
 const isNullBranch = (branch: any): boolean =>
   branch && typeof branch === 'object' && branch.type === 'null';
+
+/** Whether a schema already accepts null, in any of the shapes `makeNullable` produces */
+export function allowsNull(schema: unknown): boolean {
+  if (!schema || typeof schema !== 'object') return false;
+  const value = schema as Record<string, any>;
+  return (
+    typeIncludes(value.type, 'null') ||
+    (Array.isArray(value.enum) && value.enum.includes(null)) ||
+    ['anyOf', 'oneOf'].some((key) => Array.isArray(value[key]) && value[key].some(isNullBranch))
+  );
+}
 
 /**
  * Applies `nullable: true`.
@@ -262,9 +316,18 @@ export function resolveProperties(
     if (isArray) {
       schema.type = schema.type ?? 'array';
       if (!explicitType && !typeIncludes(schema.type, 'array')) schema.type = 'array';
+      // An item minLength the author wrote is kept over @IsNotEmpty({ each: true }), with a warning
+      const explicitItemMinLength = explicit.has('items') && schema.items?.minLength !== undefined;
       if (!schema.items) {
-        if (inferred.items && Object.keys(inferred.items).some((key) => key !== 'notEmpty')) {
-          const { notEmpty: _notEmpty, ...itemSchema } = inferred.items;
+        const { notEmpty: _notEmpty, ...inferredItems } = inferred.items ?? {};
+        const itemSchema: Record<string, unknown> = inferredItems;
+        const itemType =
+          itemSchema.type !== undefined || itemSchema.enum !== undefined
+            ? undefined
+            : impliedItemType(itemSchema);
+        if (itemSchema.type !== undefined || itemSchema.enum !== undefined || itemType) {
+          // Rules such as @Min(1, { each: true }) carry no type; the one class-validator accepts
+          if (itemType) itemSchema.type = itemType;
           schema.items = itemSchema;
         } else {
           problems.push(
@@ -293,13 +356,8 @@ export function resolveProperties(
       if (schema.items && Array.isArray(schema.items.enum) && schema.items.type === undefined) {
         schema.items.type = enumSchemaType(schema.items.enum);
       }
-      if (
-        inferred.items?.notEmpty &&
-        schema.items &&
-        typeIncludes(schema.items.type, 'string') &&
-        schema.items.minLength === undefined
-      ) {
-        schema.items.minLength = 1;
+      if (inferred.items?.notEmpty && schema.items && typeIncludes(schema.items.type, 'string')) {
+        applyNotEmpty(schema.items, explicitItemMinLength, `${where}: items.minLength`);
       }
     }
 
@@ -344,12 +402,8 @@ export function resolveProperties(
         );
       }
     }
-    if (
-      inferred.notEmpty &&
-      typeIncludes(schema.type, 'string') &&
-      schema.minLength === undefined
-    ) {
-      schema.minLength = 1;
+    if (inferred.notEmpty && typeIncludes(schema.type, 'string')) {
+      applyNotEmpty(schema, explicit.has('minLength'), `${where}: minLength`);
     }
 
     // Decorators with no JSON Schema equivalent. An explicit format, pattern or enum means the

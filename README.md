@@ -424,7 +424,7 @@ expect(findUndeclaredValidatedProperties(CreateOrderInput)).toEqual([]);
 
 ### 5.3 Translated decorators
 
-A decorator with `{ each: true }` applies its rule to the items of an array.
+A decorator with `{ each: true }` applies its rule to the items of an array. When those item rules give no type of their own, the item type is the one they accept: the numeric rules (`@Min`, `@Max`, `@IsPositive`, `@IsNegative`, `@IsDivisibleBy`) accept only numbers, so the items are `number`; the string rules (`@MinLength`, `@MaxLength`, `@Length`, `@Matches`, `@IsEmail`, `@IsUrl`, `@IsUUID`) accept only strings, so the items are `string`. Rules of both kinds on the same items give no type.
 
 | class-validator decorator | JSON Schema |
 | --- | --- |
@@ -443,7 +443,7 @@ A decorator with `{ each: true }` applies its rule to the items of an array.
 | `@Matches(regex)` | `pattern`, if the regex has no flags other than `u` |
 | `@IsEnum(E)`, `@IsIn([...])` | `enum` |
 
-When several decorators set the same limit (for example `@Length(2, 10)` and `@MinLength(5)`), the strictest value is used.
+When several decorators set the same limit (for example `@Length(2, 10)` and `@MinLength(5)`), the strictest value is used. This includes `@IsNotEmpty()`: with `@MinLength(0)` the result is `minLength: 1`.
 
 `@IsOptional()`, `@ValidateIf()`, `@ValidateNested()`, `@IsDefined()`, `@Allow()`, `@IsDate()` and `@IsNotEmptyObject()` add nothing to the schema and print no warning. `@IsOptional()` does not make a property optional; use `isOptional: true`.
 
@@ -459,7 +459,7 @@ Some rules have no JSON Schema keyword: `@IsTimeZone()`, `@IsISO8601()`, `@IsDat
 | --- | --- | --- |
 | `additionalProperties: false` | not set | Adds `additionalProperties: false` to every object that declares properties: the root, nested classes, array items and `anyOf` / `oneOf` / `allOf` branches. Strict modes need it. An object without declared properties (a `Record`) stays open, because closing it would accept only `{}`. |
 | `forStructuredOutput: true` | `false` (`true` for `classToOpenAIResponseApiTool`) | Adapts the schema to the provider's strict mode and sets `strict: true`: OpenAI's rules for the OpenAI functions ([7.1](#71-openai)), Anthropic's for `classToAnthropicTool` ([7.2](#72-anthropic)). `classToJsonSchema` applies the OpenAI changes to the schema only. The Gemini functions do not take this option. |
-| `propertyOverrides` | none | Changes properties for this call only, by path: `{ 'name': { description: '…' }, 'address.city': { … } }`. |
+| `propertyOverrides` | none | Changes properties for this call only, by path: `{ 'name': { description: '…' }, 'address.city': { … } }`. An override that describes a property holding a class as something else (another `type`, an `enum`, a `const`, a composition, or `items` that are not a class) replaces the class, whose schema is then not built. A property that allows `null` keeps allowing it unless the override sets `nullable: false`. |
 
 To change a class's schema for every later call, use `updateSchemaProperty` and `addSchemaProperty`. Paths may go into nested classes:
 
@@ -620,9 +620,10 @@ schema-forge: cannot generate a JSON Schema for Order:
 | Error message contains | Cause | Fix |
 | --- | --- | --- |
 | `cannot determine the JSON Schema type` | The design type is `Object` (a union, `T \| null`, an interface, a generic, `any`, `unknown`, `Record`), and no option or class-validator decorator gives a type. | Set `type`, `items` or `enum` (and `nullable: true` if `null` is allowed), or add a type decorator such as `@IsString()`. |
-| `an array needs an item type` | An array property has no `items` and no class-validator decorator with `{ each: true }`. | Set `items`. |
+| `an array needs an item type` | An array property has no `items`, and no class-validator decorator with `{ each: true }` gives the items a type ([5.3](#53-translated-decorators)). | Set `items`. |
 | `the class declares no property with @ToolProp` | The class has class-validator decorators but no `@ToolProp` at all ([5.2](#52-only-toolprop-adds-a-property)). | Add `@ToolProp` to the properties the schema should have. |
 | `refers to its own class` / `refers back to …, which contains it` | A class contains itself, directly (`children: Node[]` in `Node`) or through another class (`A.b: B` and `B.a: A`). | On the property that closes the loop, set `type: 'object'` (or `items: { type: 'object' }` for an array). It becomes an object without a fixed shape. |
+| `cannot be used as a property name or path segment` | A path given to `updateSchemaProperty`, `addSchemaProperty` or `propertyOverrides` contains `__proto__`, `constructor` or `prototype`, which would reach an object's prototype instead of a property. `updateSchemaProperty` and `addSchemaProperty` throw when called; `propertyOverrides` when the schema is generated. | Use a different property name. |
 | `declared by another installed copy of @firefliesai/schema-forge` | Two copies of Schema Forge are installed, and a property was declared through the other copy, whose metadata this copy cannot read ([section 2](#2-install-and-set-up)). | Install a single copy (deduplicate, or force one version with your package manager's overrides), or declare the property with this copy's `@ToolProp`. |
 
 ### 8.3 Warnings

@@ -10,6 +10,7 @@ import {
   getPropertySources,
   NESTED_CLASS_METADATA_KEY,
   resolveProperties,
+  typeIncludes,
 } from './resolve';
 import {
   JSON_SCHEMA_METADATA_KEY,
@@ -18,7 +19,7 @@ import {
   REQUIRED_PROPS_METADATA_KEY,
 } from './types';
 import { prepareForOpenAIStructuredOutput } from './strict-schema';
-import { cloneMetadata } from './utils';
+import { cloneMetadata, isCustomClass } from './utils';
 
 type ClassType = new (...args: any[]) => any;
 
@@ -36,6 +37,49 @@ function deferredUpdates(target: ClassType): DeferredUpdate[] {
     chain.unshift(Reflect.getOwnMetadata(DEFERRED_UPDATES_METADATA_KEY, proto) || []);
   }
   return chain.flat();
+}
+
+/**
+ * Whether an update of a class-typed property describes it as something other than that class's
+ * object: another type, an enum, a const or a composition (for an array of the class: another type,
+ * or items that are not a class).
+ */
+function describesOtherwise(updates: Record<string, any>, isArray: boolean): boolean {
+  if (['enum', 'const', 'anyOf', 'oneOf', 'allOf'].some((key) => updates[key] !== undefined)) {
+    return true;
+  }
+  if (isArray) {
+    return (
+      (updates.type !== undefined && !typeIncludes(updates.type, 'array')) ||
+      (updates.items !== undefined && !isCustomClass(updates.items?.type))
+    );
+  }
+  return updates.type !== undefined && !typeIncludes(updates.type, 'object');
+}
+
+/**
+ * Whether the property's nested class is replaced for this schema: by a recorded
+ * `updateSchemaProperty` of the property itself, or by this call's `propertyOverrides` for it. Its
+ * schema is then not built, so its properties and its problems do not reach this schema.
+ */
+function nestedClassReplaced(
+  target: ClassType,
+  name: string,
+  nested: unknown,
+  isArray: boolean,
+  propertyOverrides?: Record<string, unknown>,
+): boolean {
+  const updates = deferredUpdates(target).flatMap((update) =>
+    update.kind === 'update' &&
+    update.paths.length === 1 &&
+    update.paths[0] === name &&
+    update.nestedClass === nested
+      ? [update.updates]
+      : [],
+  );
+  const override = propertyOverrides?.[name];
+  if (override && typeof override === 'object') updates.push(override as Record<string, any>);
+  return updates.some((update) => describesOtherwise(update, isArray));
 }
 
 /**
@@ -110,6 +154,7 @@ function buildClassSchema(
     const nested = Reflect.getMetadata(NESTED_CLASS_METADATA_KEY, target.prototype, name);
     if (typeof nested !== 'function') continue;
     const isArray = schema.type === 'array';
+    if (nestedClassReplaced(target, name, nested, isArray, propertyOverrides)) continue;
     if (path.includes(nested)) {
       // An explicit `type: 'object'` on the property that closes the loop describes it as a
       // free-form object (for an array, `items: { type: 'object' }` records no class at all)

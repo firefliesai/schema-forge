@@ -3,6 +3,7 @@
  */
 
 import {
+  allowsNull,
   DEFERRED_UPDATES_METADATA_KEY,
   DeferredUpdate,
   DesignKind,
@@ -21,6 +22,7 @@ import {
   REQUIRED_PROPS_METADATA_KEY,
 } from './types';
 import {
+  assertSafePropertyPath,
   cloneMetadata,
   enumSchemaType,
   extractEnumValues,
@@ -41,6 +43,7 @@ export function applyPropertyUpdates(
   /** The property schemas as they were before these updates (default: the stored ones) */
   metadataRoot?: any,
 ) {
+  assertSafePropertyPath(paths);
   const [current, ...rest] = paths;
 
   // Handle nested path
@@ -100,18 +103,22 @@ export function applyPropertyUpdates(
         // Check if the target property should be an array of enums or just an enum
         if (current[lastPath] && typeIncludes(current[lastPath].type, 'array')) {
           // Update items of an array property
+          const previousItems = current[lastPath].items;
           current[lastPath].items = {
             type: enumType,
             enum: enumValues,
           };
+          keepNullable(current[lastPath].items, previousItems, updates);
         } else {
           // Direct enum property
+          const previous = current[lastPath];
           current[lastPath] = {
             ...(current[lastPath] || {}),
             type: enumType,
             enum: enumValues,
             description: current[lastPath]?.description || currentMetadata.description,
           };
+          keepNullable(current[lastPath], previous, updates);
         }
       } else if (typeIncludes(targetProp.type, 'object')) {
         // Update in object properties
@@ -143,12 +150,14 @@ export function applyPropertyUpdates(
         const lastPath = rest[rest.length - 1];
 
         // Update the enum property
+        const previous = current[lastPath];
         current[lastPath] = {
           ...(current[lastPath] || {}),
           type: enumType,
           enum: enumValues,
           description: current[lastPath]?.description || currentMetadata.description,
         };
+        keepNullable(current[lastPath], previous, updates);
       }
     } else {
       // Update general nested path
@@ -218,8 +227,25 @@ export function applyPropertyUpdates(
   // is resolved (or right away for a property with no recorded source).
   delete properties[current].isOptional;
   delete properties[current].nullable;
-  if (!sources?.[current] && updates.nullable === true) makeNullable(properties[current]);
-  if (!sources?.[current] && updates.nullable === false) removeNullable(properties[current]);
+  if (!sources?.[current]) keepNullable(properties[current], currentProperty, updates);
+}
+
+/**
+ * For a property schema that is already resolved (a property of a nested class, or one added by
+ * `addSchemaProperty`): `nullable` in the update applies right away, and a schema that accepted
+ * null keeps accepting it when the update replaces its type or enum, unless the update says
+ * `nullable: false`.
+ */
+function keepNullable(
+  schema: Record<string, any>,
+  previous: unknown,
+  updates: Partial<PropertyOptions>,
+): void {
+  if (updates.nullable === false) {
+    removeNullable(schema);
+  } else if ((updates.nullable === true || allowsNull(previous)) && !allowsNull(schema)) {
+    makeNullable(schema);
+  }
 }
 
 /**
@@ -247,8 +273,31 @@ function nestedClassAt(target: any, paths: string[]): unknown {
   return typeof nested === 'function' ? nested : undefined;
 }
 
+/** Deep equality where functions (classes, enum-like objects' members) compare by identity */
+function sameUpdateValue(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+  return (
+    keysA.length === keysB.length &&
+    keysA.every((key) =>
+      sameUpdateValue((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]),
+    )
+  );
+}
+
+/**
+ * Records an update into a nested class's properties. A call identical to the last one recorded
+ * adds nothing (applying it twice in a row gives the same schema), so repeating the same call does
+ * not grow the list. Different updates are all kept, in order: replaying them in that order is
+ * what decides the result.
+ */
 function deferUpdate(target: any, update: DeferredUpdate): void {
-  const deferred = Reflect.getOwnMetadata(DEFERRED_UPDATES_METADATA_KEY, target.prototype) || [];
+  const deferred: DeferredUpdate[] =
+    Reflect.getOwnMetadata(DEFERRED_UPDATES_METADATA_KEY, target.prototype) || [];
+  if (deferred.length > 0 && sameUpdateValue(deferred[deferred.length - 1], update)) return;
   Reflect.defineMetadata(DEFERRED_UPDATES_METADATA_KEY, [...deferred, update], target.prototype);
 }
 
@@ -401,6 +450,7 @@ export function updateSchemaProperty<T extends object>(
   updates: Partial<PropertyOptions>,
 ): void {
   const paths = (propertyPath as string).split('.');
+  assertSafePropertyPath(paths);
   const nestedClass = nestedClassAt(target, paths);
   if (nestedClass) {
     deferUpdate(target, { kind: 'update', paths, updates, nestedClass });
@@ -427,6 +477,7 @@ export function addPropertyTo(
   propertyPath: string,
   options: PropertyOptions,
 ): void {
+  assertSafePropertyPath(propertyPath.split('.'));
   const finalOptions = { ...options };
   if (options.enum) {
     finalOptions.type = enumSchemaType(extractEnumValues(options.enum));
@@ -495,6 +546,7 @@ export function addSchemaProperty<T extends object>(
     throw new Error('Either type or enum must be specified');
   }
 
+  assertSafePropertyPath(propertyPath.split('.'));
   const nestedClass = nestedClassAt(target, propertyPath.split('.'));
   if (nestedClass) {
     deferUpdate(target, { kind: 'add', path: propertyPath, options, nestedClass });

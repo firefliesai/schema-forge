@@ -35,7 +35,7 @@ import {
   ToolProp,
   updateSchemaProperty,
 } from './index';
-import { makeNullable } from './resolve';
+import { DEFERRED_UPDATES_METADATA_KEY, makeNullable } from './resolve';
 
 enum Color {
   Red = 'red',
@@ -189,6 +189,40 @@ describe('3.0.0 schema resolution', () => {
         name: { type: 'string' },
         color: { type: 'string', enum: ['red', 'blue'] },
       });
+    });
+
+    it('keeps null when an override replaces a nullable nested property', () => {
+      class Mood {
+        @ToolProp({ enum: Color, nullable: true }) color: Color | null;
+        @ToolProp({ type: 'string', nullable: true }) note: string | null;
+      }
+      class Person {
+        @ToolProp() mood: Mood;
+      }
+      class Recorded {
+        @ToolProp() mood: Mood;
+      }
+      updateSchemaProperty(Recorded, 'mood.color', { enum: ['red'] });
+
+      const viaOverride = classToJsonSchema(Person, {
+        propertyOverrides: {
+          'mood.color': { enum: ['red'] },
+          'mood.note': { type: 'string', maxLength: 5 },
+        },
+      }).properties.mood.properties;
+      // toEqual: a nested enum update leaves `description: undefined` (dropped from JSON)
+      expect(viaOverride.color).toEqual({ type: ['string', 'null'], enum: ['red', null] });
+      expect(viaOverride.note).toStrictEqual({ type: ['string', 'null'], maxLength: 5 });
+      expect(classToJsonSchema(Recorded).properties.mood.properties.color).toEqual({
+        type: ['string', 'null'],
+        enum: ['red', null],
+      });
+      // nullable: false in the same update still removes it
+      expect(
+        classToJsonSchema(Person, {
+          propertyOverrides: { 'mood.note': { type: 'string', nullable: false } },
+        }).properties.mood.properties.note,
+      ).toStrictEqual({ type: 'string' });
     });
 
     it('makes const and typed compositions an alternative with null', () => {
@@ -346,6 +380,58 @@ describe('3.0.0 schema resolution', () => {
       });
       expect(warnings()).toStrictEqual([
         expect.stringContaining('EachNotEmpty.zero: class-validator rule "isDivisibleBy"'),
+      ]);
+    });
+
+    it('types array items from each: true rules that only one type can satisfy', () => {
+      class EachBounds {
+        @Min(1, { each: true }) @ToolProp() counts: number[];
+        @MaxLength(3, { each: true }) @ToolProp() codes: string[];
+      }
+
+      // class-validator's numeric rules reject non-numbers and its length rules reject
+      // non-strings, so the item type is the one both the schema and the validator accept
+      expect(classToJsonSchema(EachBounds).properties).toStrictEqual({
+        counts: { type: 'array', items: { type: 'number', minimum: 1 } },
+        codes: { type: 'array', items: { type: 'string', maxLength: 3 } },
+      });
+    });
+
+    it('still asks for an item type when each: true rules mix numbers and strings', () => {
+      class EachMixed {
+        @Min(1, { each: true }) @MaxLength(3, { each: true }) @ToolProp() values: unknown[];
+      }
+
+      expect(() => classToJsonSchema(EachMixed)).toThrow(
+        'EachMixed.values: an array needs an item type',
+      );
+    });
+
+    it('combines @IsNotEmpty with a lower length bound as the stricter one', () => {
+      class NotEmptyBounds {
+        @IsString() @IsNotEmpty() @MinLength(0) @ToolProp() name: string;
+        @IsString({ each: true })
+        @IsNotEmpty({ each: true })
+        @MinLength(0, { each: true })
+        @ToolProp()
+        tags: string[];
+        @IsNotEmpty() @ToolProp({ minLength: 0 }) explicitZero: string;
+        @IsNotEmpty({ each: true })
+        @ToolProp({ items: { type: 'string', minLength: 0 } })
+        explicitItems: string[];
+      }
+
+      expect(classToJsonSchema(NotEmptyBounds).properties).toStrictEqual({
+        name: { type: 'string', minLength: 1 },
+        tags: { type: 'array', items: { type: 'string', minLength: 1 } },
+        explicitZero: { type: 'string', minLength: 0 },
+        explicitItems: { type: 'array', items: { type: 'string', minLength: 0 } },
+      });
+      expect(warnings()).toStrictEqual([
+        expect.stringContaining('NotEmptyBounds.explicitZero: minLength 0 from @ToolProp is kept'),
+        expect.stringContaining(
+          'NotEmptyBounds.explicitItems: items.minLength 0 from @ToolProp is kept',
+        ),
       ]);
     });
 
@@ -696,6 +782,60 @@ describe('3.0.0 schema resolution', () => {
       expect(classToJsonSchema(Address).properties).toStrictEqual({ city: { type: 'string' } });
     });
 
+    it('does not build a nested class that an override describes as another type', () => {
+      class ValidatedOnly {
+        @IsString() id: string;
+      }
+      class Holder {
+        @ToolProp() ref: ValidatedOnly;
+        @ToolProp({ items: { type: ValidatedOnly } }) refs: ValidatedOnly[];
+        @ToolProp() choice: ValidatedOnly;
+      }
+      class RecordedHolder {
+        @ToolProp() ref: ValidatedOnly;
+      }
+      updateSchemaProperty(RecordedHolder, 'ref', { type: 'string' });
+
+      expect(() => classToJsonSchema(Holder)).toThrow('ValidatedOnly: id has class-validator');
+      expect(
+        classToJsonSchema(Holder, {
+          propertyOverrides: {
+            ref: { type: 'string', description: 'The id' },
+            refs: { items: { type: 'string' } },
+            choice: { enum: ['a', 'b'] },
+          },
+        }).properties,
+      ).toStrictEqual({
+        ref: { type: 'string', description: 'The id' },
+        refs: { type: 'array', items: { type: 'string' } },
+        choice: { type: 'string', enum: ['a', 'b'] },
+      });
+      expect(classToJsonSchema(RecordedHolder).properties).toStrictEqual({
+        ref: { type: 'string' },
+      });
+    });
+
+    it('records a repeated identical nested update once', () => {
+      class Address {
+        @ToolProp() city: string;
+      }
+      class Order {
+        @ToolProp() address: Address;
+      }
+      const recorded = (): unknown[] =>
+        Reflect.getOwnMetadata(DEFERRED_UPDATES_METADATA_KEY, Order.prototype);
+
+      for (let i = 0; i < 3; i++) updateSchemaProperty(Order, 'address.city', { description: 'A' });
+      expect(recorded()).toHaveLength(1);
+
+      // A different update in between is kept, and so is the repeat after it: replaying them in
+      // order is what decides the result
+      updateSchemaProperty(Order, 'address.city', { description: 'B' });
+      updateSchemaProperty(Order, 'address.city', { description: 'A' });
+      expect(recorded()).toHaveLength(3);
+      expect(classToJsonSchema(Order).properties.address.properties.city.description).toBe('A');
+    });
+
     it('does not apply a base class update to a subclass property that nests another class', () => {
       class Address {
         @ToolProp() city: string;
@@ -789,6 +929,57 @@ describe('3.0.0 schema resolution', () => {
         type: 'object',
         properties: { email: { type: 'string', format: 'email' } },
         required: ['email'],
+      });
+    });
+  });
+
+  describe('property names and paths', () => {
+    const unsafe = ['__proto__', 'constructor', 'prototype'];
+
+    it('rejects a path segment that would reach an object prototype, at every entry point', () => {
+      class Address {
+        @ToolProp() city: string;
+      }
+      class Target {
+        @ToolProp() name: string;
+        @ToolProp() address: Address;
+      }
+
+      for (const key of unsafe) {
+        const message = `"${key}" cannot be used as a property name or path segment`;
+        expect(() => updateSchemaProperty(Target, key as 'name', { description: 'x' })).toThrow(
+          message,
+        );
+        expect(() =>
+          updateSchemaProperty(Target, `address.${key}` as 'name', { description: 'x' }),
+        ).toThrow(message);
+        expect(() => addSchemaProperty(Target, key, { type: 'string' })).toThrow(message);
+        expect(() => addSchemaProperty(Target, `address.${key}`, { type: 'string' })).toThrow(
+          message,
+        );
+        expect(() =>
+          classToJsonSchema(Target, {
+            propertyOverrides: { [`name.${key}.polluted`]: { description: 'x' } } as never,
+          }),
+        ).toThrow(message);
+        expect(() =>
+          classToJsonSchema(Target, {
+            propertyOverrides: { [key]: { description: 'x' } } as never,
+          }),
+        ).toThrow(message);
+      }
+
+      expect(Object.prototype).not.toHaveProperty('description');
+      expect(Object.prototype).not.toHaveProperty('polluted');
+      expect(Object.prototype).not.toHaveProperty('type');
+      // Nothing was recorded or changed by the refused calls
+      expect(classToJsonSchema(Target).properties).toStrictEqual({
+        name: { type: 'string' },
+        address: {
+          type: 'object',
+          properties: { city: { type: 'string' } },
+          required: ['city'],
+        },
       });
     });
   });
