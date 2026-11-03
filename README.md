@@ -722,7 +722,7 @@ This section is for contributors and for readers who want to know why the rules 
 | `classToGeminiOldTool`, `classToGeminiOldResponseSchema` | `@google/generative-ai` function declaration, response schema |
 | `classToGeminiVertexTool`, `classToGeminiVertexResponseSchema` | `@google-cloud/vertexai` function declaration, response schema |
 
-**From a JSON Schema to a provider format** (all take `(schema, { name, description? }, options?)`)
+**From a JSON Schema to a provider format** (they take `(schema, { name, description? }, options?)`, except that the options of `jsonSchemaToAnthropicTool` are `{ strict? }` and the three Gemini response-schema converters take `(schema, { description? })`)
 
 `jsonSchemaToOpenAITool`, `jsonSchemaToOpenAIResponseApiTool` (its `options.strict` is required), `jsonSchemaToOpenAIResponseFormat`, `jsonSchemaToOpenAIResponseApiTextSchema`, `jsonSchemaToAnthropicTool` (pass `{ strict: true }` as the third argument for strict tool use), `jsonSchemaToGeminiTool`, `jsonSchemaToGeminiResponseSchema`, `jsonSchemaToGeminiOldTool`, `jsonSchemaToGeminiOldResponseSchema`, `jsonSchemaToGeminiVertexTool`, `jsonSchemaToGeminiVertexResponseSchema`.
 
