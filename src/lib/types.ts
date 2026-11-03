@@ -234,6 +234,8 @@ export interface GeminiVertexResponseSchema {
 export interface AnthropicToolFunction {
   name: string;
   description?: string;
+  /** Anthropic strict tool use: the model's input is constrained to `input_schema`. */
+  strict?: boolean;
   input_schema: {
     type: 'object';
     properties: Record<string, any>;
