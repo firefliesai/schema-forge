@@ -70,94 +70,66 @@ export function applyPropertyUpdates(
       const enumValues = extractEnumValues(updates.enum);
       const enumType = enumSchemaType(enumValues);
 
+      // The properties map the rest of the path starts in: an array's item properties, or an
+      // object's properties. Everything below is shared, so both kinds of parent treat the
+      // target the same way.
       const targetProp = properties[current];
+      let container: any;
       if (typeIncludes(targetProp.type, 'array')) {
-        // Update in items.properties
         if (!targetProp.items.properties) {
           targetProp.items.properties = {};
         }
-        let current = targetProp.items.properties;
-        for (let i = 0; i < rest.length - 1; i++) {
-          const path = rest[i];
-          if (!current[path]) {
-            current[path] = { type: 'object', properties: {} };
-          }
-          // If this is an array type property
-          if (typeIncludes(current[path].type, 'array')) {
-            if (!current[path].items.properties) {
-              current[path].items.properties = {};
-            }
-            current = current[path].items.properties;
-          } else {
-            // Object type property
-            if (!current[path].properties) {
-              current[path].properties = {};
-            }
-            current = current[path].properties;
-          }
-        }
-
-        // Get the last path segment
-        const lastPath = rest[rest.length - 1];
-
-        // Check if the target property should be an array of enums or just an enum
-        if (current[lastPath] && typeIncludes(current[lastPath].type, 'array')) {
-          // Update items of an array property
-          const previousItems = current[lastPath].items;
-          current[lastPath].items = {
-            type: enumType,
-            enum: enumValues,
-          };
-          keepNullable(current[lastPath].items, previousItems, updates);
-        } else {
-          // Direct enum property
-          const previous = current[lastPath];
-          current[lastPath] = {
-            ...(current[lastPath] || {}),
-            type: enumType,
-            enum: enumValues,
-            description: current[lastPath]?.description || currentMetadata.description,
-          };
-          keepNullable(current[lastPath], previous, updates);
-        }
+        container = targetProp.items.properties;
       } else if (typeIncludes(targetProp.type, 'object')) {
-        // Update in object properties
         if (!targetProp.properties) {
           targetProp.properties = {};
         }
-        let current = targetProp.properties;
+        container = targetProp.properties;
+      }
+
+      if (container) {
         for (let i = 0; i < rest.length - 1; i++) {
           const path = rest[i];
-          if (!current[path]) {
-            current[path] = { type: 'object', properties: {} };
+          if (!container[path]) {
+            container[path] = { type: 'object', properties: {} };
           }
           // If this is an array type property
-          if (typeIncludes(current[path].type, 'array')) {
-            if (!current[path].items.properties) {
-              current[path].items.properties = {};
+          if (typeIncludes(container[path].type, 'array')) {
+            if (!container[path].items.properties) {
+              container[path].items.properties = {};
             }
-            current = current[path].items.properties;
+            container = container[path].items.properties;
           } else {
             // Object type property
-            if (!current[path].properties) {
-              current[path].properties = {};
+            if (!container[path].properties) {
+              container[path].properties = {};
             }
-            current = current[path].properties;
+            container = container[path].properties;
           }
         }
 
         // Get the last path segment
         const lastPath = rest[rest.length - 1];
 
-        // Update the enum property
-        const previous = current[lastPath];
-        current[lastPath] = {
-          ...(current[lastPath] || {}),
-          type: enumType,
-          enum: enumValues,
-          description: current[lastPath]?.description || currentMetadata.description,
-        };
-        keepNullable(current[lastPath], previous, updates);
+        // An array target keeps being an array: the enum applies to its items
+        if (container[lastPath] && typeIncludes(container[lastPath].type, 'array')) {
+          const previousItems = container[lastPath].items;
+          container[lastPath].items = {
+            type: enumType,
+            enum: enumValues,
+          };
+          keepNullable(container[lastPath].items, previousItems, updates);
+        } else {
+          // Direct enum property
+          const previous = container[lastPath];
+          container[lastPath] = {
+            ...(container[lastPath] || {}),
+            type: enumType,
+            enum: enumValues,
+            description: container[lastPath]?.description || currentMetadata.description,
+          };
+          keepNullable(container[lastPath], previous, updates);
+        }
       }
     } else {
       // Update general nested path

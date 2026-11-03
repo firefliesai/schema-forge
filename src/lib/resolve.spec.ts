@@ -609,6 +609,31 @@ describe('3.0.0 schema resolution', () => {
         /Node:\n {2}- Node\.children refers to its own class\. Recursive classes are not supported/,
       );
     });
+
+    it('applies a nested enum override to the items of an array target, whatever the parent', () => {
+      class Line {
+        @ToolProp({ items: { type: 'string' } }) tags: string[];
+      }
+      class ObjectParent {
+        @ToolProp() line: Line;
+      }
+      class ArrayParent {
+        @ToolProp({ items: { type: Line } }) lines: Line[];
+      }
+
+      const viaObject = classToJsonSchema(ObjectParent, {
+        propertyOverrides: { 'line.tags': { enum: ['a', 'b'] } },
+      }).properties.line.properties.tags;
+      const viaArray = classToJsonSchema(ArrayParent, {
+        propertyOverrides: { 'lines.tags': { enum: ['a', 'b'] } },
+      }).properties.lines.items as any;
+      expect(viaArray.properties.tags).toBeDefined();
+      expect(viaObject).toStrictEqual({
+        type: 'array',
+        items: { type: 'string', enum: ['a', 'b'] },
+      });
+      expect(viaArray.properties.tags).toStrictEqual(viaObject);
+    });
   });
 
   describe('nested classes are built and checked only for a schema that reaches them', () => {
