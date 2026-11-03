@@ -65,8 +65,8 @@ function buildClassSchema(
     if (typeof nested !== 'function') continue;
     const isArray = schema.type === 'array';
     if (path.includes(nested)) {
-      // An explicit `type: 'object'` describes the field as a free-form object, as it does for a
-      // direct self-reference, where the decorator records no nested class at all
+      // An explicit `type: 'object'` on the property that closes the loop describes it as a
+      // free-form object (for an array, `items: { type: 'object' }` records no class at all)
       if (!isArray && sources[name]?.explicit.includes('type')) continue;
       problems.push(
         nested === target

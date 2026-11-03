@@ -626,21 +626,20 @@ describe('3.0.0 schema resolution', () => {
         @ToolProp() name: string;
         @ToolProp() folder: Folder;
       }
-      ToolProp({ type: 'object', isOptional: true })(Folder.prototype, 'firstFile');
+      // What TypeScript would record for `firstFile?: File`, then the decorator
       Reflect.defineMetadata('design:type', File, Folder.prototype, 'firstFile');
-      ToolProp({ type: 'object', isOptional: true })(Folder.prototype, 'firstFileAgain');
+      ToolProp({ type: 'object', isOptional: true })(Folder.prototype, 'firstFile');
 
-      // Decorated with design type File and an explicit type: nested, but a free-form object
-      // where it would recurse
+      // Nested, but a free-form object where it would recurse
       expect(classToJsonSchema(File).properties.folder).toStrictEqual({
         type: 'object',
-        properties: {
-          name: { type: 'string' },
-          firstFile: { type: 'object' },
-          firstFileAgain: { type: 'object' },
-        },
+        properties: { name: { type: 'string' }, firstFile: { type: 'object' } },
         required: ['name'],
       });
+      // From Folder, the reference back is File.folder, which has no explicit type
+      expect(() => classToJsonSchema(Folder)).toThrow(
+        'Folder.firstFile → File.folder refers back to Folder, which contains it.',
+      );
     });
 
     it('applies updates into nested classes when the schema is generated, in order', () => {

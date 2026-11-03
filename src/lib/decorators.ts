@@ -330,8 +330,7 @@ export function ToolProp(options: PropertyOptions = {}) {
       if (!options.type) finalOptions.type = enumSchemaType(enumValues);
     } else if (
       design === 'class' &&
-      ((!options.type && !hasComposition) ||
-        (options.type === 'object' && type !== target.constructor))
+      ((!options.type && !hasComposition) || options.type === 'object')
     ) {
       // `properties` and `required` are the nested class's, filled when a schema is generated
       nestedClass = type;
