@@ -312,9 +312,9 @@ describe('schema-forge test', () => {
 
     // Test structured output format (OpenAI)
     const structuredOutput = classToOpenAITool(EventDto, { forStructuredOutput: true });
-    // OpenAI strict mode accepts date-time (it rejects formats such as uri), so it is kept
+    // Note: format is stripped for OpenAI structured output as it's not supported
     expect(structuredOutput.function.parameters.properties.startDate.type).toBe('string');
-    expect(structuredOutput.function.parameters.properties.startDate.format).toBe('date-time');
+    expect(structuredOutput.function.parameters.properties.startDate.format).toBeUndefined();
     expect(structuredOutput).toMatchSnapshot('10-5 Date type OpenAI structured output');
   });
 
