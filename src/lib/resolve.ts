@@ -234,7 +234,8 @@ export function closeObjects(schema: any): void {
  * checks, `nullable`. Adds a line to `problems` when a property's type cannot be determined, when
  * an array has no item type, and when the class has class-validator decorated properties but no
  * `@ToolProp` at all. `prefix` is the path from the root class (`Outer.profile → `), empty for
- * the root.
+ * the root. `foreignDeclared` holds the properties another copy of the package declared, already
+ * reported by the caller.
  */
 export function resolveProperties(
   target: new (...args: any[]) => any,
@@ -242,6 +243,7 @@ export function resolveProperties(
   sources: Record<string, PropertySource>,
   problems: string[],
   prefix = '',
+  foreignDeclared: ReadonlySet<string> = new Set(),
 ): void {
   const className = target.name || 'anonymous class';
 
@@ -385,7 +387,10 @@ export function resolveProperties(
   // all is a mistake, though: typically a PickType / OmitType / PartialType copy, which keeps
   // class-validator metadata but not @ToolProp.
   if (Object.keys(properties).length === 0) {
-    const validated = getClassValidatorPropertyNames(target);
+    // Properties another copy of the package declared are reported as that, not as undeclared
+    const validated = getClassValidatorPropertyNames(target).filter(
+      (name) => !foreignDeclared.has(name),
+    );
     if (validated.length > 0) {
       problems.push(
         `${prefix}${className}: ${validated.join(', ')} ${validated.length === 1 ? 'has' : 'have'} class-validator ` +

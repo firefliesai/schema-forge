@@ -724,6 +724,75 @@ describe('3.0.0 schema resolution', () => {
     });
   });
 
+  describe('properties declared by another copy of the package', () => {
+    // A second installed copy (another version, pulled in by a library) creates its own
+    // Symbol('jsonSchema'). What its @ToolProp writes looks like this:
+    const declareWithOtherCopy = (prototype: object, properties: Record<string, unknown>): void => {
+      const otherCopyKey = Symbol('jsonSchema');
+      Reflect.defineMetadata(otherCopyKey, properties, prototype);
+    };
+
+    it('reports a property only another copy declared, instead of leaving it out', () => {
+      class Booking {
+        @ToolProp() name: string;
+        @IsString() slug: string;
+      }
+      declareWithOtherCopy(Booking.prototype, {
+        name: { type: 'string' },
+        slug: { type: 'string' },
+      });
+
+      expect(() => classToJsonSchema(Booking)).toThrow(
+        'schema-forge: cannot generate a JSON Schema for Booking:\n' +
+          '  - Booking: slug was declared by another installed copy of @firefliesai/schema-forge, ' +
+          'whose metadata this copy cannot read, so the schema would leave it out. Install a ' +
+          "single copy (deduplicate, or force one version with your package manager's " +
+          "overrides), or declare it with this copy's @ToolProp.",
+      );
+    });
+
+    it('says so for a nested class and a base class, and not as missing @ToolProp', () => {
+      class Base {
+        @IsString() id: string;
+      }
+      declareWithOtherCopy(Base.prototype, { id: { type: 'string' } });
+      class Owner extends Base {}
+      class Booking {
+        @ToolProp() name: string;
+        @ToolProp() owner: Owner;
+      }
+
+      const message = (() => {
+        try {
+          classToJsonSchema(Booking);
+        } catch (error) {
+          return (error as Error).message;
+        }
+      })();
+      expect(message.split('\n')).toStrictEqual([
+        'schema-forge: cannot generate a JSON Schema for Booking:',
+        '  - Booking.owner → Owner: id was declared by another installed copy of ' +
+          '@firefliesai/schema-forge, whose metadata this copy cannot read, so the schema would ' +
+          'leave it out. Install a single copy (deduplicate, or force one version with your ' +
+          "package manager's overrides), or declare it with this copy's @ToolProp.",
+      ]);
+    });
+
+    it('accepts properties that this copy declares too', () => {
+      // A field decorator that applies both copies' @ToolProp to the same property
+      class Booking {
+        @ToolProp({ format: 'email' }) email: string;
+      }
+      declareWithOtherCopy(Booking.prototype, { email: { type: 'string' } });
+
+      expect(classToJsonSchema(Booking)).toStrictEqual({
+        type: 'object',
+        properties: { email: { type: 'string', format: 'email' } },
+        required: ['email'],
+      });
+    });
+  });
+
   describe('enums', () => {
     it('derives the type from every value', () => {
       class Enums {

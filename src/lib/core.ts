@@ -38,6 +38,36 @@ function deferredUpdates(target: ClassType): DeferredUpdate[] {
 }
 
 /**
+ * Properties declared on the class (or a base class) by another installed copy of this package.
+ * Every copy creates its own `Symbol('jsonSchema')`, so what another copy's `@ToolProp` wrote is
+ * invisible here: found by the symbol's name, not its identity.
+ */
+function foreignDeclaredProperties(target: ClassType): Set<string> {
+  const names = new Set<string>();
+  const ownKeyName = JSON_SCHEMA_METADATA_KEY.toString();
+  for (
+    let proto = target.prototype;
+    proto && proto !== Object.prototype;
+    proto = Object.getPrototypeOf(proto)
+  ) {
+    for (const key of Reflect.getOwnMetadataKeys(proto)) {
+      if (
+        typeof key !== 'symbol' ||
+        key === JSON_SCHEMA_METADATA_KEY ||
+        key.toString() !== ownKeyName
+      ) {
+        continue;
+      }
+      const properties = Reflect.getOwnMetadata(key, proto);
+      if (properties && typeof properties === 'object') {
+        Object.keys(properties).forEach((name) => names.add(name));
+      }
+    }
+  }
+  return names;
+}
+
+/**
  * Builds the schema of one class: its stored properties, the schemas of the classes nested in
  * them (recursively), deferred updates, then generation-time resolution. Problems are collected
  * into `problems` with their path from the root, so the root reports them all in one error.
@@ -58,6 +88,21 @@ function buildClassSchema(
   const sources = cloneMetadata(getPropertySources(target.prototype));
   const className = target.name || 'anonymous class';
   const path = [...ancestors, target];
+
+  // Properties only another copy of the package declared would silently be missing
+  const foreignOnly = [...foreignDeclaredProperties(target)].filter(
+    (name) => !Object.prototype.hasOwnProperty.call(properties, name),
+  );
+  if (foreignOnly.length > 0) {
+    problems.push(
+      `${prefix}${className}: ${foreignOnly.join(', ')} ${foreignOnly.length === 1 ? 'was' : 'were'} ` +
+        'declared by another installed copy of @firefliesai/schema-forge, whose metadata this copy ' +
+        'cannot read, so the schema would leave ' +
+        `${foreignOnly.length === 1 ? 'it' : 'them'} out. Install a single copy (deduplicate, or ` +
+        "force one version with your package manager's overrides), or declare " +
+        `${foreignOnly.length === 1 ? 'it' : 'them'} with this copy's @ToolProp.`,
+    );
+  }
 
   // Nested classes: built now, for this root, so a class that no schema reaches is never checked
   for (const [name, schema] of Object.entries<any>(properties)) {
@@ -123,7 +168,7 @@ function buildClassSchema(
   }
 
   // class-validator inference, type checks and `nullable` (decorators have all run by now)
-  resolveProperties(target, properties, sources, problems, prefix);
+  resolveProperties(target, properties, sources, problems, prefix, new Set(foreignOnly));
 
   const schema: JSONSchemaDefinition = {
     type: 'object',
@@ -143,7 +188,8 @@ function buildClassSchema(
  * path from this class, when a property's type cannot be determined (for example
  * `x?: string | null` with no explicit `type`), when an array property has no item type, when a
  * class has class-validator decorated properties but no `@ToolProp` at all, and when a class
- * refers to itself, directly or through another class. A validated property without `@ToolProp`
+ * refers to itself, directly or through another class, and when another installed copy of this
+ * package declared properties this copy cannot read. A validated property without `@ToolProp`
  * in a class that does declare others is left out: only `@ToolProp` declares properties (see
  * `findUndeclaredValidatedProperties`).
  *
