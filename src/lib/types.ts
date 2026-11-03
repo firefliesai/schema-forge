@@ -234,6 +234,8 @@ export interface GeminiVertexResponseSchema {
 export interface AnthropicToolFunction {
   name: string;
   description?: string;
+  /** Anthropic strict tool use: the model's input is constrained to `input_schema`. */
+  strict?: boolean;
   input_schema: {
     type: 'object';
     properties: Record<string, any>;
@@ -258,7 +260,10 @@ export interface JsonSchemaOptions<T> {
   }>;
 
   /**
-   * Whether to prepare the schema for OpenAI specific structured output
+   * Adapts the schema to the provider's strict mode and sets `strict: true`: OpenAI's rules for
+   * the OpenAI functions and `classToJsonSchema`, Anthropic's for `classToAnthropicTool`. Only the
+   * keywords the provider rejects are removed, and each is added to the description.
+   * `classToOpenAIResponseApiTool` defaults to `true`; the others to `false`.
    */
   forStructuredOutput?: boolean;
 

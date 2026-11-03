@@ -44,7 +44,7 @@ export {
 } from './llm-formats';
 
 // Re-export utility functions
-export { prepareForOpenAIStructuredOutput } from './utils';
+export { prepareForAnthropicStrictTool, prepareForOpenAIStructuredOutput } from './strict-schema';
 
 // Re-export class-validator integration
 export {
@@ -78,7 +78,7 @@ import {
   openAIResponseApiToolToJsonSchema,
   openAIToolToJsonSchema,
 } from './llm-formats';
-import { prepareForOpenAIStructuredOutput } from './utils';
+import { prepareForAnthropicStrictTool, prepareForOpenAIStructuredOutput } from './strict-schema';
 
 export const Schema = {
   // Decorators
@@ -88,6 +88,7 @@ export const Schema = {
   // Core JSON Schema generation
   classToJsonSchema,
   prepareForOpenAIStructuredOutput,
+  prepareForAnthropicStrictTool,
 
   // Schema modification
   updateSchemaProperty,
