@@ -26,6 +26,7 @@ import {
 } from 'class-validator';
 
 import {
+  addSchemaProperty,
   classToAnthropicTool,
   classToGeminiTool,
   classToJsonSchema,
@@ -512,14 +513,188 @@ describe('3.0.0 schema resolution', () => {
       });
     });
 
-    it('rejects a class that refers to itself', () => {
-      expect(() => {
-        class Node {
-          @ToolProp() label: string;
-          @ToolProp({ items: { type: Node } }) children: Node[];
+    it('rejects a class that refers to itself when its schema is generated', () => {
+      class Node {
+        @ToolProp() label: string;
+        @ToolProp({ items: { type: Node } }) children: Node[];
+      }
+
+      expect(() => classToJsonSchema(Node)).toThrow(
+        /Node:\n {2}- Node\.children refers to its own class\. Recursive classes are not supported/,
+      );
+    });
+  });
+
+  describe('nested classes are built and checked only for a schema that reaches them', () => {
+    // A class library may put @ToolProp on every field of every model (for example a shared field
+    // decorator); models that no tool schema uses must not break the import.
+    const defineModels = () => {
+      class ValidatedOnly {
+        @IsString() id: string;
+      }
+      class Untyped {
+        @ToolProp() value: string | number;
+      }
+      class NoItems {
+        @ToolProp() tags: string[];
+      }
+      class Tree {
+        @ToolProp() label: string;
+        @ToolProp({ items: { type: Tree }, isOptional: true }) children?: Tree[];
+      }
+      class Profile {
+        @ToolProp() owner: ValidatedOnly;
+        @ToolProp() score: Untyped;
+        @ToolProp({ items: { type: NoItems } }) groups: NoItems[];
+        @ToolProp() tree: Tree;
+      }
+      class Fine {
+        @ToolProp() name: string;
+      }
+      class Tool {
+        @ToolProp() name: string;
+        @ToolProp() profile: Profile;
+        @ToolProp({ nullable: true }) note: string | number;
+      }
+      return { Profile, Tool, Fine };
+    };
+
+    it('never throws while classes are defined', () => {
+      expect(defineModels).not.toThrow();
+    });
+
+    it('reports every problem of every reached class in one error, with its path', () => {
+      const { Tool } = defineModels();
+
+      expect(() => classToJsonSchema(Tool)).toThrow(
+        'schema-forge: cannot generate a JSON Schema for Tool:\n' +
+          '  - Tool.profile → Profile.owner → ValidatedOnly: id has class-validator decorators, ' +
+          'but the class ' +
+          'declares no property with @ToolProp',
+      );
+      const message = (() => {
+        try {
+          classToJsonSchema(Tool);
+        } catch (error) {
+          return (error as Error).message;
         }
-        return Node;
-      }).toThrow('Node.children refers to its own class');
+      })();
+      expect(message.split('\n').map((line) => line.split(':')[0])).toStrictEqual([
+        'schema-forge',
+        '  - Tool.profile → Profile.owner → ValidatedOnly',
+        '  - Tool.profile → Profile.score → Untyped.value',
+        '  - Tool.profile → Profile.groups → NoItems.tags',
+        '  - Tool.profile → Profile.tree → Tree.children refers to its own class. Recursive classes are not supported; describe the field explicitly (e.g. type',
+        '  - Tool.note',
+      ]);
+    });
+
+    it('leaves a schema that does not reach a broken class alone', () => {
+      const { Fine } = defineModels();
+
+      expect(classToJsonSchema(Fine)).toStrictEqual({
+        type: 'object',
+        properties: { name: { type: 'string' } },
+        required: ['name'],
+      });
+    });
+
+    it('rejects a class that refers back to itself through another class', () => {
+      class Team {
+        @ToolProp() name: string;
+      }
+      class Member {
+        @ToolProp() name: string;
+        @ToolProp() team: Team;
+      }
+      // The back reference can only be added once both classes exist
+      ToolProp({ items: { type: Member } })(Team.prototype, 'members');
+
+      expect(() => classToJsonSchema(Member)).toThrow(
+        /Member:\n {2}- Member\.team → Team\.members refers back to Member, which contains it\./,
+      );
+      expect(() => classToJsonSchema(Team)).toThrow(
+        /Team:\n {2}- Team\.members → Member\.team refers back to Team, which contains it\./,
+      );
+    });
+
+    it('accepts an explicit object type for a reference back through another class', () => {
+      class Folder {
+        @ToolProp() name: string;
+      }
+      class File {
+        @ToolProp() name: string;
+        @ToolProp() folder: Folder;
+      }
+      ToolProp({ type: 'object', isOptional: true })(Folder.prototype, 'firstFile');
+      Reflect.defineMetadata('design:type', File, Folder.prototype, 'firstFile');
+      ToolProp({ type: 'object', isOptional: true })(Folder.prototype, 'firstFileAgain');
+
+      // Decorated with design type File and an explicit type: nested, but a free-form object
+      // where it would recurse
+      expect(classToJsonSchema(File).properties.folder).toStrictEqual({
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          firstFile: { type: 'object' },
+          firstFileAgain: { type: 'object' },
+        },
+        required: ['name'],
+      });
+    });
+
+    it('applies updates into nested classes when the schema is generated, in order', () => {
+      class Address {
+        @ToolProp() city: string;
+      }
+      class Line {
+        @ToolProp() sku: string;
+      }
+      class Order {
+        @ToolProp() address: Address;
+        @ToolProp({ items: { type: Line } }) lines: Line[];
+      }
+
+      updateSchemaProperty(Order, 'address.city', { description: 'City' });
+      updateSchemaProperty(Order, 'lines.sku', { enum: ['a', 'b'] });
+      addSchemaProperty(Order, 'address.zip', { type: 'string', isOptional: true });
+      // A path added by addSchemaProperty is not in the class's type
+      updateSchemaProperty(Order, 'address.zip' as 'address.city', { description: 'Postcode' });
+      updateSchemaProperty(Order, 'address', { description: 'Where to ship' });
+
+      class RushOrder extends Order {
+        @ToolProp() rush: boolean;
+      }
+      // Made after RushOrder was defined, and RushOrder still gets it, as in 2.x
+      updateSchemaProperty(Order, 'address.city', { description: 'Town' });
+
+      const expected = (cityDescription: string): Record<string, unknown> => ({
+        address: {
+          type: 'object',
+          description: 'Where to ship',
+          properties: {
+            city: { type: 'string', description: cityDescription },
+            zip: { type: 'string', description: 'Postcode' },
+          },
+          required: ['city'],
+        },
+        lines: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: { sku: { type: 'string', enum: ['a', 'b'] } },
+            required: ['sku'],
+          },
+        },
+      });
+      // toEqual: a nested enum update leaves `description: undefined` (dropped from JSON)
+      expect(classToJsonSchema(Order).properties).toEqual(expected('Town'));
+      expect(classToJsonSchema(RushOrder).properties).toEqual({
+        ...expected('Town'),
+        rush: { type: 'boolean' },
+      });
+      // The nested class itself is untouched
+      expect(classToJsonSchema(Address).properties).toStrictEqual({ city: { type: 'string' } });
     });
   });
 

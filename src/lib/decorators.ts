@@ -2,8 +2,9 @@
  * Decorators for schema-forge
  */
 
-import { classToJsonSchema } from './core';
 import {
+  DEFERRED_UPDATES_METADATA_KEY,
+  DeferredUpdate,
   DesignKind,
   makeNullable,
   markExplicit,
@@ -37,6 +38,8 @@ export function applyPropertyUpdates(
   updates: Partial<PropertyOptions>,
   target: any,
   sources?: Record<string, PropertySource>,
+  /** The property schemas as they were before these updates (default: the stored ones) */
+  metadataRoot?: any,
 ) {
   const [current, ...rest] = paths;
 
@@ -47,7 +50,8 @@ export function applyPropertyUpdates(
     }
 
     // Get all metadata along the target property's full path
-    const originalMetadata = Reflect.getMetadata(JSON_SCHEMA_METADATA_KEY, target.prototype) || {};
+    const originalMetadata =
+      metadataRoot ?? (Reflect.getMetadata(JSON_SCHEMA_METADATA_KEY, target.prototype) || {});
 
     let currentMetadata = originalMetadata;
     for (const path of paths) {
@@ -233,21 +237,29 @@ function designKindOf(type: any): DesignKind {
   return 'unknown';
 }
 
-function assertNotSelfReference(target: any, propertyKey: string, type: unknown): void {
-  if (type !== undefined && type === target.constructor) {
-    throw new Error(
-      `schema-forge: ${target.constructor.name}.${propertyKey} refers to its own class. ` +
-        'Recursive classes are not supported; describe the field explicitly ' +
-        "(e.g. type: 'object' or items: { type: 'object' }).",
-    );
-  }
+/**
+ * Whether the first segment of a property path is a property whose schema is a nested class's.
+ * Such a property's nested properties exist only once a schema is generated, so an update that
+ * reaches into them is recorded and replayed then.
+ */
+function nestedClassAt(target: any, paths: string[]): unknown {
+  const nested = Reflect.getMetadata(NESTED_CLASS_METADATA_KEY, target.prototype, paths[0]);
+  return typeof nested === 'function' ? nested : undefined;
+}
+
+function deferUpdate(target: any, update: DeferredUpdate): void {
+  const deferred = Reflect.getOwnMetadata(DEFERRED_UPDATES_METADATA_KEY, target.prototype) || [];
+  Reflect.defineMetadata(DEFERRED_UPDATES_METADATA_KEY, [...deferred, update], target.prototype);
 }
 
 /**
  * Decorator for adding schema metadata to a class property.
  *
- * It records the explicit options and the TypeScript design type. class-validator decorators are
- * read later, when a schema is generated, so their position relative to @ToolProp does not matter.
+ * It only records: the explicit options, the TypeScript design type and, for a property whose
+ * type is a class, that class. Everything else happens when a schema is generated: class-validator
+ * decorators are read then (so their position relative to @ToolProp does not matter), nested class
+ * schemas are built then, and every check runs then. Decorating a class never throws, so classes
+ * that no schema reaches can carry @ToolProp freely.
  */
 export function ToolProp(options: PropertyOptions = {}) {
   return function (target: any, propertyKey: string) {
@@ -304,9 +316,8 @@ export function ToolProp(options: PropertyOptions = {}) {
         };
         delete finalOptions.enum;
       } else if (options.items && isCustomClass(options.items.type)) {
-        assertNotSelfReference(target, propertyKey, options.items.type);
-        const nestedSchema = classToJsonSchema(options.items.type as any);
-        finalOptions.items = nestedSchema;
+        // `items` is the nested class's schema, built when a schema is generated
+        delete finalOptions.items;
         nestedClass = options.items.type;
       } else if (options.items) {
         // Normalize constructor types (Date, String, Number, Boolean) to string literals
@@ -322,12 +333,9 @@ export function ToolProp(options: PropertyOptions = {}) {
       ((!options.type && !hasComposition) ||
         (options.type === 'object' && type !== target.constructor))
     ) {
-      assertNotSelfReference(target, propertyKey, type);
-      const nestedSchema = classToJsonSchema(type);
+      // `properties` and `required` are the nested class's, filled when a schema is generated
       nestedClass = type;
       finalOptions.type = 'object';
-      finalOptions.properties = nestedSchema.properties;
-      if (nestedSchema.required) finalOptions.required = nestedSchema.required;
     } else if (
       design === 'date' &&
       ((!options.type && !hasComposition) || options.type === 'string')
@@ -383,7 +391,10 @@ export function ToolMeta(
 }
 
 /**
- * Updates a property in a schema with new options
+ * Updates a property in a schema with new options, permanently.
+ *
+ * A path into the properties of a nested class (`'address.city'`) is recorded and applied each
+ * time a schema of `target` is generated, after the nested class's schema is built.
  */
 export function updateSchemaProperty<T extends object>(
   target: new (...args: any[]) => T,
@@ -391,6 +402,12 @@ export function updateSchemaProperty<T extends object>(
   updates: Partial<PropertyOptions>,
 ): void {
   const paths = (propertyPath as string).split('.');
+  const nestedClass = nestedClassAt(target, paths);
+  if (nestedClass) {
+    deferUpdate(target, { kind: 'update', paths, updates, nestedClass });
+    return;
+  }
+
   const existingProperties = Reflect.getMetadata(JSON_SCHEMA_METADATA_KEY, target.prototype) || {};
 
   const existingSources =
@@ -403,26 +420,21 @@ export function updateSchemaProperty<T extends object>(
 }
 
 /**
- * Adds a new property to a schema
+ * Adds a property at `propertyPath` to the given property schemas and required list
  */
-export function addSchemaProperty<T extends object>(
-  target: new (...args: any[]) => T,
+export function addPropertyTo(
+  properties: Record<string, any>,
+  requiredProps: string[],
   propertyPath: string,
   options: PropertyOptions,
 ): void {
   const finalOptions = { ...options };
   if (options.enum) {
-    const enumValues = extractEnumValues(options.enum);
-    const enumType = enumSchemaType(enumValues);
-    finalOptions.type = enumType;
-  } else if (!options.type) {
-    throw new Error('Either type or enum must be specified');
+    finalOptions.type = enumSchemaType(extractEnumValues(options.enum));
   }
 
   const paths = propertyPath.split('.');
-  const existingProperties = Reflect.getMetadata(JSON_SCHEMA_METADATA_KEY, target.prototype) || {};
-
-  let current = existingProperties;
+  let current = properties;
   for (let i = 0; i < paths.length - 1; i++) {
     const path = paths[i];
     if (typeIncludes(current[path]?.type, 'array')) {
@@ -464,13 +476,40 @@ export function addSchemaProperty<T extends object>(
 
   if (finalOptions.nullable) makeNullable(current[propertyKey]);
 
-  Reflect.defineMetadata(JSON_SCHEMA_METADATA_KEY, existingProperties, target.prototype);
+  if (!finalOptions.isOptional && !requiredProps.includes(propertyKey)) {
+    requiredProps.push(propertyKey);
+  }
+}
 
-  if (!finalOptions.isOptional) {
-    const requiredProps = Reflect.getMetadata(REQUIRED_PROPS_METADATA_KEY, target.prototype) || [];
-    if (!requiredProps.includes(propertyKey)) {
-      requiredProps.push(propertyKey);
-      Reflect.defineMetadata(REQUIRED_PROPS_METADATA_KEY, requiredProps, target.prototype);
-    }
+/**
+ * Adds a new property to a schema, permanently.
+ *
+ * A path into the properties of a nested class (`'address.zip'`) is recorded and applied each
+ * time a schema of `target` is generated, after the nested class's schema is built.
+ */
+export function addSchemaProperty<T extends object>(
+  target: new (...args: any[]) => T,
+  propertyPath: string,
+  options: PropertyOptions,
+): void {
+  if (!options.enum && !options.type) {
+    throw new Error('Either type or enum must be specified');
+  }
+
+  const nestedClass = nestedClassAt(target, propertyPath.split('.'));
+  if (nestedClass) {
+    deferUpdate(target, { kind: 'add', path: propertyPath, options, nestedClass });
+    return;
+  }
+
+  const existingProperties = Reflect.getMetadata(JSON_SCHEMA_METADATA_KEY, target.prototype) || {};
+  const requiredProps = Reflect.getMetadata(REQUIRED_PROPS_METADATA_KEY, target.prototype) || [];
+  const requiredBefore = requiredProps.length;
+
+  addPropertyTo(existingProperties, requiredProps, propertyPath, options);
+
+  Reflect.defineMetadata(JSON_SCHEMA_METADATA_KEY, existingProperties, target.prototype);
+  if (requiredProps.length !== requiredBefore) {
+    Reflect.defineMetadata(REQUIRED_PROPS_METADATA_KEY, requiredProps, target.prototype);
   }
 }

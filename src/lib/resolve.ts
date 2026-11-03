@@ -18,8 +18,26 @@ import { JSON_SCHEMA_METADATA_KEY } from './types';
 import { enumSchemaType } from './utils';
 
 export const PROPERTY_SOURCES_METADATA_KEY = Symbol('jsonSchema:propertySources');
-/** Per property: the class whose schema was nested there (`null` when none) */
+/**
+ * Per property: the class whose schema is nested there (`null` when none). The nested schema
+ * itself is built when a schema is generated, not when the decorator runs.
+ */
 export const NESTED_CLASS_METADATA_KEY = Symbol('jsonSchema:nestedClass');
+/**
+ * Per class (own metadata only): `updateSchemaProperty` / `addSchemaProperty` calls that reach into
+ * a nested class's properties. They are replayed, in order and for subclasses too, after the
+ * nested schemas are built.
+ */
+export const DEFERRED_UPDATES_METADATA_KEY = Symbol('jsonSchema:deferredUpdates');
+
+/** A recorded `updateSchemaProperty` / `addSchemaProperty` call (DEFERRED_UPDATES_METADATA_KEY) */
+export type DeferredUpdate = (
+  | { kind: 'update'; paths: string[]; updates: Record<string, any> }
+  | { kind: 'add'; path: string; options: Record<string, any> }
+) & {
+  /** The nested class the path's first property had when the call was made */
+  nestedClass: unknown;
+};
 
 export type DesignKind =
   | 'string'
@@ -213,23 +231,25 @@ export function closeObjects(schema: any): void {
 
 /**
  * Resolves the stored property schemas of a class in place: class-validator inference, type
- * checks, `nullable`. Throws, listing every problem of the class, when a property's type cannot be
- * determined, when an array has no item type, and when the class has class-validator decorated
- * properties but no `@ToolProp` at all.
+ * checks, `nullable`. Adds a line to `problems` when a property's type cannot be determined, when
+ * an array has no item type, and when the class has class-validator decorated properties but no
+ * `@ToolProp` at all. `prefix` is the path from the root class (`Outer.profile → `), empty for
+ * the root.
  */
 export function resolveProperties(
   target: new (...args: any[]) => any,
   properties: Record<string, any>,
   sources: Record<string, PropertySource>,
+  problems: string[],
+  prefix = '',
 ): void {
   const className = target.name || 'anonymous class';
-  const problems: string[] = [];
 
   for (const [name, schema] of Object.entries(properties)) {
     const source = sources[name];
     const explicit = new Set(source ? source.explicit : Object.keys(schema));
     const explicitType = TYPE_DEFINING_KEYS.some((key) => explicit.has(key));
-    const where = `${className}.${name}`;
+    const where = `${prefix}${className}.${name}`;
     const { inferred, untranslated } = analyzeClassValidatorProperty(target.prototype, name);
 
     // Arrays: design type Array, an explicit `items`, or a class-validator array decorator
@@ -368,19 +388,12 @@ export function resolveProperties(
     const validated = getClassValidatorPropertyNames(target);
     if (validated.length > 0) {
       problems.push(
-        `${className}: ${validated.join(', ')} ${validated.length === 1 ? 'has' : 'have'} class-validator ` +
+        `${prefix}${className}: ${validated.join(', ')} ${validated.length === 1 ? 'has' : 'have'} class-validator ` +
           'decorators, but the class declares no property with @ToolProp, so its schema would be ' +
           'empty. Add @ToolProp to the properties the schema should contain. (A class built with ' +
           "PickType / OmitType / PartialType keeps class-validator metadata but not @ToolProp's.)",
       );
     }
-  }
-
-  if (problems.length > 0) {
-    throw new Error(
-      `schema-forge: cannot generate a JSON Schema for ${className}:\n` +
-        problems.map((problem) => `  - ${problem}`).join('\n'),
-    );
   }
 }
 
