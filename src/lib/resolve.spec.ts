@@ -634,6 +634,28 @@ describe('3.0.0 schema resolution', () => {
       });
       expect(viaArray.properties.tags).toStrictEqual(viaObject);
     });
+
+    it('applies nullable in a nested enum override to the array target, not its items', () => {
+      class Line {
+        @ToolProp({ items: { type: 'string' } }) tags: string[];
+        @ToolProp({ items: { type: 'string' }, nullable: true }) labels: string[] | null;
+      }
+      class Holder {
+        @ToolProp() line: Line;
+      }
+
+      const line = classToJsonSchema(Holder, {
+        propertyOverrides: {
+          'line.tags': { enum: ['a'], nullable: true },
+          'line.labels': { enum: ['b'], nullable: false },
+        },
+      }).properties.line.properties;
+      expect(line.tags).toStrictEqual({
+        type: ['array', 'null'],
+        items: { type: 'string', enum: ['a'] },
+      });
+      expect(line.labels).toStrictEqual({ type: 'array', items: { type: 'string', enum: ['b'] } });
+    });
   });
 
   describe('nested classes are built and checked only for a schema that reaches them', () => {

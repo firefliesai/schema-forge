@@ -497,7 +497,7 @@ See OpenAI's [function calling](https://developers.openai.com/api/docs/guides/fu
 | `forStructuredOutput: true` changes | Example |
 | --- | --- |
 | Sets `strict: true` on the tool or format | |
-| Adds `additionalProperties: false` to every object | |
+| Adds `additionalProperties: false` to every object that declares properties | |
 | Lists every property in `required` | |
 | Makes each optional property nullable | `age?: number` becomes `type: ['number', 'null']` |
 | Removes these keywords: `minLength`, `maxLength`, `pattern`, `format` (strings); `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf` (numbers); `minItems`, `maxItems`, `uniqueItems` (arrays) | |
@@ -517,7 +517,7 @@ const completion = await openai.chat.completions.create({
 const user: CreateUserInput = JSON.parse(completion.choices[0].message.content ?? '{}');
 ```
 
-**The Responses API tool is strict by default.** `classToOpenAIResponseApiTool` always closes objects, lists every property in `required` and removes the keywords above. `strict: true` and the nullable step are on by default; `forStructuredOutput: false` sets `strict: false` and skips the nullable step, so optional properties are then required and not nullable.
+**The Responses API tool is strict by default.** `classToOpenAIResponseApiTool` always closes the objects that declare properties, lists every property in `required` and removes the keywords above. `strict: true` and the nullable step are on by default; `forStructuredOutput: false` sets `strict: false` and skips the nullable step, so optional properties are then required, and only properties declared `nullable` accept `null`.
 
 ### 7.2 Anthropic
 
@@ -700,7 +700,7 @@ This section is for contributors and for readers who want to know why the rules 
 | `classToGeminiOldTool`, `classToGeminiOldResponseSchema` | `@google/generative-ai` function declaration, response schema |
 | `classToGeminiVertexTool`, `classToGeminiVertexResponseSchema` | `@google-cloud/vertexai` function declaration, response schema |
 
-**From a JSON Schema to a provider format** (all take `(schema, { name, description? }, options?)`)
+**From a JSON Schema to a provider format** (they take `(schema, { name, description? }, options?)`, except that `jsonSchemaToAnthropicTool` takes no `options` and the three Gemini response-schema converters take `(schema, { description? })`)
 
 `jsonSchemaToOpenAITool`, `jsonSchemaToOpenAIResponseApiTool` (its `options.strict` is required), `jsonSchemaToOpenAIResponseFormat`, `jsonSchemaToOpenAIResponseApiTextSchema`, `jsonSchemaToAnthropicTool`, `jsonSchemaToGeminiTool`, `jsonSchemaToGeminiResponseSchema`, `jsonSchemaToGeminiOldTool`, `jsonSchemaToGeminiOldResponseSchema`, `jsonSchemaToGeminiVertexTool`, `jsonSchemaToGeminiVertexResponseSchema`.
 

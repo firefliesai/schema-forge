@@ -111,14 +111,17 @@ export function applyPropertyUpdates(
         // Get the last path segment
         const lastPath = rest[rest.length - 1];
 
-        // An array target keeps being an array: the enum applies to its items
+        // An array target keeps being an array: the enum applies to its items, which keep
+        // accepting null if they did, while `nullable` in the update is about the array itself
         if (container[lastPath] && typeIncludes(container[lastPath].type, 'array')) {
-          const previousItems = container[lastPath].items;
-          container[lastPath].items = {
+          const array = container[lastPath];
+          const previousItems = array.items;
+          array.items = {
             type: enumType,
             enum: enumValues,
           };
-          keepNullable(container[lastPath].items, previousItems, updates);
+          keepNullable(array.items, previousItems, {});
+          keepNullable(array, array, { nullable: updates.nullable });
         } else {
           // Direct enum property
           const previous = container[lastPath];

@@ -48,7 +48,7 @@ This release makes the generated schema match what the class actually allows, an
 - OpenAI structured output also strips `exclusiveMinimum` and `exclusiveMaximum` from numbers, like `minimum` and `maximum`.
 - An override (`propertyOverrides`, or `updateSchemaProperty` of the property itself) that describes a property holding a class as another type, an enum, a const or a composition replaces the class: its schema is not built, so its properties and problems no longer reach the result.
 - An override of a property of a nested class keeps `null` allowed when the property allowed it, unless the override sets `nullable: false`.
-- An `enum` override of a nested array property (`'line.tags': { enum: ['a'] }`) applies to its items under an object parent too, as it already did under an array parent; 2.1.0 turned the array into a single enum value.
+- An `enum` override of a nested array property (`'line.tags': { enum: ['a'] }`) applies to its items under an object parent too, as it already did under an array parent; 2.1.0 turned the array into a single enum value. `nullable` in the same override applies to the array itself, and items that accepted `null` keep accepting it.
 
 ## [2.1.0] - 2026-02-24
 
