@@ -736,7 +736,6 @@ Warnings go to `console.warn`, start with `[schema-forge]`, and are printed once
 | --- | --- |
 | `… from @ToolProp is kept; class-validator says …` | An explicit option and a class-validator rule disagree. The explicit option is used ([5.1](#51-which-source-wins)). |
 | `class-validator rule "…" has no JSON Schema equivalent` | The rule is not in the schema ([5.4](#54-rules-the-schema-cannot-express)). |
-| `… has no @ToolMeta name, so the tool or response format has an empty name …` | A `classTo…Tool` or response-format function ran on a class without `@ToolMeta({ name })`. OpenAI, Anthropic and Gemini reject an empty name, so add `@ToolMeta`, or set the name before sending the tool. |
 
 ## 9. Migrating from 2.x
 

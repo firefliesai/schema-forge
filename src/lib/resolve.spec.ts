@@ -32,7 +32,6 @@ import {
   classToJsonSchema,
   classToOpenAITool,
   findUndeclaredValidatedProperties,
-  ToolMeta,
   ToolProp,
   updateSchemaProperty,
 } from './index';
@@ -1527,24 +1526,6 @@ describe('3.0.0 schema resolution', () => {
         classToGeminiTool(Outer, { additionalProperties: false }).parameters.properties.inner,
       ).not.toHaveProperty('additionalProperties');
     });
-  });
-
-  it('warns when a tool or response format would get an empty name', () => {
-    class Unnamed {
-      @ToolProp() q: string;
-    }
-    @ToolMeta({ name: 'named_tool' })
-    class Named {
-      @ToolProp() q: string;
-    }
-
-    expect(classToOpenAITool(Unnamed).function.name).toBe('');
-    expect(classToAnthropicTool(Unnamed).name).toBe('');
-    expect(
-      warnings().filter((message) => message.includes('Unnamed has no @ToolMeta name')),
-    ).toHaveLength(1);
-    expect(classToGeminiTool(Named).name).toBe('named_tool');
-    expect(warnings().some((message) => message.includes('Named has no'))).toBe(false);
   });
 
   it('updateSchemaProperty counts as explicit', () => {

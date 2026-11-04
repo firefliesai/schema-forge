@@ -23,7 +23,7 @@ import {
   SchemaType,
   Type,
 } from './types';
-import { noteInDescription, warnOnce } from './resolve';
+import { noteInDescription } from './resolve';
 import { prepareForOpenAIStructuredOutput } from './utils';
 
 /**
@@ -229,22 +229,6 @@ const isNullBranch = (branch: any): boolean =>
   typeof branch === 'object' &&
   branch.type === 'null' &&
   Object.keys(branch).length === 1;
-
-/**
- * The name a tool or a response format gets: the `name` of `@ToolMeta`, or `''` without one.
- * OpenAI, Anthropic and Gemini all reject an empty name with a 400, so it warns; it does not
- * throw, because a caller may only use the parameters, or set the name afterwards.
- */
-function toolNameOf(target: { name: string }, classOptions: { name?: string }): string {
-  if (!classOptions.name) {
-    warnOnce(
-      `${target.name || 'anonymous class'} has no @ToolMeta name, so the tool or response ` +
-        'format has an empty name, which OpenAI, Anthropic and Gemini reject. Add ' +
-        "@ToolMeta({ name: '…' }) to the class, or set the name before sending it.",
-    );
-  }
-  return classOptions.name || '';
-}
 
 function toGeminiProperties(properties: any): Record<string, any> {
   return Object.fromEntries(
@@ -561,7 +545,7 @@ export function classToOpenAITool<T extends object>(
   return jsonSchemaToOpenAITool(
     jsonSchema,
     {
-      name: toolNameOf(target, classOptions),
+      name: classOptions.name || '',
       description: classOptions.description,
     },
     {
@@ -612,7 +596,7 @@ export function classToOpenAIResponseApiTool<T extends object>(
   return jsonSchemaToOpenAIResponseApiTool(
     jsonSchema,
     {
-      name: toolNameOf(target, classOptions),
+      name: classOptions.name || '',
       description: classOptions.description,
     },
     {
@@ -662,7 +646,7 @@ export function classToOpenAIResponseFormatJsonSchema<T extends object>(
   return jsonSchemaToOpenAIResponseFormat(
     jsonSchema,
     {
-      name: toolNameOf(target, classOptions),
+      name: classOptions.name || '',
       description: classOptions.description,
     },
     {
@@ -720,7 +704,7 @@ export function classToOpenAIResponseApiTextSchema<T extends object>(
   return jsonSchemaToOpenAIResponseApiTextSchema(
     jsonSchema,
     {
-      name: toolNameOf(target, classOptions),
+      name: classOptions.name || '',
       description: classOptions.description,
     },
     {
@@ -762,7 +746,7 @@ export function classToGeminiTool<T extends object>(
 
   // Use the helper function to convert JSON schema to Gemini tool format
   return jsonSchemaToGeminiTool(jsonSchema, {
-    name: toolNameOf(target, classOptions),
+    name: classOptions.name || '',
     description: classOptions.description,
   });
 }
@@ -785,7 +769,7 @@ export function classToGeminiOldTool<T extends object>(
 
   // Use the helper function to convert JSON schema to Gemini tool format
   return jsonSchemaToGeminiOldTool(jsonSchema, {
-    name: toolNameOf(target, classOptions),
+    name: classOptions.name || '',
     description: classOptions.description,
   });
 }
@@ -825,7 +809,7 @@ export function classToAnthropicTool<T extends object>(
 
   // Use the helper function to convert JSON schema to Anthropic tool format
   return jsonSchemaToAnthropicTool(jsonSchema, {
-    name: toolNameOf(target, classOptions),
+    name: classOptions.name || '',
     description: classOptions.description,
   });
 }
