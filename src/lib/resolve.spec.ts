@@ -656,6 +656,126 @@ describe('3.0.0 schema resolution', () => {
       });
       expect(line.labels).toStrictEqual({ type: 'array', items: { type: 'string', enum: ['b'] } });
     });
+
+    describe('updates see through the anyOf a nullable composition is wrapped in', () => {
+      // `nullable: true` beside `allOf` cannot add "null" to `type`, so the property's schema
+      // becomes `anyOf: [<schema>, { type: 'null' }]`. Updates that reach it must find the array,
+      // the object or the value inside that wrapper.
+      class WrappedLine {
+        @ToolProp({ items: { type: 'string' }, allOf: [{ minItems: 1 }], nullable: true })
+        tags: string[] | null;
+        @ToolProp({
+          type: 'string',
+          allOf: [{ minLength: 1 }],
+          nullable: true,
+          description: 'Mode',
+        })
+        mode: string | null;
+      }
+      class WrappedLineHolder {
+        @ToolProp() line: WrappedLine;
+      }
+
+      it('applies a nested enum override to the items of a wrapped array', () => {
+        const line = classToJsonSchema(WrappedLineHolder, {
+          propertyOverrides: { 'line.tags': { enum: ['a'] } },
+        }).properties.line.properties;
+        expect(line.tags).toStrictEqual({
+          anyOf: [
+            { type: 'array', items: { type: 'string', enum: ['a'] }, allOf: [{ minItems: 1 }] },
+            { type: 'null' },
+          ],
+        });
+
+        const notNull = classToJsonSchema(WrappedLineHolder, {
+          propertyOverrides: { 'line.tags': { enum: ['a'], nullable: false } },
+        }).properties.line.properties;
+        expect(notNull.tags).toStrictEqual({
+          type: 'array',
+          items: { type: 'string', enum: ['a'] },
+          allOf: [{ minItems: 1 }],
+        });
+      });
+
+      it('replaces the value inside the wrapper and keeps null, for an enum or a type', () => {
+        const line = classToJsonSchema(WrappedLineHolder, {
+          propertyOverrides: { 'line.mode': { enum: ['a', 'b'] } },
+        }).properties.line.properties;
+        expect(line.mode).toStrictEqual({
+          description: 'Mode',
+          anyOf: [
+            { type: 'string', enum: ['a', 'b'], allOf: [{ minLength: 1 }] },
+            { type: 'null' },
+          ],
+        });
+
+        const typed = classToJsonSchema(WrappedLineHolder, {
+          propertyOverrides: { 'line.mode': { type: 'string', maxLength: 10 } },
+        }).properties.line.properties;
+        expect(typed.mode).toStrictEqual({
+          description: 'Mode',
+          anyOf: [{ type: 'string', allOf: [{ minLength: 1 }], maxLength: 10 }, { type: 'null' }],
+        });
+      });
+
+      it('walks into the item class of a wrapped array, for overrides and added properties', () => {
+        class WrappedItem {
+          @ToolProp({ type: 'string' }) name: string;
+          @ToolProp({ items: { type: 'string' } }) tags: string[];
+        }
+        class WrappedGroup {
+          @ToolProp({ items: { type: WrappedItem }, allOf: [{ minItems: 1 }], nullable: true })
+          entries: WrappedItem[] | null;
+        }
+        class WrappedRoot {
+          @ToolProp() group: WrappedGroup;
+        }
+        addSchemaProperty(WrappedRoot, 'group.entries.extra', { type: 'string' });
+
+        const entries = classToJsonSchema(WrappedRoot, {
+          propertyOverrides: {
+            'group.entries.tags': { enum: ['x'] },
+            'group.entries.name': { maxLength: 5 },
+          },
+        }).properties.group.properties.entries as any;
+        // The wrapper is untouched: no properties beside it, still an array or null
+        expect(Object.keys(entries)).toEqual(['anyOf']);
+        expect(entries.anyOf[1]).toStrictEqual({ type: 'null' });
+        const item = entries.anyOf[0];
+        expect(item.type).toBe('array');
+        expect(item.allOf).toStrictEqual([{ minItems: 1 }]);
+        expect(item.items.properties.tags).toStrictEqual({
+          type: 'array',
+          items: { type: 'string', enum: ['x'] },
+        });
+        expect(item.items.properties.name).toStrictEqual({ type: 'string', maxLength: 5 });
+        expect(item.items.properties.extra).toEqual({ type: 'string' });
+      });
+
+      it('walks into a wrapped item schema', () => {
+        class WrappedItems {
+          @ToolProp({
+            items: {
+              anyOf: [{ type: 'object', properties: { a: { type: 'string' } } }, { type: 'null' }],
+            } as any,
+          })
+          list: unknown[];
+        }
+        class WrappedItemsHolder {
+          @ToolProp() owner: WrappedItems;
+        }
+
+        const list = classToJsonSchema(WrappedItemsHolder, {
+          propertyOverrides: { 'owner.list.a': { maxLength: 3 } } as any,
+        }).properties.owner.properties.list as any;
+        expect(list.items).toStrictEqual({
+          anyOf: [
+            { type: 'object', properties: { a: { type: 'string', maxLength: 3 } } },
+            { type: 'null' },
+          ],
+        });
+      });
+    });
   });
 
   describe('nested classes are built and checked only for a schema that reaches them', () => {
