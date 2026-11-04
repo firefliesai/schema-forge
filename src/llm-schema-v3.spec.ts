@@ -254,6 +254,12 @@ class StrictOrder {
   @Matches(/^[A-Z]{3}$/)
   code: string;
 
+  // A lookahead: Anthropic rejects it and OpenAI answers with an empty response, so strict mode
+  // moves it into the description
+  @ToolProp({ description: 'Voucher code, six characters with at least one digit' })
+  @Matches(/^(?=.*\d).{6}$/)
+  voucher: string;
+
   @ToolProp({ description: 'Mood of the customer', enum: Mood, isOptional: true })
   mood?: Mood;
 
@@ -264,12 +270,13 @@ class StrictOrder {
 const orderMessage =
   'Place this order with the tool: 500 units for Ada (ada@example.com), deliver on ' +
   '2026-12-01T10:00:00Z, pack size 10, tags red and blue, shop https://example.com, ' +
-  'product code ABC, mood happy, no second mood.';
+  'product code ABC, voucher AB12CD, mood happy, no second mood.';
 
 function expectOrder(args: any): void {
   expect(args.name).toContain('Ada');
   expect(args.email).toBe('ada@example.com');
   expect(args.code).toBe('ABC');
+  expect(args.voucher).toBe('AB12CD');
   expect(args.packSize % 5).toBe(0);
   expect(args.tags.length).toBeGreaterThanOrEqual(1);
   expect(args.tags.length).toBeLessThanOrEqual(5);

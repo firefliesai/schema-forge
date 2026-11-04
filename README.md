@@ -600,7 +600,7 @@ See OpenAI's [function calling](https://developers.openai.com/api/docs/guides/fu
 | Makes each optional property nullable: `null` is added to its `type`, to its `enum`, or as an `anyOf` branch | `age?: number` becomes `type: ['number', 'null']` |
 | Moves the keywords OpenAI strict mode rejects into the property's description | `@IsUrl()` gives `format: 'uri'`, which becomes `description: 'Website\n\n{format: "uri"}'` |
 
-The keywords moved into the description are a `format` other than `date-time`, `time`, `date`, `duration`, `email`, `hostname`, `ipv4`, `ipv6` and `uuid`; `uniqueItems`, `contains`, `minContains`, `maxContains` and `unevaluatedItems` on arrays; and `minProperties`, `maxProperties`, `propertyNames` and `unevaluatedProperties` on objects. Everything else stays, and OpenAI enforces it: `minLength`, `maxLength`, `pattern`, `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`, `minItems` and `maxItems`. `allOf`, `oneOf` and `not` stay as you wrote them; OpenAI strict mode rejects them, and its error names the property.
+The keywords moved into the description are a `format` other than `date-time`, `time`, `date`, `duration`, `email`, `hostname`, `ipv4`, `ipv6` and `uuid`; `uniqueItems`, `contains`, `minContains`, `maxContains` and `unevaluatedItems` on arrays; and `minProperties`, `maxProperties`, `propertyNames` and `unevaluatedProperties` on objects. A `pattern` is moved too when it uses a lookahead or lookbehind (`(?=`, `(?!`, `(?<=`, `(?<!`), a named group (`(?<name>`), a backreference (`\1`, `\k<name>`) or a word boundary (`\b`, `\B`): OpenAI rejects a named group, and for the others it returns an empty response that stops at the token limit. Everything else stays, and OpenAI enforces it: `minLength`, `maxLength`, other patterns (non-capturing groups `(?:…)` and long ranges such as `{1,1000}` included), `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`, `minItems` and `maxItems`. `allOf`, `oneOf` and `not` stay as you wrote them; OpenAI strict mode rejects them at any depth, and its error names the property. An object with no declared properties (a free-form object, such as a `Record`) cannot be closed, so generating the schema throws, naming the property ([11](#11-limitations)).
 
 These lists were checked against the live API (November 2026). OpenAI's guide mentions `minLength` and `maxLength` only among the limits of fine-tuned models; the API accepts and enforces them.
 
@@ -645,7 +645,7 @@ const user: CreateUserInput = JSON.parse(
 | Moves a `format` other than `date-time`, `time`, `date`, `duration`, `email`, `hostname`, `uri`, `ipv4`, `ipv6` and `uuid` into the description | Anthropic supports only these formats |
 | Removes the `type` array next to an `enum` (a nullable or mixed-type enum) | Anthropic rejects the pair; the enum's values already say which types are allowed |
 
-A keyword moved into the description is written as `{keyword: value}`, for example `'Quantity\n\n{maximum: 100}'`, which is how Anthropic's own SDK keeps such rules visible to the model. String lengths follow the guide even though the API accepted them on two models (checked November 2026), so a tool keeps working if Anthropic starts rejecting them. `pattern` stays.
+A keyword moved into the description is written as `{keyword: value}`, for example `'Quantity\n\n{maximum: 100}'`, which is how Anthropic's own SDK keeps such rules visible to the model. String lengths follow the guide even though the API accepted them on two models (checked November 2026), so a tool keeps working if Anthropic starts rejecting them. A `pattern` is moved into the description when it uses a construct Anthropic rejects with a 400: a lookahead or lookbehind, a named group, a backreference, or `\b` / `\B` (the same constructs as for OpenAI); other patterns stay. `oneOf` and `not` stay as you wrote them; Anthropic strict mode rejects them, while `anyOf` and `allOf` are accepted. An object with no declared properties throws, as for OpenAI.
 
 Anthropic also limits a request to 20 strict tools, 24 optional properties and 16 properties with a union type (`anyOf` or a type array) across all strict schemas. Schema Forge does not count these.
 
@@ -813,7 +813,7 @@ This section is for contributors and for readers who want to know why the rules 
 - **No object-level rules.** `minProperties`, `maxProperties`, `patternProperties` and `propertyNames` have no option.
 - **class-transformer is not read.** `@Type(() => X)` does not give array items; set `items`.
 - **`@IsOptional()` does not make a property optional.** Use `isOptional: true`.
-- **Strict modes cannot express a free-form object.** An object without declared properties (a `Record`) cannot be closed, so OpenAI and Anthropic strict modes reject it.
+- **Strict modes cannot express a free-form object.** An object without declared properties (a `Record`) cannot be closed, and OpenAI and Anthropic strict modes reject an object that is not, so with `forStructuredOutput` (and in `prepareForOpenAIStructuredOutput` / `prepareForAnthropicStrictTool`) generating the schema throws, naming the property. Declare its properties, or describe it as a string that holds JSON.
 - **The Vertex AI functions are not tested** against the real API.
 
 ## 12. API reference
@@ -830,7 +830,7 @@ This section is for contributors and for readers who want to know why the rules 
 | Function | Description |
 | --- | --- |
 | `classToJsonSchema(Class, options?)` | The JSON Schema of a class ([section 6](#6-schema-options)). |
-| `prepareForOpenAIStructuredOutput(schema, handleOptionals?)` | The OpenAI strict-mode preparation of [7.1](#71-openai), on a schema you already have. |
+| `prepareForOpenAIStructuredOutput(schema, handleOptionals?)` | The OpenAI strict-mode preparation of [7.1](#71-openai), on a schema you already have. `handleOptionals` defaults to `false`, as in 2.x: a property missing from `required` is then required anyway, and the model has to invent a value for it. Pass `true` when the schema's `required` is accurate, so such a property becomes nullable instead (the `classTo…` functions do). |
 | `prepareForAnthropicStrictTool(schema)` | The Anthropic strict-tool preparation of [7.2](#72-anthropic), on a schema you already have; pass `{ strict: true }` to `jsonSchemaToAnthropicTool` as well. |
 | `findUndeclaredValidatedProperties(Class)` | Properties with class-validator decorators but no `@ToolProp`, with their paths ([5.2](#52-only-toolprop-adds-a-property)). |
 

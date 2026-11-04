@@ -222,3 +222,95 @@ describe('Anthropic strict tool use (forStructuredOutput)', () => {
     ).toBe(undefined);
   });
 });
+
+describe('both strict modes', () => {
+  const prepare = [
+    ['OpenAI', (schema: any) => prepareForOpenAIStructuredOutput(schema, true)],
+    ['Anthropic', (schema: any) => prepareForAnthropicStrictTool(schema)],
+  ] as const;
+
+  it.each(prepare)('%s: moves a pattern strict mode cannot run into the description', (_, run) => {
+    const unsupported = [
+      '^(?=.*\\d).{8,}$',
+      '^(?!abc).+$',
+      '^.*(?<=a)b$',
+      '^(?<year>[0-9]{4})$',
+      '^(a)\\1$',
+      '^\\k<x>$',
+      '^\\bfoo\\b$',
+      '^a\\Bb$',
+      '(?i)abc',
+    ];
+    const supported = [
+      '^[a-z]+$',
+      '^(?:ab|cd)+$',
+      '^\\(\\?=x\\)$',
+      '^[(?=]+$',
+      '^a{1,1000}$',
+      '^\\d+$',
+    ];
+    const properties = Object.fromEntries([
+      ...unsupported.map((pattern, i) => [`u${i}`, { type: 'string', pattern }]),
+      ...supported.map((pattern, i) => [`s${i}`, { type: 'string', pattern }]),
+    ]);
+    const names = Object.keys(properties);
+
+    const result = run({ type: 'object', properties, required: names }).properties;
+    unsupported.forEach((pattern, i) => {
+      expect(result[`u${i}`]).toStrictEqual({
+        type: 'string',
+        description: `{pattern: ${JSON.stringify(pattern)}}`,
+      });
+    });
+    supported.forEach((pattern, i) => {
+      expect(result[`s${i}`]).toStrictEqual({ type: 'string', pattern });
+    });
+  });
+
+  it.each(prepare)(
+    '%s: throws for an object with no declared properties, naming it',
+    (provider, run) => {
+      const schema = (inner: any) => ({
+        type: 'object',
+        properties: { profile: { type: 'object', properties: { extra: inner } } },
+        required: ['profile'],
+      });
+
+      expect(() => run(schema({ type: 'object' }))).toThrow(
+        `schema-forge: ${provider} strict mode cannot express "profile.extra": it is an object ` +
+          'with no declared properties',
+      );
+      expect(() => run(schema({ type: ['object', 'null'], additionalProperties: true }))).toThrow(
+        '"profile.extra"',
+      );
+      expect(() =>
+        run(
+          schema({
+            type: 'array',
+            items: { type: 'object', additionalProperties: { type: 'string' } },
+          }),
+        ),
+      ).toThrow('"profile.extra[]"');
+      // A closed object with no properties accepts only `{}`, which strict mode allows
+      expect(() => run(schema({ type: 'object', additionalProperties: false }))).not.toThrow();
+    },
+  );
+
+  it('fails when the schema of a class reaches a free-form object', () => {
+    @ToolMeta({ name: 'with_record' })
+    class WithRecord {
+      @ToolProp({ type: 'object' }) meta: Record<string, string>;
+    }
+
+    expect(() => classToOpenAITool(WithRecord, { forStructuredOutput: true })).toThrow(
+      'OpenAI strict mode cannot express "meta"',
+    );
+    expect(() => classToAnthropicTool(WithRecord, { forStructuredOutput: true })).toThrow(
+      'Anthropic strict mode cannot express "meta"',
+    );
+    // Without strict mode the object stays as declared
+    expect(classToOpenAITool(WithRecord).function.parameters.properties.meta).toStrictEqual({
+      type: 'object',
+    });
+  });
+});

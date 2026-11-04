@@ -8,7 +8,43 @@
  * is not lost: it is added to the property's description, as `{keyword: value}`, which is how
  * Anthropic's own SDK keeps such rules visible to the model.
  */
-import { makeNullable } from './resolve';
+import { makeNullable, noteInDescription, typeIncludes } from './resolve';
+
+/**
+ * The first regular-expression construct in a `pattern` that both strict modes cannot use, or
+ * `undefined`. Checked against the live APIs (November 2026): Anthropic rejects these with a 400,
+ * and OpenAI either rejects them (a named group) or returns an empty response that stops at the
+ * token limit (lookahead, lookbehind, a backreference, `\b`, `\B`). They are a group that starts
+ * with `(?` other than a non-capturing `(?:` (lookahead, lookbehind, a named group, inline flags),
+ * a backreference (`\1` to `\9`, `\k<name>`), and a word boundary (`\b`, `\B`). Escaped characters
+ * and character classes are skipped, so `\(?=` and `[(?=]` match literal characters and are
+ * accepted. Long ranges such as `{1,1000}` are accepted by both.
+ */
+export function unsupportedRegexConstruct(pattern: string): string | undefined {
+  let inClass = false;
+  for (let i = 0; i < pattern.length; i++) {
+    const char = pattern[i];
+    if (char === '\\') {
+      const next = pattern[i + 1] ?? '';
+      if (!inClass) {
+        if (next === 'b' || next === 'B') return `\\${next}`;
+        if ((next >= '1' && next <= '9') || (next === 'k' && pattern[i + 2] === '<')) {
+          return 'a backreference';
+        }
+      }
+      i++;
+      continue;
+    }
+    if (inClass) {
+      if (char === ']') inClass = false;
+    } else if (char === '[') {
+      inClass = true;
+    } else if (char === '(' && pattern[i + 1] === '?' && pattern[i + 2] !== ':') {
+      return `a group starting with "(?${pattern[i + 2] ?? ''}"`;
+    }
+  }
+  return undefined;
+}
 
 /** String formats OpenAI strict mode accepts (anything else, such as `uri`, is rejected). */
 const OPENAI_STRICT_FORMATS = new Set([
@@ -28,6 +64,8 @@ const ANTHROPIC_STRICT_FORMATS = new Set([...OPENAI_STRICT_FORMATS, 'uri']);
 
 /** What one provider's strict mode rejects, and how it wants objects. */
 interface StrictRules {
+  /** The provider's name, for error messages. */
+  provider: string;
   /** Keywords rejected wherever they appear. */
   rejected: string[];
   /** String formats accepted; any other `format` is moved to the description. */
@@ -41,6 +79,7 @@ interface StrictRules {
 }
 
 const OPENAI_RULES: StrictRules = {
+  provider: 'OpenAI',
   rejected: [
     'uniqueItems',
     'contains',
@@ -59,6 +98,7 @@ const OPENAI_RULES: StrictRules = {
 };
 
 const ANTHROPIC_RULES: StrictRules = {
+  provider: 'Anthropic',
   rejected: [
     'minimum',
     'maximum',
@@ -101,18 +141,27 @@ function jsonTypeOf(value: unknown): string {
   return typeof value === 'object' ? 'object' : typeof value;
 }
 
-function strictify(schema: any, rules: StrictRules, makeOptionalNullable: boolean): any {
+/** Where a subschema is, for error messages: `address.city`, `tags[]`, `value.anyOf[0]` */
+function childPath(path: string, step: string): string {
+  if (step === '[]') return `${path}[]`;
+  return path ? `${path}.${step}` : step;
+}
+
+function strictify(schema: any, rules: StrictRules, makeOptionalNullable: boolean, path = ''): any {
   if (typeof schema !== 'object' || schema === null || Array.isArray(schema)) return schema;
   const result: any = { ...schema };
 
   for (const key of SUBSCHEMA_KEYS) {
     if (result[key] !== undefined) {
-      result[key] = strictify(result[key], rules, makeOptionalNullable);
+      const step = key === 'items' ? '[]' : key;
+      result[key] = strictify(result[key], rules, makeOptionalNullable, childPath(path, step));
     }
   }
   for (const key of SUBSCHEMA_LIST_KEYS) {
     if (Array.isArray(result[key])) {
-      result[key] = result[key].map((entry: any) => strictify(entry, rules, makeOptionalNullable));
+      result[key] = result[key].map((entry: any, index: number) =>
+        strictify(entry, rules, makeOptionalNullable, childPath(path, `${key}[${index}]`)),
+      );
     }
   }
   for (const key of SUBSCHEMA_MAP_KEYS) {
@@ -120,10 +169,31 @@ function strictify(schema: any, rules: StrictRules, makeOptionalNullable: boolea
       result[key] = Object.fromEntries(
         Object.entries(result[key]).map(([name, entry]) => [
           name,
-          strictify(entry, rules, makeOptionalNullable),
+          strictify(
+            entry,
+            rules,
+            makeOptionalNullable,
+            childPath(path, key === 'properties' ? name : `${key}.${name}`),
+          ),
         ]),
       );
     }
+  }
+
+  // Strict modes need every object closed, and an object with no declared properties cannot be
+  // closed without accepting only `{}`; the API would reject it (`additionalProperties` must be
+  // false), so it fails here, where the property can be named.
+  if (
+    typeIncludes(result.type, 'object') &&
+    !(result.properties && typeof result.properties === 'object') &&
+    result.additionalProperties !== false
+  ) {
+    throw new Error(
+      `schema-forge: ${rules.provider} strict mode cannot express ${path ? `"${path}"` : 'the root'}: ` +
+        'it is an object with no declared properties (a free-form object, such as a Record), ' +
+        'and strict mode needs every object closed. Declare its properties (for example with a ' +
+        'class), or describe it as a string that holds JSON.',
+    );
   }
 
   if (result.properties && typeof result.properties === 'object') {
@@ -155,6 +225,10 @@ function strictify(schema: any, rules: StrictRules, makeOptionalNullable: boolea
     moved.push(['format', result.format]);
     delete result.format;
   }
+  if (typeof result.pattern === 'string' && unsupportedRegexConstruct(result.pattern)) {
+    moved.push(['pattern', result.pattern]);
+    delete result.pattern;
+  }
   if (rules.enumWithoutTypeArray && Array.isArray(result.enum) && Array.isArray(result.type)) {
     // The API rejects the pair. The enum alone says which types are allowed once it keeps only
     // the values the type array accepted (so `integer` still excludes 1.5)
@@ -167,10 +241,7 @@ function strictify(schema: any, rules: StrictRules, makeOptionalNullable: boolea
     delete result.type;
   }
 
-  if (moved.length > 0) {
-    const note = `{${moved.map(([key, value]) => `${key}: ${JSON.stringify(value)}`).join(', ')}}`;
-    result.description = result.description ? `${result.description}\n\n${note}` : note;
-  }
+  noteInDescription(result, moved);
   return result;
 }
 
@@ -181,16 +252,25 @@ function strictify(schema: any, rules: StrictRules, makeOptionalNullable: boolea
  *   properties are listed in `required`.
  * - With `handleOptionals`, a property that was not required becomes nullable instead
  *   (`type: ['string', 'null']`, `null` added to an `enum`, or a `null` branch for a composition),
- *   so the model can still leave it empty.
+ *   so the model can still leave it empty. Without it (the default, as in 2.x), such a property
+ *   is required like the others and the model has to give it a value, even an invented one. Pass
+ *   `true` when the schema's `required` lists exactly the properties that must have a value; the
+ *   `classTo…` functions do. The default stays `false` because a hand-written schema often has no
+ *   `required` at all, and every one of its properties would then become nullable.
  * - Keywords OpenAI strict mode rejects are moved into the description: `uniqueItems`, `contains`,
  *   `minContains`, `maxContains`, `unevaluatedItems`, `minProperties`, `maxProperties`,
- *   `propertyNames`, `unevaluatedProperties`, and a `format` other than `date-time`, `time`,
- *   `date`, `duration`, `email`, `hostname`, `ipv4`, `ipv6` and `uuid`. Everything else is kept,
- *   including `minLength`, `maxLength`, `pattern`, number bounds, `multipleOf`, `minItems` and
- *   `maxItems`, which OpenAI enforces.
+ *   `propertyNames`, `unevaluatedProperties`, a `format` other than `date-time`, `time`,
+ *   `date`, `duration`, `email`, `hostname`, `ipv4`, `ipv6` and `uuid`, and a `pattern` that uses
+ *   a construct strict mode cannot run (lookahead, lookbehind, a named group, a backreference,
+ *   `\b`, `\B`; OpenAI rejects some and answers the others with an empty response). Everything
+ *   else is kept,
+ *   including `minLength`, `maxLength`, other patterns, number bounds, `multipleOf`, `minItems`
+ *   and `maxItems`, which OpenAI enforces.
+ * - Throws for an object with no declared properties (a free-form object, such as a Record): it
+ *   cannot be closed, and OpenAI rejects an object that is not.
  *
- * Composition keywords OpenAI rejects (`allOf`, `oneOf`, `not`) are left as they are: they only
- * appear when you wrote them, and the API's error names them.
+ * Composition keywords OpenAI rejects (`allOf`, `oneOf`, `not`, at any depth) are left as they
+ * are: they only appear when you wrote them, and the API's error names them.
  *
  * @public
  * @param schema The JSON Schema object to prepare
@@ -220,10 +300,17 @@ export function prepareForOpenAIStructuredOutput(schema: any, handleOptionals = 
  *   `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`, `minLength`, `maxLength`, `maxItems`,
  *   `minItems` other than 0 or 1, `uniqueItems`, `contains`, `minContains`, `maxContains`,
  *   `minProperties`, `maxProperties`, `propertyNames`, `patternProperties`,
- *   `unevaluatedProperties`, and a `format` other than
- *   `date-time`, `time`, `date`, `duration`, `email`, `hostname`, `uri`, `ipv4`, `ipv6` and `uuid`.
+ *   `unevaluatedProperties`, a `format` other than
+ *   `date-time`, `time`, `date`, `duration`, `email`, `hostname`, `uri`, `ipv4`, `ipv6` and `uuid`,
+ *   and a `pattern` that uses a construct Anthropic rejects (lookahead, lookbehind, a named
+ *   group, a backreference, `\b`, `\B`).
  * - An `enum` next to a `type` array (a nullable or mixed-type enum) loses the `type`: the API
  *   rejects the pair, and the enum's values already say which types are allowed.
+ * - Throws for an object with no declared properties (a free-form object, such as a Record): it
+ *   cannot be closed, and Anthropic rejects an object that is not.
+ *
+ * `oneOf` and `not`, which Anthropic strict mode rejects, are left as they are: they only appear
+ * when you wrote them, and the API's error names them. `allOf` and `anyOf` are accepted.
  *
  * @public
  * @param schema The JSON Schema object to prepare
