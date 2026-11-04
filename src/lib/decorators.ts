@@ -40,14 +40,23 @@ const VALUE_KEYS = ['type', 'enum', 'const', 'anyOf', 'oneOf', 'allOf', 'items']
  * The properties map a nested property path continues in, seen through a null wrapper (a
  * nullable property's schema may hold its value in an `anyOf` branch, see `valueSchemaOf`): an
  * array's item properties or an object's own, created when missing. For a schema that is neither,
- * `undefined`, unless `asObject` is set, which treats it as an object.
+ * `undefined`, unless `asObject` is set, which treats it as an object. An array without `items`
+ * throws: its items may still come from class-validator when the schema is generated, so they
+ * are not invented here.
  */
 function nestedPropertiesOf(
   schema: Record<string, any>,
   asObject: boolean,
+  name: string,
 ): Record<string, any> | undefined {
   const value = valueSchemaOf(schema);
   if (typeIncludes(value.type, 'array')) {
+    if (!value.items || typeof value.items !== 'object') {
+      throw new Error(
+        `schema-forge: cannot reach into "${name}": it is an array without \`items\`. ` +
+          'Describe its items in @ToolProp (for example items: { type: SomeClass }) first.',
+      );
+    }
     const items = valueSchemaOf(value.items);
     if (!items.properties) items.properties = {};
     return items.properties;
@@ -101,7 +110,7 @@ export function applyPropertyUpdates(
       // The properties map the rest of the path starts in: an array's item properties, or an
       // object's properties. Everything below is shared, so both kinds of parent treat the
       // target the same way.
-      let container = nestedPropertiesOf(properties[current], false);
+      let container = nestedPropertiesOf(properties[current], false, current);
 
       if (container) {
         for (let i = 0; i < rest.length - 1; i++) {
@@ -109,7 +118,11 @@ export function applyPropertyUpdates(
           if (!container[path]) {
             container[path] = { type: 'object', properties: {} };
           }
-          container = nestedPropertiesOf(container[path], true)!;
+          container = nestedPropertiesOf(
+            container[path],
+            true,
+            [current, ...rest.slice(0, i + 1)].join('.'),
+          )!;
         }
 
         // Get the last path segment
@@ -142,7 +155,7 @@ export function applyPropertyUpdates(
       }
     } else {
       // Update general nested path: an array's item properties or an object's properties
-      const nested = nestedPropertiesOf(properties[current], false);
+      const nested = nestedPropertiesOf(properties[current], false, current);
       if (nested) applyPropertyUpdates(nested, rest, updates, target);
     }
     return;
@@ -473,7 +486,7 @@ export function addPropertyTo(
         properties: {},
       };
     }
-    current = nestedPropertiesOf(current[path], true)!;
+    current = nestedPropertiesOf(current[path], true, paths.slice(0, i + 1).join('.'))!;
   }
 
   const propertyKey = paths[paths.length - 1];
