@@ -10,6 +10,9 @@
  */
 import { makeNullable, noteInDescription, typeIncludes } from './resolve';
 
+/** The largest `{n,m}` bound kept under Anthropic strict mode (see `unsupportedRegexConstruct`). */
+const MAX_QUANTIFIER_BOUND = 256;
+
 /**
  * The first regular-expression construct in a `pattern` that both strict modes cannot use, or
  * `undefined`. Checked against the live APIs (November 2026): Anthropic rejects these with a 400,
@@ -18,29 +21,85 @@ import { makeNullable, noteInDescription, typeIncludes } from './resolve';
  * with `(?` other than a non-capturing `(?:` (lookahead, lookbehind, a named group, inline flags),
  * a backreference (`\1` to `\9`, `\k<name>`), and a word boundary (`\b`, `\B`). Escaped characters
  * and character classes are skipped, so `\(?=` and `[(?=]` match literal characters and are
- * accepted. Long ranges such as `{1,1000}` are accepted by both.
+ * accepted.
+ *
+ * With `limitQuantifiers` (Anthropic), a `{n}`, `{n,}` or `{n,m}` quantifier is unsupported too
+ * when it applies to a broad set, or when a bound is above `MAX_QUANTIFIER_BOUND`. Measured: a
+ * quantifier on `.`, a negated class (`[^x]`), `\S`, `\D`, `\W`, or a class or group holding one,
+ * answers `Cannot apply a range quantifier to this regex` even for `.{5}`, while `.+`,
+ * `[a-z]{1,256}` and `\w{1,64}` pass; `{1,2000}` alone, or `{1,1000}` next to another quantifier,
+ * answers
+ * `pattern is too complex` / `Schema is too complex`, while bounds up to 500 passed. Anthropic's
+ * guide lists large `{n,m}` ranges as unsupported without a number, so the bound is conservative.
+ * OpenAI accepted all of these.
  */
-export function unsupportedRegexConstruct(pattern: string): string | undefined {
+export function unsupportedRegexConstruct(
+  pattern: string,
+  limitQuantifiers = false,
+): string | undefined {
   let inClass = false;
+  let classBroad = false;
+  let lastAtomBroad = false;
+  // For each open group: whether it holds a broad atom, so a quantifier on the group counts too
+  const groups: boolean[] = [];
+  const atom = (broad: boolean) => {
+    lastAtomBroad = broad;
+    if (broad && groups.length > 0) groups[groups.length - 1] = true;
+  };
   for (let i = 0; i < pattern.length; i++) {
     const char = pattern[i];
     if (char === '\\') {
       const next = pattern[i + 1] ?? '';
-      if (!inClass) {
+      if (inClass) {
+        if ('SDW'.includes(next) && next) classBroad = true;
+      } else {
         if (next === 'b' || next === 'B') return `\\${next}`;
         if ((next >= '1' && next <= '9') || (next === 'k' && pattern[i + 2] === '<')) {
           return 'a backreference';
         }
+        atom(!!next && 'SDW'.includes(next));
       }
       i++;
       continue;
     }
     if (inClass) {
-      if (char === ']') inClass = false;
-    } else if (char === '[') {
+      if (char === ']') {
+        inClass = false;
+        atom(classBroad);
+      }
+      continue;
+    }
+    if (char === '[') {
       inClass = true;
-    } else if (char === '(' && pattern[i + 1] === '?' && pattern[i + 2] !== ':') {
-      return `a group starting with "(?${pattern[i + 2] ?? ''}"`;
+      classBroad = pattern[i + 1] === '^';
+    } else if (char === '(') {
+      if (pattern[i + 1] === '?' && pattern[i + 2] !== ':') {
+        return `a group starting with "(?${pattern[i + 2] ?? ''}"`;
+      }
+      groups.push(false);
+      if (pattern[i + 1] === '?') i += 2;
+      lastAtomBroad = false;
+    } else if (char === ')') {
+      atom(groups.pop() ?? false);
+    } else if (char === '.') {
+      atom(true);
+    } else if (char === '{' && limitQuantifiers) {
+      const quantifier = /^\{(\d+)(?:,(\d*))?\}/.exec(pattern.slice(i));
+      if (quantifier) {
+        if (lastAtomBroad) {
+          return 'a {…} quantifier on a broad set (., [^…], \\S, \\D or \\W)';
+        }
+        const bounds = [quantifier[1], quantifier[2]].filter(Boolean).map(Number);
+        if (bounds.some((bound) => bound > MAX_QUANTIFIER_BOUND)) {
+          return `a {…} quantifier above ${MAX_QUANTIFIER_BOUND}`;
+        }
+        i += quantifier[0].length - 1;
+      } else {
+        atom(false);
+      }
+    } else if (!'*+?'.includes(char)) {
+      // A quantifier repeats the atom before it; anything else is a new atom
+      atom(false);
     }
   }
   return undefined;
@@ -76,6 +135,8 @@ interface StrictRules {
   allRequired: boolean;
   /** An `enum` must not sit next to a `type` array (Anthropic); the enum alone is kept. */
   enumWithoutTypeArray: boolean;
+  /** `{n,m}` on a broad set or with a large bound is not supported (Anthropic). */
+  limitQuantifiers: boolean;
 }
 
 const OPENAI_RULES: StrictRules = {
@@ -95,6 +156,7 @@ const OPENAI_RULES: StrictRules = {
   minItemsAllowed: () => true,
   allRequired: true,
   enumWithoutTypeArray: false,
+  limitQuantifiers: false,
 };
 
 const ANTHROPIC_RULES: StrictRules = {
@@ -125,6 +187,7 @@ const ANTHROPIC_RULES: StrictRules = {
   minItemsAllowed: (value) => value === 0 || value === 1,
   allRequired: false,
   enumWithoutTypeArray: true,
+  limitQuantifiers: true,
 };
 
 /** Keys whose value is one subschema. */
@@ -233,7 +296,10 @@ function strictify(schema: any, rules: StrictRules, makeOptionalNullable: boolea
     moved.push(['format', result.format]);
     delete result.format;
   }
-  if (typeof result.pattern === 'string' && unsupportedRegexConstruct(result.pattern)) {
+  if (
+    typeof result.pattern === 'string' &&
+    unsupportedRegexConstruct(result.pattern, rules.limitQuantifiers)
+  ) {
     moved.push(['pattern', result.pattern]);
     delete result.pattern;
   }
@@ -311,7 +377,8 @@ export function prepareForOpenAIStructuredOutput(schema: any, handleOptionals = 
  *   `unevaluatedProperties`, a `format` other than
  *   `date-time`, `time`, `date`, `duration`, `email`, `hostname`, `uri`, `ipv4`, `ipv6` and `uuid`,
  *   and a `pattern` that uses a construct Anthropic rejects (lookahead, lookbehind, a named
- *   group, a backreference, `\b`, `\B`).
+ *   group, a backreference, `\b`, `\B`, a `{…}` quantifier on a broad set such as `.`, or a
+ *   quantifier bound above 256).
  * - An `enum` next to a `type` array (a nullable or mixed-type enum) loses the `type`: the API
  *   rejects the pair, and the enum's values already say which types are allowed.
  * - Throws for an object with no declared properties (a free-form object, such as a Record): it

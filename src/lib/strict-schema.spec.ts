@@ -246,7 +246,7 @@ describe('both strict modes', () => {
       '^(?:ab|cd)+$',
       '^\\(\\?=x\\)$',
       '^[(?=]+$',
-      '^a{1,1000}$',
+      '^[a-z]{1,256}$',
       '^\\d+$',
     ];
     const properties = Object.fromEntries([
@@ -264,6 +264,48 @@ describe('both strict modes', () => {
     });
     supported.forEach((pattern, i) => {
       expect(result[`s${i}`]).toStrictEqual({ type: 'string', pattern });
+    });
+  });
+
+  it('Anthropic: moves a quantifier on a broad set, or above 256, into the description', () => {
+    // Measured: Anthropic answers 400 for these; OpenAI accepts them
+    const unsupported = [
+      '^.{1,200}$',
+      '^.{5}$',
+      '^[^x]{1,5}$',
+      '^\\S{1,20}$',
+      '^[\\s\\S]{1,9}$',
+      '^(.){1,3}$',
+      '^a{1,1000}$',
+      '^[a-z]{2,10}-[0-9]{1,300}$',
+    ];
+    const supported = [
+      '^.+$',
+      '^.*x$',
+      '^\\w{1,64}$',
+      '^[\\w ]{1,50}$',
+      '^[a-z]{1,256}$',
+      '^(ab){1,9}$',
+    ];
+    const properties = Object.fromEntries([
+      ...unsupported.map((pattern, i) => [`u${i}`, { type: 'string', pattern }]),
+      ...supported.map((pattern, i) => [`s${i}`, { type: 'string', pattern }]),
+    ]);
+
+    const anthropic = prepareForAnthropicStrictTool({ type: 'object', properties }).properties;
+    const openai = prepareForOpenAIStructuredOutput(
+      { type: 'object', properties },
+      true,
+    ).properties;
+    unsupported.forEach((pattern, i) => {
+      expect(anthropic[`u${i}`]).toStrictEqual({
+        type: 'string',
+        description: `{pattern: ${JSON.stringify(pattern)}}`,
+      });
+      expect(openai[`u${i}`].pattern).toBe(pattern);
+    });
+    supported.forEach((pattern, i) => {
+      expect(anthropic[`s${i}`]).toStrictEqual({ type: 'string', pattern });
     });
   });
 
