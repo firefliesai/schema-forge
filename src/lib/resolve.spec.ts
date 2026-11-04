@@ -772,6 +772,34 @@ describe('3.0.0 schema resolution', () => {
       expect(viaArray.properties.tags).toStrictEqual(viaObject);
     });
 
+    it('keeps or removes null on a path into an object declared inline', () => {
+      // A path into a nested class is applied while that class is built; a path into an object
+      // declared inline (no class) goes through the nested-path update instead
+      class InlineHolder {
+        @ToolProp({
+          type: 'object',
+          properties: { mode: { type: ['string', 'null'] }, note: { type: ['string', 'null'] } },
+        } as any)
+        inline: Record<string, unknown>;
+        @ToolProp({ type: ['object', 'null'], properties: { x: { type: 'string' } } } as any)
+        maybe: Record<string, unknown> | null;
+      }
+
+      const schema = classToJsonSchema(InlineHolder, {
+        propertyOverrides: {
+          'inline.mode': { enum: ['a'] },
+          'inline.note': { description: 'Note', nullable: false },
+          'maybe.x': { maxLength: 5 },
+        } as any,
+      });
+      const inline = schema.properties.inline.properties;
+      // toEqual: a nested enum update leaves `description: undefined` (dropped from JSON)
+      expect(inline.mode).toEqual({ type: ['string', 'null'], enum: ['a', null] });
+      expect(inline.note).toStrictEqual({ type: 'string', description: 'Note' });
+      // a path also reaches into an object that accepts null
+      expect(schema.properties.maybe.properties.x).toStrictEqual({ type: 'string', maxLength: 5 });
+    });
+
     it('keeps an array an array for an enum update when its design type is Object', () => {
       class Tagged {}
       // What TypeScript records for `tags: string[] | null` under strictNullChecks
