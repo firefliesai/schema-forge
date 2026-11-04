@@ -151,8 +151,23 @@ function strictify(schema: any, rules: StrictRules, makeOptionalNullable: boolea
   if (typeof schema !== 'object' || schema === null || Array.isArray(schema)) return schema;
   const result: any = { ...schema };
 
+  // Keywords the provider rejects go into the description first, as they were written: what is
+  // inside them is never sent as a schema, so it is neither changed nor checked
+  const moved: [string, unknown][] = [];
+  for (const key of rules.rejected) {
+    if (key in result) {
+      moved.push([key, result[key]]);
+      delete result[key];
+    }
+  }
+
   for (const key of SUBSCHEMA_KEYS) {
-    if (result[key] !== undefined) {
+    if (key === 'items' && Array.isArray(result.items)) {
+      // The tuple form of `items` (draft 7 and earlier): one schema per position
+      result.items = result.items.map((entry: any, index: number) =>
+        strictify(entry, rules, makeOptionalNullable, `${path}[${index}]`),
+      );
+    } else if (result[key] !== undefined) {
       const step = key === 'items' ? '[]' : key;
       result[key] = strictify(result[key], rules, makeOptionalNullable, childPath(path, step));
     }
@@ -210,13 +225,6 @@ function strictify(schema: any, rules: StrictRules, makeOptionalNullable: boolea
     }
   }
 
-  const moved: [string, unknown][] = [];
-  for (const key of rules.rejected) {
-    if (key in result) {
-      moved.push([key, result[key]]);
-      delete result[key];
-    }
-  }
   if (result.minItems !== undefined && !rules.minItemsAllowed(result.minItems)) {
     moved.push(['minItems', result.minItems]);
     delete result.minItems;
@@ -310,7 +318,8 @@ export function prepareForOpenAIStructuredOutput(schema: any, handleOptionals = 
  *   cannot be closed, and Anthropic rejects an object that is not.
  *
  * `oneOf` and `not`, which Anthropic strict mode rejects, are left as they are: they only appear
- * when you wrote them, and the API's error names them. `allOf` and `anyOf` are accepted.
+ * when you wrote them, and the API's error names them. `allOf` and `anyOf` are accepted (the guide
+ * excludes `allOf` combined with `$ref`, which Schema Forge never emits).
  *
  * @public
  * @param schema The JSON Schema object to prepare

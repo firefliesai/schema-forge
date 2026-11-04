@@ -293,8 +293,44 @@ describe('both strict modes', () => {
       ).toThrow('"profile.extra[]"');
       // A closed object with no properties accepts only `{}`, which strict mode allows
       expect(() => run(schema({ type: 'object', additionalProperties: false }))).not.toThrow();
+      // The tuple form of `items` is walked too
+      expect(() =>
+        run(schema({ type: 'array', items: [{ type: 'string' }, { type: 'object' }] })),
+      ).toThrow('"profile.extra[1]"');
     },
   );
+
+  it.each(prepare)(
+    '%s: moves a rejected keyword as written, without checking what is inside it',
+    (_, run) => {
+      // `contains` is rejected by both; what it holds is never sent as a schema
+      const result = run({
+        type: 'object',
+        properties: {
+          tags: { type: 'array', items: { type: 'string' }, contains: { type: 'object' } },
+        },
+        required: ['tags'],
+      });
+      expect(result.properties.tags).toStrictEqual({
+        type: 'array',
+        items: { type: 'string' },
+        description: '{contains: {"type":"object"}}',
+      });
+    },
+  );
+
+  it('closes the objects in a tuple form of items', () => {
+    const result = prepareForAnthropicStrictTool({
+      type: 'object',
+      properties: {
+        pair: {
+          type: 'array',
+          items: [{ type: 'object', properties: { a: { type: 'string' } } }, { type: 'string' }],
+        },
+      },
+    });
+    expect(result.properties.pair.items[0].additionalProperties).toBe(false);
+  });
 
   it('fails when the schema of a class reaches a free-form object', () => {
     @ToolMeta({ name: 'with_record' })
