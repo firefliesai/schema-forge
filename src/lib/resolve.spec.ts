@@ -775,6 +775,28 @@ describe('3.0.0 schema resolution', () => {
           ],
         });
       });
+
+      it('names the array when a path reaches into one without items', () => {
+        // The items come from class-validator only when a schema is generated, so an update of
+        // the stored metadata finds none and must not invent them
+        class NoItems {
+          @IsString({ each: true })
+          @ToolProp()
+          tags: string[];
+        }
+
+        expect(() => updateSchemaProperty(NoItems, 'tags.name' as any, { maxLength: 2 })).toThrow(
+          /cannot reach into "tags": it is an array without `items`/,
+        );
+        expect(() => addSchemaProperty(NoItems, 'tags.extra', { type: 'string' })).toThrow(
+          /cannot reach into "tags": it is an array without `items`/,
+        );
+        // The class still generates, with its items inferred
+        expect(classToJsonSchema(NoItems).properties.tags).toStrictEqual({
+          type: 'array',
+          items: { type: 'string' },
+        });
+      });
     });
   });
 
