@@ -125,28 +125,35 @@ function toGeminiSchema(node: any): any {
 
 /**
  * The branches of an `anyOf` that also has a `type` array, each narrowed to the types (and enum
- * values) the array allows: a branch of another type is left out, and a branch with no `type` is
- * split into one branch per type. If no branch is left (the schema accepts nothing), the branches
- * are kept as they were.
+ * values) the array allows: a branch of another type is left out, a branch with no `type` is split
+ * into one branch per type, and `integer` with `number` (either way round) gives `integer`, since
+ * every integer is a number. If no branch is left (the schema accepts nothing), the branches are
+ * kept as they were.
  */
 function narrowToTypes(branches: any[], typed: { type: string; enum?: unknown[] }[]): any[] {
-  const intersect = (a: unknown[] | undefined, b: unknown[] | undefined) =>
-    a && b ? a.filter((value) => b.includes(value)) : (a ?? b);
+  const common = (a: string, b: string | undefined): string | undefined => {
+    if (b === undefined || a === b) return a;
+    if ((a === 'integer' && b === 'number') || (a === 'number' && b === 'integer')) {
+      return 'integer';
+    }
+    return undefined;
+  };
   const narrowed = branches.flatMap((branch: any) => {
     if (!branch || typeof branch !== 'object') return [];
-    const matches =
-      branch.type === undefined
-        ? typed
-        : typed.filter(
-            (entry) =>
-              entry.type === branch.type || (entry.type === 'number' && branch.type === 'integer'),
-          );
-    return matches.map((entry) => {
-      const values = intersect(
-        branch.enum,
-        entry.enum?.filter((value) => matchesJsonType(value, branch.type ?? entry.type)),
-      );
-      return { ...branch, type: branch.type ?? entry.type, ...(values && { enum: values }) };
+    return typed.flatMap((entry) => {
+      const type = common(entry.type, branch.type);
+      if (!type) return [];
+      const values =
+        branch.enum && entry.enum
+          ? branch.enum.filter((value: unknown) => entry.enum!.includes(value))
+          : (branch.enum ?? entry.enum);
+      return [
+        {
+          ...branch,
+          type,
+          ...(values && { enum: values.filter((value: unknown) => matchesJsonType(value, type)) }),
+        },
+      ];
     });
   });
   return narrowed.length > 0 ? narrowed : branches;

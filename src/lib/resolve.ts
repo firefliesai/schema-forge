@@ -192,51 +192,71 @@ const isNullBranch = (branch: any): boolean =>
   branch && typeof branch === 'object' && branch.type === 'null';
 
 /**
- * Whether a schema accepts null: its `const`, `type` and `enum` all allow it, or, when it has none
- * of them, one of its `anyOf` / `oneOf` branches does. A schema this cannot see into (a `$ref`,
- * `not`, `allOf`) counts as not accepting null.
+ * Whether some keyword of a schema rejects null. JSON Schema applies sibling keywords together, so
+ * any one of them is enough: a `type`, `enum` or `const` without null, an `anyOf` / `oneOf` with no
+ * branch that leaves null in, or an `allOf` branch that rejects it. A `$ref` or `not` is not looked
+ * into, so it counts as rejecting null.
  */
-export function allowsNull(schema: unknown): boolean {
+function rejectsNull(schema: unknown): boolean {
   if (!schema || typeof schema !== 'object') return false;
   const value = schema as Record<string, any>;
-  if (value.const !== undefined) return value.const === null;
-  if (value.type !== undefined || Array.isArray(value.enum)) {
-    return (
-      (value.type === undefined || typeIncludes(value.type, 'null')) &&
-      (!Array.isArray(value.enum) || value.enum.includes(null))
-    );
+  if (value.$ref !== undefined || value.not !== undefined) return true;
+  if (value.const !== undefined && value.const !== null) return true;
+  if (value.type !== undefined && !typeIncludes(value.type, 'null')) return true;
+  if (Array.isArray(value.enum) && !value.enum.includes(null)) return true;
+  for (const key of ['anyOf', 'oneOf']) {
+    if (Array.isArray(value[key]) && value[key].every(rejectsNull)) return true;
   }
-  return ['anyOf', 'oneOf'].some((key) => Array.isArray(value[key]) && value[key].some(allowsNull));
+  return Array.isArray(value.allOf) && value.allOf.some(rejectsNull);
 }
 
 /**
- * Applies `nullable: true` to a schema that does not accept null yet (`allowsNull`).
+ * Whether a schema accepts null and says so: no keyword rejects null (`rejectsNull`), and a null
+ * `const`, a `type` or `enum` with null, or an `anyOf` / `oneOf` branch that accepts null allows
+ * it. A schema with no such keyword at all (`{}`) does not count: nothing says null was meant.
+ */
+export function allowsNull(schema: unknown): boolean {
+  if (!schema || typeof schema !== 'object' || rejectsNull(schema)) return false;
+  const value = schema as Record<string, any>;
+  return (
+    value.const === null ||
+    value.type !== undefined ||
+    Array.isArray(value.enum) ||
+    ['anyOf', 'oneOf'].some((key) => Array.isArray(value[key]) && value[key].some(allowsNull))
+  );
+}
+
+/**
+ * Applies `nullable: true`. A schema that no keyword makes reject null (`rejectsNull`) already
+ * accepts it and is left as it is: for a `oneOf` with a branch such as `type: ["string", "null"]`,
+ * another branch accepting null would make null match two branches, which `oneOf` rejects.
  * - A plain typed schema: `type` gains `"null"` and `enum` gains `null`.
- * - Only `anyOf` / `oneOf`: a `{ type: "null" }` branch is added. When a branch already accepts
- *   null (such as `type: ["string", "null"]`) there is nothing to add: a second branch that
- *   accepts null would make null match two `oneOf` branches, which `oneOf` rejects.
+ * - Only `anyOf` / `oneOf`: a `{ type: "null" }` branch is added.
  * - Anything else that `"null"` in `type` cannot open up (`const`, `allOf`, a composition beside
- *   a `type`, or a schema with neither `type` nor `enum`, such as a `$ref`): the whole schema
- *   becomes one branch of `anyOf: [schema, { type: "null" }]`, with the annotations kept outside.
+ *   a `type` or another composition, a `$ref` or `not`): the whole schema becomes one branch of
+ *   `anyOf: [schema, { type: "null" }]`, with the annotations kept outside.
  */
 export function makeNullable(schema: Record<string, any>): void {
-  if (allowsNull(schema)) return;
+  if (!rejectsNull(schema)) return;
   const compositions = COMPOSITION_KEYS.filter((key) => schema[key]);
   const onlyBranching =
     schema.type === undefined &&
     schema.const === undefined &&
     schema.enum === undefined &&
+    schema.$ref === undefined &&
+    schema.not === undefined &&
     compositions.length === 1 &&
     compositions[0] !== 'allOf';
   if (onlyBranching) {
-    const key = compositions[0];
-    schema[key] = [...schema[key], { type: 'null' }];
+    if (schema.anyOf) schema.anyOf = [...schema.anyOf, { type: 'null' }];
+    else schema.oneOf = [...schema.oneOf, { type: 'null' }];
     return;
   }
   if (
     compositions.length > 0 ||
     schema.const !== undefined ||
-    (schema.type === undefined && !Array.isArray(schema.enum))
+    schema.$ref !== undefined ||
+    schema.not !== undefined
   ) {
     const branch: Record<string, any> = {};
     for (const key of Object.keys(schema)) {

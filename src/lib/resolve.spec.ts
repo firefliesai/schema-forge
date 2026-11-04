@@ -259,7 +259,7 @@ describe('3.0.0 schema resolution', () => {
       expect(schema).toStrictEqual({ oneOf: [{ type: ['string', 'null'] }, { type: 'number' }] });
     });
 
-    it('wraps a schema that has neither type nor enum, such as a $ref', () => {
+    it('wraps a $ref, which a null type or branch cannot open up', () => {
       const schema: Record<string, any> = { $ref: '#/$defs/Address', description: 'Where' };
       makeNullable(schema);
 
@@ -267,6 +267,37 @@ describe('3.0.0 schema resolution', () => {
         description: 'Where',
         anyOf: [{ $ref: '#/$defs/Address' }, { type: 'null' }],
       });
+    });
+
+    it('wraps an anyOf with a null branch when a sibling allOf still rejects null', () => {
+      // Sibling keywords all apply: the anyOf's null branch does not let null through the allOf
+      const schema: Record<string, any> = {
+        anyOf: [{ type: 'string' }, { type: 'null' }],
+        allOf: [{ type: 'string', minLength: 1 }],
+      };
+      makeNullable(schema);
+
+      expect(schema).toStrictEqual({
+        anyOf: [
+          {
+            anyOf: [{ type: 'string' }, { type: 'null' }],
+            allOf: [{ type: 'string', minLength: 1 }],
+          },
+          { type: 'null' },
+        ],
+      });
+    });
+
+    it('leaves a schema that nothing makes reject null as it is', () => {
+      const schemas: Record<string, any>[] = [
+        { oneOf: [{ minLength: 2 }, { type: 'number' }] },
+        { type: ['string', 'null'], allOf: [{ minLength: 1 }] },
+      ];
+      for (const schema of schemas) {
+        const before = JSON.parse(JSON.stringify(schema));
+        makeNullable(schema);
+        expect(schema).toStrictEqual(before);
+      }
     });
 
     it('becomes nullable: true in the Gemini formats', () => {
@@ -393,6 +424,24 @@ describe('3.0.0 schema resolution', () => {
           // a branch without a type is split into one per type of the array
           { type: 'string', maxLength: 3 },
           { type: 'number', maxLength: 3 },
+        ],
+      });
+    });
+
+    it('narrows a number branch to integer when the type array says integer', () => {
+      class GeminiIntegers {
+        @ToolProp({
+          type: ['integer', 'string'],
+          anyOf: [{ type: 'number', minimum: 1 }, { type: 'string' }],
+        } as any)
+        value: number | string;
+      }
+
+      expect(classToGeminiTool(GeminiIntegers).parameters.properties.value).toStrictEqual({
+        anyOf: [
+          // every integer is a number, so the branch stays, as integer
+          { type: 'integer', minimum: 1 },
+          { type: 'string' },
         ],
       });
     });
