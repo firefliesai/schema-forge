@@ -9,14 +9,25 @@ The same class can also be the TypeScript type of those arguments, so the schema
 
 ```typescript
 import 'reflect-metadata';
-import { ToolMeta, ToolProp, classToOpenAITool } from '@firefliesai/schema-forge';
+import {
+  ToolMeta,
+  ToolProp,
+  classToOpenAITool,
+} from '@firefliesai/schema-forge';
 
-@ToolMeta({ name: 'get_weather', description: 'Get the current weather for a city' })
+@ToolMeta({
+  name: 'get_weather',
+  description: 'Get the current weather for a city',
+})
 class GetWeatherInput {
   @ToolProp({ description: 'City name, for example "Paris"' })
   city!: string;
 
-  @ToolProp({ description: 'Temperature unit', enum: ['celsius', 'fahrenheit'], isOptional: true })
+  @ToolProp({
+    description: 'Temperature unit',
+    enum: ['celsius', 'fahrenheit'],
+    isOptional: true,
+  })
   unit?: string;
 }
 
@@ -29,8 +40,15 @@ const tool = classToOpenAITool(GetWeatherInput);
 //     parameters: {
 //       type: 'object',
 //       properties: {
-//         city: { description: 'City name, for example "Paris"', type: 'string' },
-//         unit: { description: 'Temperature unit', enum: ['celsius', 'fahrenheit'], type: 'string' }
+//         city: {
+//           description: 'City name, for example "Paris"',
+//           type: 'string'
+//         },
+//         unit: {
+//           description: 'Temperature unit',
+//           enum: ['celsius', 'fahrenheit'],
+//           type: 'string'
+//         }
 //       },
 //       required: ['city']
 //     }
@@ -67,18 +85,25 @@ Pass `tool` in the `tools` list of an OpenAI request. When the model calls it, i
 | Strict mode | A provider setting that makes the LLM's output follow the schema exactly. It accepts only part of JSON Schema and adds its own rules (see [OpenAI strict mode](#71-openai)). |
 | Decorator | A TypeScript annotation such as `@ToolProp()` written above a class or property. See [TypeScript decorators](https://www.typescriptlang.org/docs/handbook/decorators.html). |
 | Design type | The type TypeScript records for a property when `emitDecoratorMetadata` is on: `String`, `Number`, `Boolean`, `Date`, `Array`, a class, or `Object` when the type is something else (a union, an interface, …). |
-| class-validator | A separate library whose decorators (`@IsEmail()`, `@MaxLength(100)`, …) validate class instances. Schema Forge reads them to add rules to the schema. |
+| class-validator | A separate library whose decorators (`@IsEmail()`, `@MaxLength(100)`, …) validate class instances. Schema Forge only reads these decorators to add rules to the schema; it never runs validation. |
 
 **Diagram 1: from a class to an LLM tool.** Steps ① and ② happen when the class is defined. Steps ③ and ④ happen when you call a Schema Forge function.
 
 ```text
- ① your class                     ② stored on the class           ③ classToJsonSchema()        ④ classTo<Provider>…()
-┌───────────────────────────┐    ┌────────────────────────┐      ┌──────────────────────┐     ┌──────────────────────────┐
-│ @ToolMeta (name, desc.)   │    │ Schema Forge metadata  │      │ JSON Schema          │     │ tool or response format  │
-│ @ToolProp on properties   │──▶ │ (what you wrote, plus  │ ───▶ │ (checked; rules from │ ──▶ │ for OpenAI, Anthropic or │
-│ class-validator (optional)│    │ the design types)      │      │ class-validator      │     │ Gemini                   │
-└───────────────────────────┘    └────────────────────────┘      │ added)               │     └──────────────────────────┘
-                                                                  └──────────────────────┘
+ ① your class                      ② stored on the class
+┌───────────────────────────┐     ┌────────────────────────┐
+│ @ToolMeta (name, desc.)   │     │ Schema Forge metadata  │
+│ @ToolProp on properties   │ ──> │ (what you wrote, plus  │
+│ class-validator (optional)│     │ the design types)      │
+└───────────────────────────┘     └───────────┬────────────┘
+                                              │
+                                              v
+ ④ classTo<Provider>…()            ③ classToJsonSchema()
+┌───────────────────────────┐     ┌────────────────────────┐
+│ tool or response format   │     │ JSON Schema            │
+│ for OpenAI, Anthropic or  │ <── │ (checked; rules from   │
+│ Gemini                    │     │ class-validator added) │
+└───────────────────────────┘     └────────────────────────┘
 ```
 
 | Step | What happens |
@@ -147,7 +172,10 @@ class CreateUserInput {
   @ToolProp({ description: 'Age in years', isOptional: true })
   age?: number;
 
-  @ToolProp({ description: 'Role of the user', enum: ['admin', 'member', 'guest'] })
+  @ToolProp({
+    description: 'Role of the user',
+    enum: ['admin', 'member', 'guest'],
+  })
   role!: string;
 }
 ```
@@ -168,7 +196,11 @@ const schema = classToJsonSchema(CreateUserInput);
 //     name: { description: 'Full name', type: 'string' },
 //     email: { description: 'Email address', format: 'email', type: 'string' },
 //     age: { description: 'Age in years', type: 'number' },
-//     role: { description: 'Role of the user', enum: ['admin', 'member', 'guest'], type: 'string' }
+//     role: {
+//       description: 'Role of the user',
+//       enum: ['admin', 'member', 'guest'],
+//       type: 'string'
+//     }
 //   },
 //   required: ['name', 'email', 'role']
 // }
@@ -243,9 +275,13 @@ const gemini = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const result = await gemini.models.generateContent({
   model: 'gemini-3.8-flash',
   contents: prompt,
-  config: { tools: [{ functionDeclarations: [classToGeminiTool(CreateUserInput)] }] },
+  config: {
+    tools: [{ functionDeclarations: [classToGeminiTool(CreateUserInput)] }],
+  },
 });
-const input = result.functionCalls?.[0]?.args as unknown as CreateUserInput | undefined;
+const input = result.functionCalls?.[0]?.args as unknown as
+  | CreateUserInput
+  | undefined;
 ```
 
 The type annotation on `input` is a promise about the shape, not a check. In strict mode the provider guarantees that the arguments match the schema; otherwise it usually follows it. Your code should still validate what it runs (for example with class-validator).
@@ -304,11 +340,32 @@ class Team {
 
 classToJsonSchema(Team).properties;
 // {
-//   tags:     { description: 'Tags', items: { type: 'string' }, type: 'array' },
-//   role:     { description: 'Main role', enum: ['admin', 'member'], type: 'string' },
-//   roles:    { description: 'Roles of the team', type: 'array', items: { type: 'string', enum: ['admin', 'member'] } },
-//   office:   { description: 'Office address', type: 'object', properties: { city: {…} }, required: ['city'] },
-//   branches: { description: 'Other offices', type: 'array', items: { type: 'object', properties: { city: {…} }, required: ['city'] } }
+//   tags: { description: 'Tags', items: { type: 'string' }, type: 'array' },
+//   role: {
+//     description: 'Main role',
+//     enum: ['admin', 'member'],
+//     type: 'string'
+//   },
+//   roles: {
+//     description: 'Roles of the team',
+//     type: 'array',
+//     items: { type: 'string', enum: ['admin', 'member'] }
+//   },
+//   office: {
+//     description: 'Office address',
+//     type: 'object',
+//     properties: { city: {…} },
+//     required: ['city']
+//   },
+//   branches: {
+//     description: 'Other offices',
+//     type: 'array',
+//     items: {
+//       type: 'object',
+//       properties: { city: {…} },
+//       required: ['city']
+//     }
+//   }
 // }
 ```
 
@@ -329,12 +386,22 @@ Use both for a property that may be missing or `null`:
 
 ```typescript
 class UpdateProfileInput {
-  @ToolProp({ description: 'New nickname, or null to remove it', type: 'string', nullable: true, isOptional: true })
+  @ToolProp({
+    description: 'New nickname, or null to remove it',
+    type: 'string',
+    nullable: true,
+    isOptional: true,
+  })
   nickname?: string | null;
 }
 
 classToJsonSchema(UpdateProfileInput);
-// { type: 'object', properties: { nickname: { description: '…', type: ['string', 'null'] } } }
+// {
+//   type: 'object',
+//   properties: {
+//     nickname: { description: '…', type: ['string', 'null'] }
+//   }
+// }
 // (no `required` list: the only property is optional)
 ```
 
@@ -364,6 +431,8 @@ The output uses [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-1
 
 If your class also uses [class-validator](https://github.com/typestack/class-validator) decorators, Schema Forge adds their rules to the schema. You write a rule once, and both the validator and the LLM see it.
 
+Schema Forge only reads class-validator's decorators to add rules to the JSON Schema; it never runs validation. To validate values, call class-validator's `validate()` yourself, or validate the arguments against the generated JSON Schema.
+
 ```typescript
 import { IsEmail, IsInt, IsPositive, Max, MaxLength } from 'class-validator';
 
@@ -385,9 +454,22 @@ class CreateOrderInput {
 
 classToJsonSchema(CreateOrderInput).properties;
 // {
-//   email:    { description: 'Customer email', type: 'string', format: 'email' },
-//   quantity: { description: 'Number of items', type: 'integer', maximum: 100, exclusiveMinimum: 0 },
-//   note:     { description: 'Note for the courier', type: 'string', maxLength: 200 }
+//   email: {
+//     description: 'Customer email',
+//     type: 'string',
+//     format: 'email'
+//   },
+//   quantity: {
+//     description: 'Number of items',
+//     type: 'integer',
+//     maximum: 100,
+//     exclusiveMinimum: 0
+//   },
+//   note: {
+//     description: 'Note for the courier',
+//     type: 'string',
+//     maxLength: 200
+//   }
 // }
 ```
 
@@ -398,9 +480,10 @@ The decorators may be written in any order; Schema Forge reads them when the sch
 **Diagram 2: where each part of a property's schema comes from.** When two sources disagree, the higher one wins, and Schema Forge prints a warning about the conflict.
 
 ```text
-  1. explicit options     @ToolProp({ … }), updateSchemaProperty(), propertyOverrides     ← highest
-  2. class-validator      @IsInt(), @MaxLength(200), @IsEmail(), …
-  3. design type          what TypeScript recorded (String, Number, …)                    ← lowest
+  highest  1. explicit options  @ToolProp({ … }), updateSchemaProperty(),
+                                propertyOverrides
+           2. class-validator   @IsInt(), @MaxLength(200), @IsEmail(), …
+  lowest   3. design type       what TypeScript recorded (String, Number, …)
 ```
 
 For example, `@ToolProp({ type: 'number' })` with `@IsInt()` keeps `number` and warns. Without the explicit `type`, the property becomes `integer`.
@@ -418,8 +501,15 @@ Two related checks:
 import { findUndeclaredValidatedProperties } from '@firefliesai/schema-forge';
 
 expect(findUndeclaredValidatedProperties(CreateOrderInput)).toEqual([]);
-// If a property were validated but not declared, the list would name it, for example:
-// [{ path: 'shipping.ownerId', className: 'ShippingInput', property: 'ownerId' }]
+// If a property were validated but not declared, the list would name it,
+// for example:
+// [
+//   {
+//     path: 'shipping.ownerId',
+//     className: 'ShippingInput',
+//     property: 'ownerId'
+//   }
+// ]
 ```
 
 ### 5.3 Translated decorators
@@ -464,17 +554,25 @@ Some rules have no JSON Schema keyword: `@IsTimeZone()`, `@IsISO8601()`, `@IsDat
 To change a class's schema for every later call, use `updateSchemaProperty` and `addSchemaProperty`. Paths may go into nested classes:
 
 ```typescript
-import { addSchemaProperty, updateSchemaProperty } from '@firefliesai/schema-forge';
+import {
+  addSchemaProperty,
+  updateSchemaProperty,
+} from '@firefliesai/schema-forge';
 
 class Shipment {
   @ToolProp({ description: 'Destination' })
   destination!: Address;
 }
 
-updateSchemaProperty(Shipment, 'destination.city', { description: 'Destination city' });
-addSchemaProperty(Shipment, 'destination.zip', { type: 'string', isOptional: true });
-// Every later classToJsonSchema(Shipment) has destination.city's new description and destination.zip.
-// Address's own schema is not changed.
+updateSchemaProperty(Shipment, 'destination.city', {
+  description: 'Destination city',
+});
+addSchemaProperty(Shipment, 'destination.zip', {
+  type: 'string',
+  isOptional: true,
+});
+// Every later classToJsonSchema(Shipment) has destination.city's new
+// description and destination.zip. Address's own schema is not changed.
 ```
 
 ## 7. LLM provider formats
@@ -505,16 +603,24 @@ See OpenAI's [function calling](https://developers.openai.com/api/docs/guides/fu
 The keyword removal is older than OpenAI's current rules, which accept several of these keywords; it is kept for compatibility.
 
 ```typescript
-import { classToOpenAIResponseFormatJsonSchema } from '@firefliesai/schema-forge';
+import {
+  classToOpenAIResponseFormatJsonSchema,
+} from '@firefliesai/schema-forge';
 
-const tool = classToOpenAITool(CreateUserInput, { forStructuredOutput: true });
-const format = classToOpenAIResponseFormatJsonSchema(CreateUserInput, { forStructuredOutput: true });
+const tool = classToOpenAITool(CreateUserInput, {
+  forStructuredOutput: true,
+});
+const format = classToOpenAIResponseFormatJsonSchema(CreateUserInput, {
+  forStructuredOutput: true,
+});
 const completion = await openai.chat.completions.create({
   model: 'gpt-4o-mini',
   messages: [{ role: 'user', content: prompt }],
   response_format: format,
 });
-const user: CreateUserInput = JSON.parse(completion.choices[0].message.content ?? '{}');
+const user: CreateUserInput = JSON.parse(
+  completion.choices[0].message.content ?? '{}',
+);
 ```
 
 **The Responses API tool is strict by default.** `classToOpenAIResponseApiTool` always closes the objects that declare properties, lists every property in `required` and removes the keywords above. `strict: true` and the nullable step are on by default; `forStructuredOutput: false` sets `strict: false` and skips the nullable step, so optional properties are then required, and only properties declared `nullable` accept `null`.
@@ -564,14 +670,23 @@ const user: CreateUserInput = JSON.parse(structured.text ?? '{}');
 If you already have a JSON Schema, convert it without a class:
 
 ```typescript
-import { jsonSchemaToAnthropicTool, jsonSchemaToOpenAITool, openAIToolToJsonSchema } from '@firefliesai/schema-forge';
+import {
+  jsonSchemaToAnthropicTool,
+  jsonSchemaToOpenAITool,
+  openAIToolToJsonSchema,
+} from '@firefliesai/schema-forge';
 
 const searchSchema = {
   type: 'object' as const,
-  properties: { query: { type: 'string' as const, description: 'Search words' } },
+  properties: {
+    query: { type: 'string' as const, description: 'Search words' },
+  },
   required: ['query'],
 };
-const openAITool = jsonSchemaToOpenAITool(searchSchema, { name: 'search', description: 'Search documents' });
+const openAITool = jsonSchemaToOpenAITool(searchSchema, {
+  name: 'search',
+  description: 'Search documents',
+});
 
 // From an OpenAI tool back to JSON Schema, then to Anthropic
 const { schema, metadata } = openAIToolToJsonSchema(openAITool);
@@ -590,11 +705,13 @@ To find problems early, generate every tool's schema when your application start
 
 ### 8.2 Errors
 
-One error lists every problem found, named after the class you passed. A problem in a nested class shows its path from that class. For a class `Order` with a property `customer: Customer`:
+One error lists every problem found, named after the class you passed. A problem in a nested class shows its path from that class. For a class `Order` with a property `customer: Customer` (each problem is one line in the real message; it is wrapped here to fit):
 
 ```text
 schema-forge: cannot generate a JSON Schema for Order:
-  - Order.note: cannot determine the JSON Schema type; TypeScript reports design type Object (a union such as `T | null`, …). Set `type`, `items` or `enum` in @ToolProp …
+  - Order.note: cannot determine the JSON Schema type; TypeScript reports
+    design type Object (a union such as `T | null`, …). Set `type`, `items`
+    or `enum` in @ToolProp …
   - Order.customer → Customer.tags: an array needs an item type. …
 ```
 
@@ -632,27 +749,36 @@ Warnings go to `console.warn`, start with `[schema-forge]`, and are printed once
 
 This section is for contributors and for readers who want to know why the rules above exist. You do not need it to use the library.
 
-**Diagram 3: what happens when.** Steps ① and ② run once, when the class is defined. Steps ③ to ⑧ run every time a schema is generated.
+**Diagram 3: what happens when.** Steps (1) and (2) run once, when the class is defined. Steps (3) to (8) run every time a schema is generated.
 
 ```text
- class definition                         classToJsonSchema(Root, options)
-┌──────────────────────────────┐        ┌──────────────────────────────────────────────────────────────────────┐
-│ ① @ToolProp records, per     │        │ ③ read Root's stored properties                                      │
-│   property: the options as   │        │ ④ look for properties another copy of the package declared → problem │
-│   written, which of them     │        │ ⑤ for each property holding a class: build that class's schema      │
-│   were explicit, the design  │ ─────▶ │   (③–⑦ again; a class already on the path → recursion problem)      │
-│   type, a nested class       │        │ ⑥ apply recorded nested updates, then propertyOverrides             │
-│ ② class-validator records    │        │ ⑦ per property: add class-validator rules (explicit wins), nullable, │
-│   its rules in its own store │        │   check the type → problems                                          │
-└──────────────────────────────┘        │ ⑧ problems? throw one error : apply options and return              │
-                                        └──────────────────────────────────────────────────────────────────────┘
+ class definition
+┌──────────────────────────────────────────────────────────────────────────┐
+│ (1) @ToolProp records, per property: the options as written,             │
+│     which of them were explicit, the design type, a nested class         │
+│ (2) class-validator records its rules in its own store                   │
+└─────────────────────────────────────┬────────────────────────────────────┘
+                                      │
+                                      v
+ classToJsonSchema(Root, options)
+┌──────────────────────────────────────────────────────────────────────────┐
+│ (3) read Root's stored properties                                        │
+│ (4) look for properties another copy of the package declared             │
+│     -> problem                                                           │
+│ (5) for each property holding a class: build that class's schema         │
+│     ((3) to (7) again; a class already on the path -> recursion problem) │
+│ (6) apply recorded nested updates, then propertyOverrides                │
+│ (7) per property: add class-validator rules (explicit wins), nullable,   │
+│     check the type -> problems                                           │
+│ (8) problems? throw one error : apply options and return                 │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Why the checks wait until ③.** A property's class-validator decorators may run after `@ToolProp` (decorators run bottom-up), and a class may be decorated by a shared library without ever being used as a tool. Checking at generation time makes the result independent of decorator order, and means a class is only checked when a schema reaches it.
-- **Precedence (⑦).** `@ToolProp` records which options you set yourself. Inferred rules fill the gaps; a conflicting inferred rule only produces a warning.
-- **Nested classes (⑤).** `@ToolProp` stores a reference to a property's class, not its schema. The nested schema is built for each root, so a change to the nested class is always seen, and the path from the root is known for error messages and recursion checks.
-- **Updates into nested classes (⑥).** `updateSchemaProperty(Outer, 'address.city', …)` is recorded on `Outer` and applied after `Address`'s schema is built, so `Address` itself does not change. A subclass of `Outer` gets the update too, if its `address` property still holds the same class.
-- **Another installed copy (④).** Metadata is stored under JavaScript symbols created by each copy of the package (`Symbol('jsonSchema')`). Two copies create two different symbols with the same name, so one copy cannot read the other's properties. Schema Forge looks for a symbol with the same name that is not its own, and reports the properties only that copy declared, instead of leaving them out silently.
+- **Why the checks wait until (3).** A property's class-validator decorators may run after `@ToolProp` (decorators run bottom-up), and a class may be decorated by a shared library without ever being used as a tool. Checking at generation time makes the result independent of decorator order, and means a class is only checked when a schema reaches it.
+- **Precedence (7).** `@ToolProp` records which options you set yourself. Inferred rules fill the gaps; a conflicting inferred rule only produces a warning.
+- **Nested classes (5).** `@ToolProp` stores a reference to a property's class, not its schema. The nested schema is built for each root, so a change to the nested class is always seen, and the path from the root is known for error messages and recursion checks.
+- **Updates into nested classes (6).** `updateSchemaProperty(Outer, 'address.city', …)` is recorded on `Outer` and applied after `Address`'s schema is built, so `Address` itself does not change. A subclass of `Outer` gets the update too, if its `address` property still holds the same class.
+- **Another installed copy (4).** Metadata is stored under JavaScript symbols created by each copy of the package (`Symbol('jsonSchema')`). Two copies create two different symbols with the same name, so one copy cannot read the other's properties. Schema Forge looks for a symbol with the same name that is not its own, and reports the properties only that copy declared, instead of leaving them out silently.
 
 ## 11. Limitations
 
