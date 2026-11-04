@@ -292,12 +292,22 @@ describe('3.0.0 schema resolution', () => {
       const schemas: Record<string, any>[] = [
         { oneOf: [{ minLength: 2 }, { type: 'number' }] },
         { type: ['string', 'null'], allOf: [{ minLength: 1 }] },
+        // `true` as a branch accepts every value
+        { oneOf: [true, { type: 'number' }] },
       ];
       for (const schema of schemas) {
         const before = JSON.parse(JSON.stringify(schema));
         makeNullable(schema);
         expect(schema).toStrictEqual(before);
       }
+    });
+
+    it('counts a false branch as rejecting null', () => {
+      // `false` is a whole schema that rejects every value
+      const schema: Record<string, any> = { anyOf: [false, { type: 'string' }] };
+      makeNullable(schema);
+
+      expect(schema).toStrictEqual({ anyOf: [false, { type: 'string' }, { type: 'null' }] });
     });
 
     it('becomes nullable: true in the Gemini formats', () => {

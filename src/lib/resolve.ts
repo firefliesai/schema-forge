@@ -195,9 +195,11 @@ const isNullBranch = (branch: any): boolean =>
  * Whether some keyword of a schema rejects null. JSON Schema applies sibling keywords together, so
  * any one of them is enough: a `type`, `enum` or `const` without null, an `anyOf` / `oneOf` with no
  * branch that leaves null in, or an `allOf` branch that rejects it. A `$ref` or `not` is not looked
- * into, so it counts as rejecting null.
+ * into, so it counts as rejecting null. A boolean schema is a whole schema: `false` rejects every
+ * value, null included, and `true` accepts every value.
  */
 function rejectsNull(schema: unknown): boolean {
+  if (typeof schema === 'boolean') return !schema;
   if (!schema || typeof schema !== 'object') return false;
   const value = schema as Record<string, any>;
   if (value.$ref !== undefined || value.not !== undefined) return true;
