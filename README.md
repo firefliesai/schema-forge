@@ -664,7 +664,7 @@ Gemini accepts only part of JSON Schema in these fields (see its [function calli
 | JSON Schema from Schema Forge | Sent to Gemini |
 | --- | --- |
 | `type: ['string', 'null']` or a `{ type: 'null' }` branch | `type: 'string', nullable: true` |
-| `type: ['string', 'number']` (several types) | `anyOf` with one branch per type (an `anyOf` already there keeps its branches, narrowed to those types) |
+| `type: ['string', 'number']` (several types) | `anyOf` with one branch per type (next to an `anyOf` it throws, naming the property: Gemini has no single place for both) |
 | `additionalProperties` | removed |
 | `exclusiveMinimum` / `exclusiveMaximum` | `minimum` / `maximum` on an integer (`exclusiveMinimum: 0` becomes `minimum: 1`); otherwise added to the description |
 | a string `const` | a one-value `enum` |
@@ -756,7 +756,6 @@ Warnings go to `console.warn`, start with `[schema-forge]`, and are printed once
 | --- | --- |
 | `… from @ToolProp is kept; class-validator says …` | An explicit option and a class-validator rule disagree. The explicit option is used ([5.1](#51-which-source-wins)). |
 | `class-validator rule "…" has no JSON Schema equivalent` | The rule is not in the schema ([5.4](#54-rules-the-schema-cannot-express)). |
-| `… has no @ToolMeta name, so the tool or response format has an empty name …` | A `classTo…Tool` or response-format function ran on a class without `@ToolMeta({ name })`. OpenAI, Anthropic and Gemini reject an empty name, so add `@ToolMeta`, or set the name before sending the tool. |
 
 ## 9. Migrating from 2.x
 

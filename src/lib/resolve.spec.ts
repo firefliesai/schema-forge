@@ -32,7 +32,6 @@ import {
   classToJsonSchema,
   classToOpenAITool,
   findUndeclaredValidatedProperties,
-  ToolMeta,
   ToolProp,
   updateSchemaProperty,
 } from './index';
@@ -292,12 +291,22 @@ describe('3.0.0 schema resolution', () => {
       const schemas: Record<string, any>[] = [
         { oneOf: [{ minLength: 2 }, { type: 'number' }] },
         { type: ['string', 'null'], allOf: [{ minLength: 1 }] },
+        // `true` as a branch accepts every value
+        { oneOf: [true, { type: 'number' }] },
       ];
       for (const schema of schemas) {
         const before = JSON.parse(JSON.stringify(schema));
         makeNullable(schema);
         expect(schema).toStrictEqual(before);
       }
+    });
+
+    it('counts a false branch as rejecting null', () => {
+      // `false` is a whole schema that rejects every value
+      const schema: Record<string, any> = { anyOf: [false, { type: 'string' }] };
+      makeNullable(schema);
+
+      expect(schema).toStrictEqual({ anyOf: [false, { type: 'string' }, { type: 'null' }] });
     });
 
     it('becomes nullable: true in the Gemini formats', () => {
@@ -403,47 +412,27 @@ describe('3.0.0 schema resolution', () => {
       });
     });
 
-    it('narrows an anyOf that sits next to a type array instead of replacing it', () => {
-      class GeminiNarrowed {
+    it('throws for a type array next to an anyOf, which Gemini cannot express', () => {
+      // Only a hand-written schema has this shape: nullable never puts an anyOf next to a type
+      class Inner {
         @ToolProp({
           type: ['string', 'number'],
           anyOf: [
             { type: 'string', pattern: '^a' },
             { type: 'integer', minimum: 10 },
-            { type: 'boolean' },
-            { maxLength: 3 },
           ],
         } as any)
         value: string | number;
       }
-
-      expect(classToGeminiTool(GeminiNarrowed).parameters.properties.value).toStrictEqual({
-        anyOf: [
-          { type: 'string', pattern: '^a' },
-          { type: 'integer', minimum: 10 },
-          // a branch without a type is split into one per type of the array
-          { type: 'string', maxLength: 3 },
-          { type: 'number', maxLength: 3 },
-        ],
-      });
-    });
-
-    it('narrows a number branch to integer when the type array says integer', () => {
-      class GeminiIntegers {
-        @ToolProp({
-          type: ['integer', 'string'],
-          anyOf: [{ type: 'number', minimum: 1 }, { type: 'string' }],
-        } as any)
-        value: number | string;
+      class GeminiTypeArrayAndAnyOf {
+        @ToolProp() inner: Inner;
       }
 
-      expect(classToGeminiTool(GeminiIntegers).parameters.properties.value).toStrictEqual({
-        anyOf: [
-          // every integer is a number, so the branch stays, as integer
-          { type: 'integer', minimum: 1 },
-          { type: 'string' },
-        ],
-      });
+      expect(() => classToGeminiTool(GeminiTypeArrayAndAnyOf)).toThrow(
+        'schema-forge: Gemini cannot express "inner.value": it has a type array (["string","number"]) next to an anyOf',
+      );
+      // The plain JSON Schema keeps both, as written
+      expect(classToJsonSchema(Inner).properties.value.type).toStrictEqual(['string', 'number']);
     });
   });
 
@@ -770,6 +759,34 @@ describe('3.0.0 schema resolution', () => {
         items: { type: 'string', enum: ['a', 'b'] },
       });
       expect(viaArray.properties.tags).toStrictEqual(viaObject);
+    });
+
+    it('keeps or removes null on a path into an object declared inline', () => {
+      // A path into a nested class is applied while that class is built; a path into an object
+      // declared inline (no class) goes through the nested-path update instead
+      class InlineHolder {
+        @ToolProp({
+          type: 'object',
+          properties: { mode: { type: ['string', 'null'] }, note: { type: ['string', 'null'] } },
+        } as any)
+        inline: Record<string, unknown>;
+        @ToolProp({ type: ['object', 'null'], properties: { x: { type: 'string' } } } as any)
+        maybe: Record<string, unknown> | null;
+      }
+
+      const schema = classToJsonSchema(InlineHolder, {
+        propertyOverrides: {
+          'inline.mode': { enum: ['a'] },
+          'inline.note': { description: 'Note', nullable: false },
+          'maybe.x': { maxLength: 5 },
+        } as any,
+      });
+      const inline = schema.properties.inline.properties;
+      // toEqual: a nested enum update leaves `description: undefined` (dropped from JSON)
+      expect(inline.mode).toEqual({ type: ['string', 'null'], enum: ['a', null] });
+      expect(inline.note).toStrictEqual({ type: 'string', description: 'Note' });
+      // a path also reaches into an object that accepts null
+      expect(schema.properties.maybe.properties.x).toStrictEqual({ type: 'string', maxLength: 5 });
     });
 
     it('keeps an array an array for an enum update when its design type is Object', () => {
@@ -1489,24 +1506,6 @@ describe('3.0.0 schema resolution', () => {
         classToGeminiTool(Outer, { additionalProperties: false }).parameters.properties.inner,
       ).not.toHaveProperty('additionalProperties');
     });
-  });
-
-  it('warns when a tool or response format would get an empty name', () => {
-    class Unnamed {
-      @ToolProp() q: string;
-    }
-    @ToolMeta({ name: 'named_tool' })
-    class Named {
-      @ToolProp() q: string;
-    }
-
-    expect(classToOpenAITool(Unnamed).function.name).toBe('');
-    expect(classToAnthropicTool(Unnamed).name).toBe('');
-    expect(
-      warnings().filter((message) => message.includes('Unnamed has no @ToolMeta name')),
-    ).toHaveLength(1);
-    expect(classToGeminiTool(Named).name).toBe('named_tool');
-    expect(warnings().some((message) => message.includes('Named has no'))).toBe(false);
   });
 
   it('updateSchemaProperty counts as explicit', () => {
