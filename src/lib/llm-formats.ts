@@ -70,17 +70,19 @@ const GEMINI_COMPOSITION_KEYS = ['anyOf', 'oneOf', 'allOf'];
  * `{ type: "null" }` branch, a single `type`, string `enum` values only, and only the fields in
  * `GEMINI_SCHEMA_KEYS`. A keyword Gemini would reject is not lost: it is added to the description
  * as `{keyword: value}`, as the strict modes do (`additionalProperties` is dropped). Values such as
- * `default`, `example`, `const` and `enum` are never walked as schemas.
+ * `default`, `example`, `const` and `enum` are never walked as schemas. `path` names the property
+ * in error messages.
  */
-function toGeminiSchema(node: any): any {
+function toGeminiSchema(node: any, path: string): any {
   if (!node || typeof node !== 'object' || Array.isArray(node)) return node;
   const out: any = {};
   for (const [key, value] of Object.entries(node)) {
     if (key === 'additionalProperties') continue;
-    if (key === 'properties') out[key] = toGeminiProperties(value);
-    else if (key === 'items' || key === 'not') out[key] = toGeminiSchema(value);
+    if (key === 'properties') out[key] = toGeminiProperties(value, path);
+    else if (key === 'items') out[key] = toGeminiSchema(value, `${path}[]`);
+    else if (key === 'not') out[key] = toGeminiSchema(value, `${path}.not`);
     else if (GEMINI_COMPOSITION_KEYS.includes(key) && Array.isArray(value)) {
-      out[key] = value.map(toGeminiSchema);
+      out[key] = value.map((branch, index) => toGeminiSchema(branch, `${path}.${key}[${index}]`));
     } else out[key] = value;
   }
   if (Array.isArray(out.type)) {
@@ -92,14 +94,21 @@ function toGeminiSchema(node: any): any {
     if (types.length === 1) {
       out.type = types[0];
     } else {
-      // Gemini's `type` is a single value: one typed branch per type, each with its enum values
+      // Gemini's `type` is a single value: one typed branch per type, each with its enum values.
+      // Those branches would need the `anyOf` slot, so a schema that already has an `anyOf` (only
+      // a hand-written one: `nullable` never puts one next to a type) cannot be expressed.
+      if (Array.isArray(out.anyOf)) {
+        throw new Error(
+          `schema-forge: Gemini cannot express "${path}": it has a type array ` +
+            `(${JSON.stringify(out.type)}) next to an anyOf, and Gemini's type is a single ` +
+            'value. Put the types into the anyOf branches instead.',
+        );
+      }
       const values: unknown[] | undefined = out.enum;
-      const typed = types.map((type: string) => ({
+      out.anyOf = types.map((type: string) => ({
         type,
         ...(values && { enum: values.filter((value) => matchesJsonType(value, type)) }),
       }));
-      // An `anyOf` already there still applies: its branches are narrowed to those types
-      out.anyOf = Array.isArray(out.anyOf) ? narrowToTypes(out.anyOf, typed) : typed;
       delete out.type;
       delete out.enum;
     }
@@ -121,42 +130,6 @@ function toGeminiSchema(node: any): any {
     }
   }
   return toGeminiKeywords(out);
-}
-
-/**
- * The branches of an `anyOf` that also has a `type` array, each narrowed to the types (and enum
- * values) the array allows: a branch of another type is left out, a branch with no `type` is split
- * into one branch per type, and `integer` with `number` (either way round) gives `integer`, since
- * every integer is a number. If no branch is left (the schema accepts nothing), the branches are
- * kept as they were.
- */
-function narrowToTypes(branches: any[], typed: { type: string; enum?: unknown[] }[]): any[] {
-  const common = (a: string, b: string | undefined): string | undefined => {
-    if (b === undefined || a === b) return a;
-    if ((a === 'integer' && b === 'number') || (a === 'number' && b === 'integer')) {
-      return 'integer';
-    }
-    return undefined;
-  };
-  const narrowed = branches.flatMap((branch: any) => {
-    if (!branch || typeof branch !== 'object') return [];
-    return typed.flatMap((entry) => {
-      const type = common(entry.type, branch.type);
-      if (!type) return [];
-      const values =
-        branch.enum && entry.enum
-          ? branch.enum.filter((value: unknown) => entry.enum!.includes(value))
-          : (branch.enum ?? entry.enum);
-      return [
-        {
-          ...branch,
-          type,
-          ...(values && { enum: values.filter((value: unknown) => matchesJsonType(value, type)) }),
-        },
-      ];
-    });
-  });
-  return narrowed.length > 0 ? narrowed : branches;
 }
 
 /**
@@ -230,9 +203,12 @@ const isNullBranch = (branch: any): boolean =>
   branch.type === 'null' &&
   Object.keys(branch).length === 1;
 
-function toGeminiProperties(properties: any): Record<string, any> {
+function toGeminiProperties(properties: any, path = ''): Record<string, any> {
   return Object.fromEntries(
-    Object.entries(properties || {}).map(([name, schema]) => [name, toGeminiSchema(schema)]),
+    Object.entries(properties || {}).map(([name, schema]) => [
+      name,
+      toGeminiSchema(schema, path ? `${path}.${name}` : name),
+    ]),
   );
 }
 

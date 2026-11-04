@@ -412,47 +412,27 @@ describe('3.0.0 schema resolution', () => {
       });
     });
 
-    it('narrows an anyOf that sits next to a type array instead of replacing it', () => {
-      class GeminiNarrowed {
+    it('throws for a type array next to an anyOf, which Gemini cannot express', () => {
+      // Only a hand-written schema has this shape: nullable never puts an anyOf next to a type
+      class Inner {
         @ToolProp({
           type: ['string', 'number'],
           anyOf: [
             { type: 'string', pattern: '^a' },
             { type: 'integer', minimum: 10 },
-            { type: 'boolean' },
-            { maxLength: 3 },
           ],
         } as any)
         value: string | number;
       }
-
-      expect(classToGeminiTool(GeminiNarrowed).parameters.properties.value).toStrictEqual({
-        anyOf: [
-          { type: 'string', pattern: '^a' },
-          { type: 'integer', minimum: 10 },
-          // a branch without a type is split into one per type of the array
-          { type: 'string', maxLength: 3 },
-          { type: 'number', maxLength: 3 },
-        ],
-      });
-    });
-
-    it('narrows a number branch to integer when the type array says integer', () => {
-      class GeminiIntegers {
-        @ToolProp({
-          type: ['integer', 'string'],
-          anyOf: [{ type: 'number', minimum: 1 }, { type: 'string' }],
-        } as any)
-        value: number | string;
+      class GeminiTypeArrayAndAnyOf {
+        @ToolProp() inner: Inner;
       }
 
-      expect(classToGeminiTool(GeminiIntegers).parameters.properties.value).toStrictEqual({
-        anyOf: [
-          // every integer is a number, so the branch stays, as integer
-          { type: 'integer', minimum: 1 },
-          { type: 'string' },
-        ],
-      });
+      expect(() => classToGeminiTool(GeminiTypeArrayAndAnyOf)).toThrow(
+        'schema-forge: Gemini cannot express "inner.value": it has a type array (["string","number"]) next to an anyOf',
+      );
+      // The plain JSON Schema keeps both, as written
+      expect(classToJsonSchema(Inner).properties.value.type).toStrictEqual(['string', 'number']);
     });
   });
 

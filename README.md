@@ -644,7 +644,7 @@ Gemini accepts only part of JSON Schema in these fields (see its [function calli
 | JSON Schema from Schema Forge | Sent to Gemini |
 | --- | --- |
 | `type: ['string', 'null']` or a `{ type: 'null' }` branch | `type: 'string', nullable: true` |
-| `type: ['string', 'number']` (several types) | `anyOf` with one branch per type (an `anyOf` already there keeps its branches, narrowed to those types) |
+| `type: ['string', 'number']` (several types) | `anyOf` with one branch per type (next to an `anyOf` it throws, naming the property: Gemini has no single place for both) |
 | `additionalProperties` | removed |
 | `exclusiveMinimum` / `exclusiveMaximum` | `minimum` / `maximum` on an integer (`exclusiveMinimum: 0` becomes `minimum: 1`); otherwise added to the description |
 | a string `const` | a one-value `enum` |
