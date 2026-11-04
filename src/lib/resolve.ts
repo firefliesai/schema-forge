@@ -191,26 +191,36 @@ const ANNOTATION_KEYS = ['description', 'title', 'default', 'examples', 'depreca
 const isNullBranch = (branch: any): boolean =>
   branch && typeof branch === 'object' && branch.type === 'null';
 
-/** Whether a schema already accepts null, in any of the shapes `makeNullable` produces */
+/**
+ * Whether a schema accepts null: its `const`, `type` and `enum` all allow it, or, when it has none
+ * of them, one of its `anyOf` / `oneOf` branches does. A schema this cannot see into (a `$ref`,
+ * `not`, `allOf`) counts as not accepting null.
+ */
 export function allowsNull(schema: unknown): boolean {
   if (!schema || typeof schema !== 'object') return false;
   const value = schema as Record<string, any>;
-  return (
-    typeIncludes(value.type, 'null') ||
-    (Array.isArray(value.enum) && value.enum.includes(null)) ||
-    ['anyOf', 'oneOf'].some((key) => Array.isArray(value[key]) && value[key].some(isNullBranch))
-  );
+  if (value.const !== undefined) return value.const === null;
+  if (value.type !== undefined || Array.isArray(value.enum)) {
+    return (
+      (value.type === undefined || typeIncludes(value.type, 'null')) &&
+      (!Array.isArray(value.enum) || value.enum.includes(null))
+    );
+  }
+  return ['anyOf', 'oneOf'].some((key) => Array.isArray(value[key]) && value[key].some(allowsNull));
 }
 
 /**
- * Applies `nullable: true`.
+ * Applies `nullable: true` to a schema that does not accept null yet (`allowsNull`).
  * - A plain typed schema: `type` gains `"null"` and `enum` gains `null`.
- * - Only `anyOf` / `oneOf`: a `{ type: "null" }` branch is added.
+ * - Only `anyOf` / `oneOf`: a `{ type: "null" }` branch is added. When a branch already accepts
+ *   null (such as `type: ["string", "null"]`) there is nothing to add: a second branch that
+ *   accepts null would make null match two `oneOf` branches, which `oneOf` rejects.
  * - Anything else that `"null"` in `type` cannot open up (`const`, `allOf`, a composition beside
- *   a `type`): the whole schema becomes one branch of `anyOf: [schema, { type: "null" }]`, with
- *   the annotations kept outside.
+ *   a `type`, or a schema with neither `type` nor `enum`, such as a `$ref`): the whole schema
+ *   becomes one branch of `anyOf: [schema, { type: "null" }]`, with the annotations kept outside.
  */
 export function makeNullable(schema: Record<string, any>): void {
+  if (allowsNull(schema)) return;
   const compositions = COMPOSITION_KEYS.filter((key) => schema[key]);
   const onlyBranching =
     schema.type === undefined &&
@@ -220,10 +230,14 @@ export function makeNullable(schema: Record<string, any>): void {
     compositions[0] !== 'allOf';
   if (onlyBranching) {
     const key = compositions[0];
-    if (!schema[key].some(isNullBranch)) schema[key] = [...schema[key], { type: 'null' }];
+    schema[key] = [...schema[key], { type: 'null' }];
     return;
   }
-  if (compositions.length > 0 || schema.const !== undefined) {
+  if (
+    compositions.length > 0 ||
+    schema.const !== undefined ||
+    (schema.type === undefined && !Array.isArray(schema.enum))
+  ) {
     const branch: Record<string, any> = {};
     for (const key of Object.keys(schema)) {
       if (ANNOTATION_KEYS.includes(key)) continue;
@@ -239,6 +253,16 @@ export function makeNullable(schema: Record<string, any>): void {
   if (Array.isArray(schema.enum) && !schema.enum.includes(null)) {
     schema.enum = [...schema.enum, null];
   }
+}
+
+/**
+ * Adds keywords a provider rejects to a schema's description, as `{keyword: value, …}` after a
+ * blank line, so the model still sees the rule. The keywords themselves are removed by the caller.
+ */
+export function noteInDescription(schema: Record<string, any>, moved: [string, unknown][]): void {
+  if (moved.length === 0) return;
+  const note = `{${moved.map(([key, value]) => `${key}: ${JSON.stringify(value)}`).join(', ')}}`;
+  schema.description = schema.description ? `${schema.description}\n\n${note}` : note;
 }
 
 /**

@@ -28,6 +28,7 @@ import OpenAI from 'openai';
 import {
   classToAnthropicTool,
   classToGeminiOldTool,
+  classToGeminiResponseSchema,
   classToGeminiTool,
   classToOpenAIResponseApiTool,
   classToOpenAITool,
@@ -148,6 +149,52 @@ describe('LLM providers accept 3.0.0 schema shapes', () => {
 
     expect(response.functionCalls[0].name).toBe(toolName);
     expectProfile(response.functionCalls[0].args);
+  });
+
+  it('Google Gemini (@google/genai) - keywords its Schema does not have', async () => {
+    // Each of these fields alone makes Gemini answer 400 (`Unknown name …` or
+    // `enum[0]: cannot be empty`) unless the formatter moves it into the description
+    @ToolMeta({ name: 'record_order', description: 'Record an order' })
+    class GeminiOrder {
+      @IsDivisibleBy(5) @ToolProp({ description: 'Quantity, a multiple of 5' }) quantity: number;
+      @ToolProp({
+        type: 'array',
+        items: { type: 'string' },
+        uniqueItems: true,
+        description: 'Distinct tags',
+      } as any)
+      tags: string[];
+      @ToolProp({ const: 'EUR', description: 'Currency' } as any) currency: string;
+      @ToolProp({
+        type: 'string',
+        deprecated: true,
+        examples: ['x'],
+        description: 'Old note',
+      } as any)
+      note: string;
+      @ToolProp({ enum: ['', 'gift'], description: 'Wrapping, empty for none' }) wrap: string;
+    }
+    const message =
+      'Record an order of 10 items tagged red and blue, in EUR, note "n", no wrapping.';
+
+    const response = await gemini.models.generateContent({
+      model: 'gemini-3.8-flash',
+      contents: message,
+      config: { tools: [{ functionDeclarations: [classToGeminiTool(GeminiOrder) as any] }] },
+    });
+    expect(response.functionCalls[0].name).toBe('record_order');
+    expect(response.functionCalls[0].args.quantity).toBe(10);
+    expect(response.functionCalls[0].args.currency).toBe('EUR');
+
+    const structured = await gemini.models.generateContent({
+      model: 'gemini-3.8-flash',
+      contents: message,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: classToGeminiResponseSchema(GeminiOrder) as any,
+      },
+    });
+    expect(JSON.parse(structured.text).currency).toBe('EUR');
   });
 
   it('Google Gemini (@google/generative-ai) - nullable, bounds and a mixed enum', async () => {

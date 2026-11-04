@@ -58,28 +58,47 @@ function describesOtherwise(updates: Record<string, any>, isArray: boolean): boo
 }
 
 /**
- * Whether the property's nested class is replaced for this schema: by a recorded
- * `updateSchemaProperty` of the property itself, or by this call's `propertyOverrides` for it. Its
- * schema is then not built, so its properties and its problems do not reach this schema.
+ * An update that changes a class's properties from outside the class: recorded on it or a base
+ * class through a nested class (`updateSchemaProperty(Order, 'address.city', …)`), or passed down
+ * from the class it is nested in. The path is relative to the class being built.
  */
-function nestedClassReplaced(
-  target: ClassType,
-  name: string,
-  nested: unknown,
-  isArray: boolean,
-  propertyOverrides?: Record<string, unknown>,
-): boolean {
-  const updates = deferredUpdates(target).flatMap((update) =>
-    update.kind === 'update' &&
-    update.paths.length === 1 &&
-    update.paths[0] === name &&
-    update.nestedClass === nested
-      ? [update.updates]
+type PathUpdate =
+  | { kind: 'update'; paths: string[]; updates: Record<string, any> }
+  | { kind: 'add'; paths: string[]; options: Record<string, any> };
+
+/** A `propertyOverrides` entry, its path relative to the class being built */
+type PathOverride = { paths: string[]; updates: Record<string, any> };
+
+/** The updates and overrides whose path goes into `name`, relative to the class it nests */
+function below<T extends { paths: string[] }>(entries: T[], name: string): T[] {
+  return entries.flatMap((entry) =>
+    entry.paths.length > 1 && entry.paths[0] === name
+      ? [{ ...entry, paths: entry.paths.slice(1) }]
       : [],
   );
-  const override = propertyOverrides?.[name];
-  if (override && typeof override === 'object') updates.push(override as Record<string, any>);
-  return updates.some((update) => describesOtherwise(update, isArray));
+}
+
+/**
+ * Whether the property's nested class is replaced for this schema: by an update of the property
+ * itself, or by an override for it. Its schema is then not built, so its properties and its
+ * problems do not reach this schema.
+ */
+function nestedClassReplaced(
+  name: string,
+  isArray: boolean,
+  updates: PathUpdate[],
+  overrides: PathOverride[],
+): boolean {
+  const ofProperty = (paths: string[]) => paths.length === 1 && paths[0] === name;
+  const own = [
+    ...updates.flatMap((update) =>
+      update.kind === 'update' && ofProperty(update.paths) ? [update.updates] : [],
+    ),
+    ...overrides.flatMap((override) => (ofProperty(override.paths) ? [override.updates] : [])),
+  ];
+  return own.some(
+    (update) => !!update && typeof update === 'object' && describesOtherwise(update, isArray),
+  );
 }
 
 /**
@@ -114,15 +133,17 @@ function foreignDeclaredProperties(target: ClassType): Set<string> {
 
 /**
  * Builds the schema of one class: its stored properties, the schemas of the classes nested in
- * them (recursively), deferred updates, then generation-time resolution. Problems are collected
- * into `problems` with their path from the root, so the root reports them all in one error.
+ * them (recursively, each with the updates and overrides whose path goes into it), the remaining
+ * updates and overrides, then generation-time resolution. Problems are collected into `problems`
+ * with their path from the root, so the root reports them all in one error.
  */
 function buildClassSchema(
   target: ClassType,
   problems: string[],
   prefix: string,
   ancestors: readonly ClassType[],
-  propertyOverrides?: Record<string, unknown>,
+  overrides: PathOverride[] = [],
+  inherited: PathUpdate[] = [],
 ): JSONSchemaDefinition {
   const properties = cloneMetadata(
     Reflect.getMetadata(JSON_SCHEMA_METADATA_KEY, target.prototype) || {},
@@ -149,12 +170,36 @@ function buildClassSchema(
     );
   }
 
-  // Nested classes: built now, for this root, so a class that no schema reaches is never checked
+  // Updates from outside the class, in the order they apply: those recorded on the class and its
+  // base classes (the base classes' first, each in the order made, and only where the property
+  // still nests the class the update was made for), then those passed down from the class this
+  // one is nested in. `propertyOverrides` apply after all of them.
+  const updates: PathUpdate[] = [
+    ...deferredUpdates(target).flatMap((update): PathUpdate[] => {
+      const paths = update.kind === 'update' ? update.paths : update.path.split('.');
+      if (
+        Reflect.getMetadata(NESTED_CLASS_METADATA_KEY, target.prototype, paths[0]) !==
+        update.nestedClass
+      ) {
+        return [];
+      }
+      return update.kind === 'update'
+        ? [{ kind: 'update', paths, updates: update.updates }]
+        : [{ kind: 'add', paths, options: update.options }];
+    }),
+    ...inherited,
+  ];
+
+  // Nested classes: built now, for this root, so a class that no schema reaches is never checked.
+  // The updates and overrides whose path goes into a nested class's properties are applied while
+  // that class is built, before its properties are checked, exactly like updates of the class's
+  // own properties: so an update that gives a nested property its type repairs it.
+  const built = new Set<string>();
   for (const [name, schema] of Object.entries<any>(properties)) {
     const nested = Reflect.getMetadata(NESTED_CLASS_METADATA_KEY, target.prototype, name);
     if (typeof nested !== 'function') continue;
     const isArray = schema.type === 'array';
-    if (nestedClassReplaced(target, name, nested, isArray, propertyOverrides)) continue;
+    if (nestedClassReplaced(name, isArray, updates, overrides)) continue;
     if (path.includes(nested)) {
       // An explicit `type: 'object'` on the property that closes the loop describes it as a
       // free-form object (for an array, `items: { type: 'object' }` records no class at all)
@@ -173,7 +218,10 @@ function buildClassSchema(
       problems,
       `${prefix}${className}.${name} → `,
       path,
+      below(overrides, name),
+      below(updates, name),
     );
+    built.add(name);
     if (isArray) {
       schema.items = nestedSchema;
     } else {
@@ -182,35 +230,24 @@ function buildClassSchema(
     }
   }
 
-  // Updates that reach into a nested class's properties: the base classes' first, each in the
-  // order made, and only where the property still nests the class the update was made for
-  for (const update of deferredUpdates(target)) {
-    const firstProperty = update.kind === 'update' ? update.paths[0] : update.path.split('.')[0];
-    if (
-      Reflect.getMetadata(NESTED_CLASS_METADATA_KEY, target.prototype, firstProperty) !==
-      update.nestedClass
-    ) {
-      continue;
-    }
+  // The rest apply here: updates of this class's own properties, and paths into a property whose
+  // nested class was not built (replaced, or closing a loop) or that holds no class
+  const intoBuilt = (paths: string[]) => paths.length > 1 && built.has(paths[0]);
+  for (const update of updates) {
+    if (intoBuilt(update.paths)) continue;
     if (update.kind === 'update') {
       applyPropertyUpdates(properties, update.paths, update.updates, target, sources, properties);
     } else {
-      addPropertyTo(properties, requiredProps, update.path, update.options);
+      addPropertyTo(properties, requiredProps, update.paths.join('.'), update.options);
     }
   }
 
-  if (propertyOverrides) {
+  const ownOverrides = overrides.filter((override) => !intoBuilt(override.paths));
+  if (ownOverrides.length > 0) {
     const stored = cloneMetadata(properties);
-    Object.entries(propertyOverrides).forEach(([overridePath, updates]) => {
-      applyPropertyUpdates(
-        properties,
-        overridePath.split('.'),
-        updates as any,
-        target,
-        sources,
-        stored,
-      );
-    });
+    for (const override of ownOverrides) {
+      applyPropertyUpdates(properties, override.paths, override.updates, target, sources, stored);
+    }
   }
 
   // class-validator inference, type checks and `nullable` (decorators have all run by now)
@@ -261,13 +298,10 @@ export function classToJsonSchema<T extends object>(
   options?: JsonSchemaOptions<T>,
 ): JSONSchemaDefinition {
   const problems: string[] = [];
-  const schema = buildClassSchema(
-    target,
-    problems,
-    '',
-    [],
-    options?.propertyOverrides as Record<string, unknown> | undefined,
-  );
+  const overrides = Object.entries(
+    (options?.propertyOverrides ?? {}) as Record<string, Record<string, any>>,
+  ).map(([path, updates]) => ({ paths: path.split('.'), updates }));
+  const schema = buildClassSchema(target, problems, '', [], overrides);
 
   if (problems.length > 0) {
     throw new Error(

@@ -32,6 +32,7 @@ import {
   classToJsonSchema,
   classToOpenAITool,
   findUndeclaredValidatedProperties,
+  ToolMeta,
   ToolProp,
   updateSchemaProperty,
 } from './index';
@@ -248,6 +249,26 @@ describe('3.0.0 schema resolution', () => {
       });
     });
 
+    it('adds no null branch to a oneOf whose branch already accepts null', () => {
+      const schema: Record<string, any> = {
+        oneOf: [{ type: ['string', 'null'] }, { type: 'number' }],
+      };
+      makeNullable(schema);
+
+      // a second branch accepting null would make null match two oneOf branches
+      expect(schema).toStrictEqual({ oneOf: [{ type: ['string', 'null'] }, { type: 'number' }] });
+    });
+
+    it('wraps a schema that has neither type nor enum, such as a $ref', () => {
+      const schema: Record<string, any> = { $ref: '#/$defs/Address', description: 'Where' };
+      makeNullable(schema);
+
+      expect(schema).toStrictEqual({
+        description: 'Where',
+        anyOf: [{ $ref: '#/$defs/Address' }, { type: 'null' }],
+      });
+    });
+
     it('becomes nullable: true in the Gemini formats', () => {
       class GeminiNullable {
         @ToolProp({ enum: Color, nullable: true }) color: Color | null;
@@ -264,8 +285,8 @@ describe('3.0.0 schema resolution', () => {
         mixed: {
           anyOf: [
             { type: 'string', enum: ['a'] },
-            // Gemini accepts only string enum values
-            { type: 'number' },
+            // Gemini accepts only string enum values; the rest is kept in the description
+            { type: 'number', description: '{enum: [2]}' },
           ],
           nullable: true,
         },
@@ -283,8 +304,8 @@ describe('3.0.0 schema resolution', () => {
       expect(classToGeminiTool(GeminiBounds).parameters.properties).toStrictEqual({
         count: { type: 'integer', minimum: 1 },
         delta: { type: 'integer', minimum: -9, maximum: -1 },
-        ratio: { type: 'number' },
-        level: { type: 'number' },
+        ratio: { type: 'number', description: '{exclusiveMinimum: 0}' },
+        level: { type: 'number', description: '{enum: [1,2]}' },
       });
       expect(classToJsonSchema(GeminiBounds).properties.count).toStrictEqual({
         type: 'integer',
@@ -305,7 +326,74 @@ describe('3.0.0 schema resolution', () => {
       expect(classToGeminiTool(GeminiLiterals).parameters.properties.options).toStrictEqual({
         type: 'object',
         default: { additionalProperties: 42, type: ['string', 'null'] },
-        examples: [{ additionalProperties: 1 }],
+        // Gemini rejects `examples`; its value is moved as it is
+        description: '{examples: [{"additionalProperties":1}]}',
+      });
+    });
+
+    it('moves the fields Gemini rejects into the description and keeps the ones it accepts', () => {
+      class GeminiFields {
+        @IsDivisibleBy(5) @ToolProp() step: number;
+        @ToolProp({ type: 'array', items: { type: 'string' }, uniqueItems: true } as any)
+        tags: string[];
+        @ToolProp({ type: 'string', description: 'Old', deprecated: true, readOnly: true } as any)
+        legacy: string;
+        @ToolProp({ const: 'fixed' } as any) fixed: string;
+        @ToolProp({ const: 3 } as any) three: number;
+        @ToolProp({ const: 3, nullable: true, description: 'Three' } as any) threeOrNull: number;
+        @ToolProp({ enum: ['', 'a'] }) blank: string;
+        @ToolProp({
+          oneOf: [{ type: 'string' }, { type: 'integer' }],
+          not: { enum: ['x'] },
+          title: 'Either',
+          example: 'a',
+        } as any)
+        either: unknown;
+        @ToolProp({ allOf: [{ type: 'string', minLength: 1, pattern: '^a' }] } as any)
+        both: string;
+      }
+
+      expect(classToGeminiTool(GeminiFields).parameters.properties).toStrictEqual({
+        step: { type: 'number', description: '{multipleOf: 5}' },
+        tags: { type: 'array', items: { type: 'string' }, description: '{uniqueItems: true}' },
+        legacy: { type: 'string', description: 'Old\n\n{deprecated: true, readOnly: true}' },
+        fixed: { type: 'string', enum: ['fixed'] },
+        three: { description: '{const: 3}' },
+        // the description outside the null wrapper and the note from inside it are both kept
+        threeOrNull: { description: 'Three\n\n{const: 3}', nullable: true },
+        blank: { type: 'string', description: '{enum: ["","a"]}' },
+        either: {
+          oneOf: [{ type: 'string' }, { type: 'integer' }],
+          not: { enum: ['x'] },
+          title: 'Either',
+          example: 'a',
+        },
+        both: { allOf: [{ type: 'string', minLength: 1, pattern: '^a' }] },
+      });
+    });
+
+    it('narrows an anyOf that sits next to a type array instead of replacing it', () => {
+      class GeminiNarrowed {
+        @ToolProp({
+          type: ['string', 'number'],
+          anyOf: [
+            { type: 'string', pattern: '^a' },
+            { type: 'integer', minimum: 10 },
+            { type: 'boolean' },
+            { maxLength: 3 },
+          ],
+        } as any)
+        value: string | number;
+      }
+
+      expect(classToGeminiTool(GeminiNarrowed).parameters.properties.value).toStrictEqual({
+        anyOf: [
+          { type: 'string', pattern: '^a' },
+          { type: 'integer', minimum: 10 },
+          // a branch without a type is split into one per type of the array
+          { type: 'string', maxLength: 3 },
+          { type: 'number', maxLength: 3 },
+        ],
       });
     });
   });
@@ -635,6 +723,33 @@ describe('3.0.0 schema resolution', () => {
       expect(viaArray.properties.tags).toStrictEqual(viaObject);
     });
 
+    it('keeps an array an array for an enum update when its design type is Object', () => {
+      class Tagged {}
+      // What TypeScript records for `tags: string[] | null` under strictNullChecks
+      Reflect.defineMetadata('design:type', Object, Tagged.prototype, 'tags');
+      ToolProp({ items: { type: ['string', 'null'] } as any, nullable: true })(
+        Tagged.prototype,
+        'tags',
+      );
+      class TaggedHolder {
+        @ToolProp() tagged: Tagged;
+      }
+
+      // The items keep accepting null, as the array does
+      const expected = {
+        type: ['array', 'null'],
+        items: { type: ['string', 'null'], enum: ['a', null] },
+      };
+      expect(
+        classToJsonSchema(Tagged, { propertyOverrides: { tags: { enum: ['a'] } } }).properties.tags,
+      ).toStrictEqual(expected);
+      expect(
+        classToJsonSchema(TaggedHolder, {
+          propertyOverrides: { 'tagged.tags': { enum: ['a'] } } as any,
+        }).properties.tagged.properties.tags,
+      ).toStrictEqual(expected);
+    });
+
     it('applies nullable in a nested enum override to the array target, not its items', () => {
       class Line {
         @ToolProp({ items: { type: 'string' } }) tags: string[];
@@ -872,6 +987,64 @@ describe('3.0.0 schema resolution', () => {
         properties: { name: { type: 'string' } },
         required: ['name'],
       });
+    });
+
+    it('lets an update or override of a nested property give it the type it lacks', () => {
+      class Reading {
+        @ToolProp() value: string | number;
+        @ToolProp() unit: string;
+      }
+      class Sensor {
+        @ToolProp() reading: Reading;
+      }
+      class Station {
+        @ToolProp() sensor: Sensor;
+      }
+      class Logged {
+        @ToolProp() reading: Reading;
+      }
+
+      // Without a type, every class that reaches Reading.value fails
+      expect(() => classToJsonSchema(Station)).toThrow(
+        'Station.sensor → Sensor.reading → Reading.value',
+      );
+
+      // An override two levels down repairs it, for this call only
+      const repaired = classToJsonSchema(Station, {
+        propertyOverrides: { 'sensor.reading.value': { type: 'number', nullable: true } } as any,
+      });
+      expect(repaired.properties.sensor.properties.reading).toStrictEqual({
+        type: 'object',
+        properties: { value: { type: ['number', 'null'] }, unit: { type: 'string' } },
+        required: ['value', 'unit'],
+      });
+      expect(() => classToJsonSchema(Station)).toThrow('Reading.value');
+
+      // A recorded update repairs it for every schema of that class, and not for Reading itself
+      updateSchemaProperty(Logged, 'reading.value', { type: 'string', description: 'Raw' });
+      expect(classToJsonSchema(Logged).properties.reading.properties.value).toStrictEqual({
+        type: 'string',
+        description: 'Raw',
+      });
+      expect(() => classToJsonSchema(Reading)).toThrow('Reading.value');
+    });
+
+    it('does not build a nested class that an override replaces, however deep', () => {
+      class Broken {
+        @ToolProp() value: string | number;
+      }
+      class Middle {
+        @ToolProp() broken: Broken;
+      }
+      class Top {
+        @ToolProp() middle: Middle;
+      }
+
+      expect(
+        classToJsonSchema(Top, {
+          propertyOverrides: { 'middle.broken': { type: 'string' } } as any,
+        }).properties.middle.properties.broken,
+      ).toStrictEqual({ type: 'string' });
     });
 
     it('rejects a class that refers back to itself through another class', () => {
@@ -1267,6 +1440,24 @@ describe('3.0.0 schema resolution', () => {
         classToGeminiTool(Outer, { additionalProperties: false }).parameters.properties.inner,
       ).not.toHaveProperty('additionalProperties');
     });
+  });
+
+  it('warns when a tool or response format would get an empty name', () => {
+    class Unnamed {
+      @ToolProp() q: string;
+    }
+    @ToolMeta({ name: 'named_tool' })
+    class Named {
+      @ToolProp() q: string;
+    }
+
+    expect(classToOpenAITool(Unnamed).function.name).toBe('');
+    expect(classToAnthropicTool(Unnamed).name).toBe('');
+    expect(
+      warnings().filter((message) => message.includes('Unnamed has no @ToolMeta name')),
+    ).toHaveLength(1);
+    expect(classToGeminiTool(Named).name).toBe('named_tool');
+    expect(warnings().some((message) => message.includes('Named has no'))).toBe(false);
   });
 
   it('updateSchemaProperty counts as explicit', () => {
