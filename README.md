@@ -639,15 +639,19 @@ const user: CreateUserInput = JSON.parse(
 
 The Vertex AI functions are implemented but not tested against the real API.
 
-Gemini accepts only part of JSON Schema in these fields (see its [function calling guide](https://aistudio.google.com/docs/function-calling), and the fields of its `Schema` type in the [API reference](https://aistudio.google.com/api-reference/caching), listed under `CachedContent` → `tools` → `functionDeclarations` → `parameters`). The Gemini functions change the schema to fit:
+Gemini accepts only part of JSON Schema in these fields (see its [function calling guide](https://aistudio.google.com/docs/function-calling), and the fields of its `Schema` type in the [API reference](https://aistudio.google.com/api-reference/caching), listed under `CachedContent` → `tools` → `functionDeclarations` → `parameters`). It rejects the whole request with a 400 (`Unknown name "uniqueItems" … Cannot find field`) when a schema has any field its `Schema` type does not have. The Gemini functions change the schema to fit, as checked against the live API in November 2026:
 
 | JSON Schema from Schema Forge | Sent to Gemini |
 | --- | --- |
 | `type: ['string', 'null']` or a `{ type: 'null' }` branch | `type: 'string', nullable: true` |
-| `type: ['string', 'number']` (several types) | `anyOf` with one branch per type |
+| `type: ['string', 'number']` (several types) | `anyOf` with one branch per type (an `anyOf` already there keeps its branches, narrowed to those types) |
 | `additionalProperties` | removed |
-| `exclusiveMinimum` / `exclusiveMaximum` | `minimum` / `maximum` on an integer (`exclusiveMinimum: 0` becomes `minimum: 1`); removed otherwise |
-| an `enum` with values that are not all strings | removed (the `type` stays) |
+| `exclusiveMinimum` / `exclusiveMaximum` | `minimum` / `maximum` on an integer (`exclusiveMinimum: 0` becomes `minimum: 1`); otherwise added to the description |
+| a string `const` | a one-value `enum` |
+| an `enum` whose values are not all non-empty strings | added to the description (the `type` stays) |
+| any other field Gemini does not have, such as `multipleOf` (from `@IsDivisibleBy`), `uniqueItems`, `examples`, `deprecated`, `readOnly`, `contains`, `patternProperties`, `propertyNames`, or a `const` that is not a string | added to the description |
+
+"Added to the description" means the keyword and its value are appended to the property's description as `{keyword: value}`, so the model still reads the rule. `oneOf`, `allOf` and `not` are sent as they are: the API accepts them, although its documentation does not list them. The API checks these fields before the request reaches a model, so the result was the same on every model tried (Gemini 2.5 Flash, 2.5 Pro and 3.8 Flash); whether a model follows `oneOf`, `allOf` or `not` is up to the model.
 
 Gemini does not need `forStructuredOutput`, so the Gemini functions do not take it.
 
@@ -732,6 +736,7 @@ Warnings go to `console.warn`, start with `[schema-forge]`, and are printed once
 | --- | --- |
 | `… from @ToolProp is kept; class-validator says …` | An explicit option and a class-validator rule disagree. The explicit option is used ([5.1](#51-which-source-wins)). |
 | `class-validator rule "…" has no JSON Schema equivalent` | The rule is not in the schema ([5.4](#54-rules-the-schema-cannot-express)). |
+| `… has no @ToolMeta name, so the tool or response format has an empty name …` | A `classTo…Tool` or response-format function ran on a class without `@ToolMeta({ name })`. OpenAI, Anthropic and Gemini reject an empty name, so add `@ToolMeta`, or set the name before sending the tool. |
 
 ## 9. Migrating from 2.x
 
@@ -765,9 +770,10 @@ This section is for contributors and for readers who want to know why the rules 
 │ (3) read Root's stored properties                                        │
 │ (4) look for properties another copy of the package declared             │
 │     -> problem                                                           │
-│ (5) for each property holding a class: build that class's schema         │
+│ (5) for each property holding a class: build that class's schema,        │
+│     with the updates and overrides whose path goes into it               │
 │     ((3) to (7) again; a class already on the path -> recursion problem) │
-│ (6) apply recorded nested updates, then propertyOverrides                │
+│ (6) apply the other recorded updates, then the other propertyOverrides   │
 │ (7) per property: add class-validator rules (explicit wins), nullable,   │
 │     check the type -> problems                                           │
 │ (8) problems? throw one error : apply options and return                 │
@@ -777,7 +783,7 @@ This section is for contributors and for readers who want to know why the rules 
 - **Why the checks wait until (3).** A property's class-validator decorators may run after `@ToolProp` (decorators run bottom-up), and a class may be decorated by a shared library without ever being used as a tool. Checking at generation time makes the result independent of decorator order, and means a class is only checked when a schema reaches it.
 - **Precedence (7).** `@ToolProp` records which options you set yourself. Inferred rules fill the gaps; a conflicting inferred rule only produces a warning.
 - **Nested classes (5).** `@ToolProp` stores a reference to a property's class, not its schema. The nested schema is built for each root, so a change to the nested class is always seen, and the path from the root is known for error messages and recursion checks.
-- **Updates into nested classes (6).** `updateSchemaProperty(Outer, 'address.city', …)` is recorded on `Outer` and applied after `Address`'s schema is built, so `Address` itself does not change. A subclass of `Outer` gets the update too, if its `address` property still holds the same class.
+- **Updates into nested classes (5).** `updateSchemaProperty(Outer, 'address.city', …)` is recorded on `Outer`. When a schema of `Outer` is generated, the update is handed to the build of `Address`'s schema and applied there before `Address`'s properties are checked, exactly like an update of `Address`'s own `city`; a `propertyOverrides` entry such as `'address.city'` goes the same way, at any depth. So an update or override can give a nested property the type it lacks, and `Address` itself does not change. A subclass of `Outer` gets the update too, if its `address` property still holds the same class. Step (6) applies the rest: updates of the class's own properties, and paths into a property whose class is not built.
 - **Another installed copy (4).** Metadata is stored under JavaScript symbols created by each copy of the package (`Symbol('jsonSchema')`). Two copies create two different symbols with the same name, so one copy cannot read the other's properties. Schema Forge looks for a symbol with the same name that is not its own, and reports the properties only that copy declared, instead of leaving them out silently.
 
 ## 11. Limitations

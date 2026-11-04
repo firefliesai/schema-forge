@@ -176,16 +176,23 @@ export function applyPropertyUpdates(
     const enumValues = extractEnumValues(updates.enum);
     const enumType = enumSchemaType(enumValues);
 
-    const type = Reflect.getMetadata('design:type', target.prototype, current);
+    // An array keeps being an array, as for a path into a nested property: the enum applies to
+    // its items, which keep accepting null if they did. The schema says it is an array; or, when
+    // the schema has no type yet, the design type does. The design type alone is not enough:
+    // under `strictNullChecks`, `string[] | null` has design type Object.
+    const value = valueSchemaOf(base);
+    const isArray =
+      typeIncludes(value?.type, 'array') ||
+      (value?.type === undefined &&
+        Reflect.getMetadata('design:type', target.prototype, current) === Array);
 
-    if (type === Array) {
+    if (isArray) {
+      const items: Record<string, any> = { type: enumType, enum: enumValues };
+      keepNullable(items, value?.items, {});
       properties[current] = {
         ...base,
         type: 'array',
-        items: {
-          type: enumType,
-          enum: enumValues,
-        },
+        items,
       };
     } else {
       properties[current] = {
@@ -432,7 +439,8 @@ export function ToolMeta(
  * Updates a property in a schema with new options, permanently.
  *
  * A path into the properties of a nested class (`'address.city'`) is recorded and applied each
- * time a schema of `target` is generated, after the nested class's schema is built.
+ * time a schema of `target` is generated, while the nested class's schema is built for it and
+ * before its properties are checked; the nested class itself does not change.
  */
 export function updateSchemaProperty<T extends object>(
   target: new (...args: any[]) => T,
@@ -521,7 +529,8 @@ export function addPropertyTo(
  * Adds a new property to a schema, permanently.
  *
  * A path into the properties of a nested class (`'address.zip'`) is recorded and applied each
- * time a schema of `target` is generated, after the nested class's schema is built.
+ * time a schema of `target` is generated, while the nested class's schema is built for it and
+ * before its properties are checked; the nested class itself does not change.
  */
 export function addSchemaProperty<T extends object>(
   target: new (...args: any[]) => T,

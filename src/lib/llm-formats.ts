@@ -23,12 +23,54 @@ import {
   SchemaType,
   Type,
 } from './types';
+import { noteInDescription, warnOnce } from './resolve';
 import { prepareForOpenAIStructuredOutput } from './utils';
 
 /**
+ * The fields Gemini's `Schema` accepts, checked against the live API (November 2026, tools and
+ * response schemas alike). Any other field is rejected with a 400 (`Unknown name "uniqueItems"
+ * … Cannot find field`), including `const`, `examples`, `deprecated`, `readOnly`,
+ * `exclusiveMinimum` / `exclusiveMaximum`, `multipleOf`, `uniqueItems`, `contains`,
+ * `patternProperties`, `propertyNames` and `additionalProperties`. The API parses the request
+ * before any model sees it, so the result was the same on Gemini 2.5 Flash, 2.5 Pro and 3.8 Flash;
+ * `oneOf`, `allOf` and `not` are accepted although the documentation does not list them.
+ */
+const GEMINI_SCHEMA_KEYS = new Set([
+  'type',
+  'format',
+  'title',
+  'description',
+  'nullable',
+  'enum',
+  'items',
+  'properties',
+  'required',
+  'propertyOrdering',
+  'minItems',
+  'maxItems',
+  'minProperties',
+  'maxProperties',
+  'minLength',
+  'maxLength',
+  'pattern',
+  'minimum',
+  'maximum',
+  'example',
+  'default',
+  'anyOf',
+  'oneOf',
+  'allOf',
+  'not',
+]);
+
+const GEMINI_COMPOSITION_KEYS = ['anyOf', 'oneOf', 'allOf'];
+
+/**
  * Gemini takes an OpenAPI-style schema: `nullable: true` instead of a `"null"` type or a
- * `{ type: "null" }` branch, and no `additionalProperties`. Only schema keywords are rewritten;
- * values such as `default`, `examples`, `const` and `enum` are copied unchanged.
+ * `{ type: "null" }` branch, a single `type`, string `enum` values only, and only the fields in
+ * `GEMINI_SCHEMA_KEYS`. A keyword Gemini would reject is not lost: it is added to the description
+ * as `{keyword: value}`, as the strict modes do (`additionalProperties` is dropped). Values such as
+ * `default`, `example`, `const` and `enum` are never walked as schemas.
  */
 function toGeminiSchema(node: any): any {
   if (!node || typeof node !== 'object' || Array.isArray(node)) return node;
@@ -36,8 +78,8 @@ function toGeminiSchema(node: any): any {
   for (const [key, value] of Object.entries(node)) {
     if (key === 'additionalProperties') continue;
     if (key === 'properties') out[key] = toGeminiProperties(value);
-    else if (key === 'items') out[key] = toGeminiSchema(value);
-    else if (['anyOf', 'oneOf', 'allOf'].includes(key) && Array.isArray(value)) {
+    else if (key === 'items' || key === 'not') out[key] = toGeminiSchema(value);
+    else if (GEMINI_COMPOSITION_KEYS.includes(key) && Array.isArray(value)) {
       out[key] = value.map(toGeminiSchema);
     } else out[key] = value;
   }
@@ -52,10 +94,12 @@ function toGeminiSchema(node: any): any {
     } else {
       // Gemini's `type` is a single value: one typed branch per type, each with its enum values
       const values: unknown[] | undefined = out.enum;
-      out.anyOf = types.map((type: string) => ({
+      const typed = types.map((type: string) => ({
         type,
         ...(values && { enum: values.filter((value) => matchesJsonType(value, type)) }),
       }));
+      // An `anyOf` already there still applies: its branches are narrowed to those types
+      out.anyOf = Array.isArray(out.anyOf) ? narrowToTypes(out.anyOf, typed) : typed;
       delete out.type;
       delete out.enum;
     }
@@ -67,7 +111,11 @@ function toGeminiSchema(node: any): any {
     out.nullable = true;
     if (rest.length === 1) {
       delete out[key];
-      Object.assign(out, rest[0], { nullable: true });
+      const { description, ...value } = rest[0];
+      Object.assign(out, value, { nullable: true });
+      if (description) {
+        out.description = out.description ? `${out.description}\n\n${description}` : description;
+      }
     } else {
       out[key] = rest;
     }
@@ -76,17 +124,52 @@ function toGeminiSchema(node: any): any {
 }
 
 /**
- * Keywords Gemini rejects with a 400: `exclusiveMinimum` / `exclusiveMaximum` (an integer gets the
- * equivalent `minimum` / `maximum`; for other numbers the bound is dropped), and an `enum` whose
- * values are not all strings (dropped; the `type` stays). Applied to a node and to the branches
- * created for it.
+ * The branches of an `anyOf` that also has a `type` array, each narrowed to the types (and enum
+ * values) the array allows: a branch of another type is left out, and a branch with no `type` is
+ * split into one branch per type. If no branch is left (the schema accepts nothing), the branches
+ * are kept as they were.
+ */
+function narrowToTypes(branches: any[], typed: { type: string; enum?: unknown[] }[]): any[] {
+  const intersect = (a: unknown[] | undefined, b: unknown[] | undefined) =>
+    a && b ? a.filter((value) => b.includes(value)) : (a ?? b);
+  const narrowed = branches.flatMap((branch: any) => {
+    if (!branch || typeof branch !== 'object') return [];
+    const matches =
+      branch.type === undefined
+        ? typed
+        : typed.filter(
+            (entry) =>
+              entry.type === branch.type || (entry.type === 'number' && branch.type === 'integer'),
+          );
+    return matches.map((entry) => {
+      const values = intersect(
+        branch.enum,
+        entry.enum?.filter((value) => matchesJsonType(value, branch.type ?? entry.type)),
+      );
+      return { ...branch, type: branch.type ?? entry.type, ...(values && { enum: values }) };
+    });
+  });
+  return narrowed.length > 0 ? narrowed : branches;
+}
+
+/**
+ * Keywords Gemini rejects with a 400, on a node and on the branches created for it:
+ * - `exclusiveMinimum` / `exclusiveMaximum`: an integer gets the equivalent `minimum` / `maximum`;
+ *   for other numbers the bound goes into the description.
+ * - `const`: a string becomes a one-value `enum`; any other value goes into the description.
+ * - `enum`: Gemini accepts only non-empty strings (`enum[0]: cannot be empty`), so an enum with
+ *   other values goes into the description, and the `type` stays.
+ * - Every other field not in `GEMINI_SCHEMA_KEYS` goes into the description.
  */
 function toGeminiKeywords(node: any): any {
+  const moved: [string, unknown][] = [];
   const integer = node.type === 'integer';
   if (typeof node.exclusiveMinimum === 'number') {
     if (integer) {
       const bound = Math.floor(node.exclusiveMinimum) + 1;
       node.minimum = typeof node.minimum === 'number' ? Math.max(node.minimum, bound) : bound;
+    } else {
+      moved.push(['exclusiveMinimum', node.exclusiveMinimum]);
     }
     delete node.exclusiveMinimum;
   }
@@ -94,13 +177,34 @@ function toGeminiKeywords(node: any): any {
     if (integer) {
       const bound = Math.ceil(node.exclusiveMaximum) - 1;
       node.maximum = typeof node.maximum === 'number' ? Math.min(node.maximum, bound) : bound;
+    } else {
+      moved.push(['exclusiveMaximum', node.exclusiveMaximum]);
     }
     delete node.exclusiveMaximum;
   }
-  if (Array.isArray(node.enum) && !node.enum.every((value: unknown) => typeof value === 'string')) {
+  if (node.const !== undefined) {
+    if (typeof node.const === 'string' && node.enum === undefined) {
+      node.enum = [node.const];
+      if (node.type === undefined) node.type = 'string';
+    } else {
+      moved.push(['const', node.const]);
+    }
+    delete node.const;
+  }
+  if (
+    Array.isArray(node.enum) &&
+    !node.enum.every((value: unknown) => typeof value === 'string' && value !== '')
+  ) {
+    moved.push(['enum', node.enum]);
     delete node.enum;
   }
-  for (const key of ['anyOf', 'oneOf']) {
+  for (const key of Object.keys(node)) {
+    if (GEMINI_SCHEMA_KEYS.has(key)) continue;
+    moved.push([key, node[key]]);
+    delete node[key];
+  }
+  noteInDescription(node, moved);
+  for (const key of GEMINI_COMPOSITION_KEYS) {
     if (Array.isArray(node[key])) {
       node[key] = node[key].map((branch: any) =>
         branch && typeof branch === 'object' ? toGeminiKeywords(branch) : branch,
@@ -118,6 +222,22 @@ const isNullBranch = (branch: any): boolean =>
   typeof branch === 'object' &&
   branch.type === 'null' &&
   Object.keys(branch).length === 1;
+
+/**
+ * The name a tool or a response format gets: the `name` of `@ToolMeta`, or `''` without one.
+ * OpenAI, Anthropic and Gemini all reject an empty name with a 400, so it warns; it does not
+ * throw, because a caller may only use the parameters, or set the name afterwards.
+ */
+function toolNameOf(target: { name: string }, classOptions: { name?: string }): string {
+  if (!classOptions.name) {
+    warnOnce(
+      `${target.name || 'anonymous class'} has no @ToolMeta name, so the tool or response ` +
+        'format has an empty name, which OpenAI, Anthropic and Gemini reject. Add ' +
+        "@ToolMeta({ name: '…' }) to the class, or set the name before sending it.",
+    );
+  }
+  return classOptions.name || '';
+}
 
 function toGeminiProperties(properties: any): Record<string, any> {
   return Object.fromEntries(
@@ -434,7 +554,7 @@ export function classToOpenAITool<T extends object>(
   return jsonSchemaToOpenAITool(
     jsonSchema,
     {
-      name: classOptions.name || '',
+      name: toolNameOf(target, classOptions),
       description: classOptions.description,
     },
     {
@@ -485,7 +605,7 @@ export function classToOpenAIResponseApiTool<T extends object>(
   return jsonSchemaToOpenAIResponseApiTool(
     jsonSchema,
     {
-      name: classOptions.name || '',
+      name: toolNameOf(target, classOptions),
       description: classOptions.description,
     },
     {
@@ -535,7 +655,7 @@ export function classToOpenAIResponseFormatJsonSchema<T extends object>(
   return jsonSchemaToOpenAIResponseFormat(
     jsonSchema,
     {
-      name: classOptions.name || '',
+      name: toolNameOf(target, classOptions),
       description: classOptions.description,
     },
     {
@@ -593,7 +713,7 @@ export function classToOpenAIResponseApiTextSchema<T extends object>(
   return jsonSchemaToOpenAIResponseApiTextSchema(
     jsonSchema,
     {
-      name: classOptions.name || '',
+      name: toolNameOf(target, classOptions),
       description: classOptions.description,
     },
     {
@@ -635,7 +755,7 @@ export function classToGeminiTool<T extends object>(
 
   // Use the helper function to convert JSON schema to Gemini tool format
   return jsonSchemaToGeminiTool(jsonSchema, {
-    name: classOptions.name || '',
+    name: toolNameOf(target, classOptions),
     description: classOptions.description,
   });
 }
@@ -658,7 +778,7 @@ export function classToGeminiOldTool<T extends object>(
 
   // Use the helper function to convert JSON schema to Gemini tool format
   return jsonSchemaToGeminiOldTool(jsonSchema, {
-    name: classOptions.name || '',
+    name: toolNameOf(target, classOptions),
     description: classOptions.description,
   });
 }
@@ -698,7 +818,7 @@ export function classToAnthropicTool<T extends object>(
 
   // Use the helper function to convert JSON schema to Anthropic tool format
   return jsonSchemaToAnthropicTool(jsonSchema, {
-    name: classOptions.name || '',
+    name: toolNameOf(target, classOptions),
     description: classOptions.description,
   });
 }
