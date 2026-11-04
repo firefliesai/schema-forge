@@ -242,6 +242,43 @@ export function makeNullable(schema: Record<string, any>): void {
 }
 
 /**
+ * The part of a schema that describes its value, seen through the null wrapper `makeNullable`
+ * may add: for a schema with no `type` of its own whose `anyOf` (or `oneOf`) is one value branch
+ * plus `{ type: "null" }` branches, that value branch; otherwise the schema itself. It is returned
+ * by reference, so a caller can read or extend its `items` and `properties` in place.
+ */
+export function valueSchemaOf(schema: any): any {
+  return nullWrapperOf(schema)?.value ?? schema;
+}
+
+/**
+ * A copy of a schema without the null wrapper `valueSchemaOf` sees through: the value branch's
+ * keys merged with the keys kept outside it (the annotations). For an update that replaces the
+ * value of a schema that may already accept null; the caller puts `null` back when it should
+ * stay accepted.
+ */
+export function withoutNullWrapper(schema: Record<string, any>): Record<string, any> {
+  const wrapper = nullWrapperOf(schema);
+  if (!wrapper) return { ...schema };
+  const { [wrapper.key]: _wrapper, ...outside } = schema;
+  return { ...outside, ...wrapper.value };
+}
+
+/** The `anyOf` / `oneOf` key holding a null wrapper and its value branch, if there is one */
+function nullWrapperOf(schema: any): { key: string; value: Record<string, any> } | undefined {
+  if (!schema || typeof schema !== 'object' || schema.type !== undefined) return undefined;
+  for (const key of ['anyOf', 'oneOf']) {
+    const branches = schema[key];
+    if (!Array.isArray(branches) || !branches.some(isNullBranch)) continue;
+    const values = branches.filter((branch: any) => !isNullBranch(branch));
+    if (values.length === 1 && values[0] && typeof values[0] === 'object') {
+      return { key, value: values[0] };
+    }
+  }
+  return undefined;
+}
+
+/**
  * Reverses `makeNullable` (for `nullable: false` on a property whose schema already allows null,
  * such as a property of a nested class).
  */

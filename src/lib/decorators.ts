@@ -14,6 +14,8 @@ import {
   removeNullable,
   PropertySource,
   typeIncludes,
+  valueSchemaOf,
+  withoutNullWrapper,
 } from './resolve';
 import {
   JSON_SCHEMA_METADATA_KEY,
@@ -30,6 +32,32 @@ import {
   isDateType,
   normalizeItemsType,
 } from './utils';
+
+/** Update keys that replace what a property's value is, rather than annotate or bound it */
+const VALUE_KEYS = ['type', 'enum', 'const', 'anyOf', 'oneOf', 'allOf', 'items'] as const;
+
+/**
+ * The properties map a nested property path continues in, seen through a null wrapper (a
+ * nullable property's schema may hold its value in an `anyOf` branch, see `valueSchemaOf`): an
+ * array's item properties or an object's own, created when missing. For a schema that is neither,
+ * `undefined`, unless `asObject` is set, which treats it as an object.
+ */
+function nestedPropertiesOf(
+  schema: Record<string, any>,
+  asObject: boolean,
+): Record<string, any> | undefined {
+  const value = valueSchemaOf(schema);
+  if (typeIncludes(value.type, 'array')) {
+    const items = valueSchemaOf(value.items);
+    if (!items.properties) items.properties = {};
+    return items.properties;
+  }
+  if (asObject || typeIncludes(value.type, 'object')) {
+    if (!value.properties) value.properties = {};
+    return value.properties;
+  }
+  return undefined;
+}
 
 /**
  * Applies property updates for a given property path
@@ -73,19 +101,7 @@ export function applyPropertyUpdates(
       // The properties map the rest of the path starts in: an array's item properties, or an
       // object's properties. Everything below is shared, so both kinds of parent treat the
       // target the same way.
-      const targetProp = properties[current];
-      let container: any;
-      if (typeIncludes(targetProp.type, 'array')) {
-        if (!targetProp.items.properties) {
-          targetProp.items.properties = {};
-        }
-        container = targetProp.items.properties;
-      } else if (typeIncludes(targetProp.type, 'object')) {
-        if (!targetProp.properties) {
-          targetProp.properties = {};
-        }
-        container = targetProp.properties;
-      }
+      let container = nestedPropertiesOf(properties[current], false);
 
       if (container) {
         for (let i = 0; i < rest.length - 1; i++) {
@@ -93,62 +109,41 @@ export function applyPropertyUpdates(
           if (!container[path]) {
             container[path] = { type: 'object', properties: {} };
           }
-          // If this is an array type property
-          if (typeIncludes(container[path].type, 'array')) {
-            if (!container[path].items.properties) {
-              container[path].items.properties = {};
-            }
-            container = container[path].items.properties;
-          } else {
-            // Object type property
-            if (!container[path].properties) {
-              container[path].properties = {};
-            }
-            container = container[path].properties;
-          }
+          container = nestedPropertiesOf(container[path], true)!;
         }
 
         // Get the last path segment
         const lastPath = rest[rest.length - 1];
+        const previous = container[lastPath];
+        const previousValue = valueSchemaOf(previous);
 
         // An array target keeps being an array: the enum applies to its items, which keep
         // accepting null if they did, while `nullable` in the update is about the array itself
-        if (container[lastPath] && typeIncludes(container[lastPath].type, 'array')) {
-          const array = container[lastPath];
-          const previousItems = array.items;
-          array.items = {
+        if (previousValue && typeIncludes(previousValue.type, 'array')) {
+          const previousItems = previousValue.items;
+          previousValue.items = {
             type: enumType,
             enum: enumValues,
           };
-          keepNullable(array.items, previousItems, {});
-          keepNullable(array, array, { nullable: updates.nullable });
+          keepNullable(previousValue.items, previousItems, {});
+          keepNullable(previous, previous, { nullable: updates.nullable });
         } else {
-          // Direct enum property
-          const previous = container[lastPath];
+          // Direct enum property: the enum replaces the value, so it starts from the schema
+          // without its null wrapper, and null is put back when the property accepted it
+          const base = previous ? withoutNullWrapper(previous) : {};
           container[lastPath] = {
-            ...(container[lastPath] || {}),
+            ...base,
             type: enumType,
             enum: enumValues,
-            description: container[lastPath]?.description || currentMetadata.description,
+            description: base.description || currentMetadata.description,
           };
           keepNullable(container[lastPath], previous, updates);
         }
       }
     } else {
-      // Update general nested path
-      if (typeIncludes(properties[current].type, 'array')) {
-        if (!properties[current].items.properties) {
-          properties[current].items.properties = {};
-        }
-        applyPropertyUpdates(properties[current].items.properties, rest, updates, target);
-      }
-      // Handle nested object properties
-      else if (typeIncludes(properties[current].type, 'object')) {
-        if (!properties[current].properties) {
-          properties[current].properties = {};
-        }
-        applyPropertyUpdates(properties[current].properties, rest, updates, target);
-      }
+      // Update general nested path: an array's item properties or an object's properties
+      const nested = nestedPropertiesOf(properties[current], false);
+      if (nested) applyPropertyUpdates(nested, rest, updates, target);
     }
     return;
   }
@@ -156,6 +151,13 @@ export function applyPropertyUpdates(
   // Handle non-nested path
   const currentProperty = properties[current] || {};
   if (sources) markExplicit(sources, current, updates as Record<string, unknown>);
+  // A resolved schema (a nested class's property: no recorded source) may hold its value in a
+  // null wrapper. An update that replaces the value starts from the schema without it; null is
+  // put back below when the property accepted it.
+  const base =
+    !sources?.[current] && VALUE_KEYS.some((key) => updates[key] !== undefined)
+      ? withoutNullWrapper(currentProperty)
+      : currentProperty;
 
   if (updates.enum) {
     const enumValues = extractEnumValues(updates.enum);
@@ -165,7 +167,7 @@ export function applyPropertyUpdates(
 
     if (type === Array) {
       properties[current] = {
-        ...currentProperty,
+        ...base,
         type: 'array',
         items: {
           type: enumType,
@@ -174,7 +176,7 @@ export function applyPropertyUpdates(
       };
     } else {
       properties[current] = {
-        ...currentProperty,
+        ...base,
         type: enumType,
         enum: enumValues,
       };
@@ -193,7 +195,7 @@ export function applyPropertyUpdates(
       normalizedUpdates.items = normalizeItemsType(normalizedUpdates.items);
     }
     properties[current] = {
-      ...currentProperty,
+      ...base,
       ...normalizedUpdates,
     };
   }
@@ -462,20 +464,16 @@ export function addPropertyTo(
   let current = properties;
   for (let i = 0; i < paths.length - 1; i++) {
     const path = paths[i];
-    if (typeIncludes(current[path]?.type, 'array')) {
-      if (!current[path].items.properties) {
-        current[path].items.properties = {};
-      }
-      current = current[path].items.properties;
-    } else {
-      if (!current[path]?.properties) {
-        current[path] = {
-          type: 'object',
-          properties: {},
-        };
-      }
-      current = current[path].properties;
+    // Seen through a null wrapper; anything that is neither an array nor an object with
+    // properties is replaced by a new object
+    const value = valueSchemaOf(current[path]);
+    if (!value || (!typeIncludes(value.type, 'array') && !value.properties)) {
+      current[path] = {
+        type: 'object',
+        properties: {},
+      };
     }
+    current = nestedPropertiesOf(current[path], true)!;
   }
 
   const propertyKey = paths[paths.length - 1];
