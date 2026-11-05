@@ -303,6 +303,7 @@ Schema Forge reads each property's design type. For some TypeScript types that i
 | `tags!: string[]` | `Array` | error: an array needs an item type | `items: { type: 'string' }` |
 | `addresses!: Address[]` | `Array` | error: an array needs an item type | `items: { type: Address }` |
 | `note?: string \| null` | `Object` | error: cannot determine the type | `type: 'string', nullable: true` |
+| `place?: Place \| null` | `Object` | error: cannot determine the type | `type: Place, nullable: true` (a class as `type` declares the nested class) |
 | `id!: string \| number` | `Object` | error: cannot determine the type | `anyOf: [{ type: 'string' }, { type: 'number' }]` |
 | `meta!: Record<string, string>` | `Object` | error: cannot determine the type | `type: 'object'` |
 
@@ -707,7 +708,7 @@ These functions only reshape the schema. They do not run the checks of [section 
 
 ### 8.1 When Schema Forge checks
 
-Schema Forge checks when a schema is generated: when you call `classToJsonSchema` or a `classTo…` function. It checks the class you pass and, recursively, the classes nested in it. Defining or decorating a class never throws. So a class that has `@ToolProp` but is never turned into a schema (for example a database model whose shared field decorator adds `@ToolProp` to every field) cannot break your program when it loads.
+Schema Forge checks when a schema is generated: when you call `classToJsonSchema` or a `classTo…` function. It checks the class you pass and, recursively, the classes nested in it. Defining or decorating a class never throws; `updateSchemaProperty` and `addSchemaProperty` only check their own arguments when called (a property path with `__proto__`, `constructor` or `prototype`, a class named in `type` or `items.type`). So a class that has `@ToolProp` but is never turned into a schema (for example a database model whose shared field decorator adds `@ToolProp` to every field) cannot break your program when it loads.
 
 To find problems early, generate every tool's schema when your application starts, or in a test.
 

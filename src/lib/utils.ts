@@ -10,6 +10,21 @@ export function cloneMetadata(metadata: any): any {
 }
 
 /**
+ * A deep copy of an update's options that keeps functions (`items: { type: String }`, an enum
+ * object): applying an update shares its objects with the generated schema, which later steps
+ * change in place (`additionalProperties: false`), so each generation starts from a copy.
+ */
+export function cloneUpdate<T>(value: T): T {
+  if (Array.isArray(value)) return value.map(cloneUpdate) as unknown as T;
+  if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [key, cloneUpdate(entry)]),
+    ) as T;
+  }
+  return value;
+}
+
+/**
  * Prepares a JSON Schema object for OpenAI structured output compatibility.
  *
  * This function:

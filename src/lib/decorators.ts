@@ -388,6 +388,11 @@ export function ToolProp(options: PropertyOptions = {}) {
     ) {
       finalOptions.type = 'string';
       if (!options.format) finalOptions.format = 'date-time';
+    } else if (isCustomClass(options.type)) {
+      // A class given as `type` declares the nested class, as the design type would; under
+      // `strictNullChecks` this is how `address: Address | null` (design type Object) gets one
+      nestedClass = options.type;
+      finalOptions.type = 'object';
     } else if (options.type) {
       // An explicit type wins over the design type
     } else if (hasComposition) {
@@ -400,7 +405,11 @@ export function ToolProp(options: PropertyOptions = {}) {
 
     currentProperties[propertyKey] = finalOptions;
     currentSources[propertyKey] = {
-      explicit: Object.keys(options).filter((key) => key !== 'description'),
+      // A class `type` names the nested class; it is not an explicit object type (which would
+      // let a reference back through it pass as a free-form object)
+      explicit: Object.keys(options).filter(
+        (key) => key !== 'description' && !(key === 'type' && isCustomClass(options.type)),
+      ),
       design,
       ...(nullable && { nullable: true }),
     };
