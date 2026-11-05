@@ -24,6 +24,7 @@ import {
   REQUIRED_PROPS_METADATA_KEY,
 } from './types';
 import {
+  assertNoClassInUpdate,
   assertSafePropertyPath,
   cloneMetadata,
   enumSchemaType,
@@ -449,6 +450,7 @@ export function updateSchemaProperty<T extends object>(
 ): void {
   const paths = (propertyPath as string).split('.');
   assertSafePropertyPath(paths);
+  assertNoClassInUpdate(updates, `updateSchemaProperty(${target.name}, '${paths.join('.')}')`);
   const nestedClass = nestedClassAt(target, paths);
   if (nestedClass) {
     deferUpdate(target, { kind: 'update', paths, updates, nestedClass });
@@ -542,6 +544,7 @@ export function addSchemaProperty<T extends object>(
   }
 
   assertSafePropertyPath(propertyPath.split('.'));
+  assertNoClassInUpdate(options, `addSchemaProperty(${target.name}, '${propertyPath}')`);
   const nestedClass = nestedClassAt(target, propertyPath.split('.'));
   if (nestedClass) {
     deferUpdate(target, { kind: 'add', path: propertyPath, options, nestedClass });

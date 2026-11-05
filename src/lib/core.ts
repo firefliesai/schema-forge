@@ -18,7 +18,12 @@ import {
   JsonSchemaOptions,
   REQUIRED_PROPS_METADATA_KEY,
 } from './types';
-import { cloneMetadata, isCustomClass, prepareForOpenAIStructuredOutput } from './utils';
+import {
+  assertNoClassInUpdate,
+  cloneMetadata,
+  isCustomClass,
+  prepareForOpenAIStructuredOutput,
+} from './utils';
 
 type ClassType = new (...args: any[]) => any;
 
@@ -299,7 +304,10 @@ export function classToJsonSchema<T extends object>(
   const problems: string[] = [];
   const overrides = Object.entries(
     (options?.propertyOverrides ?? {}) as Record<string, Record<string, any>>,
-  ).map(([path, updates]) => ({ paths: path.split('.'), updates }));
+  ).map(([path, updates]) => {
+    assertNoClassInUpdate(updates, `propertyOverrides['${path}']`);
+    return { paths: path.split('.'), updates };
+  });
   const schema = buildClassSchema(target, problems, '', [], overrides);
 
   if (problems.length > 0) {

@@ -157,6 +157,23 @@ export function assertSafePropertyPath(paths: readonly string[]): void {
 }
 
 /**
+ * Throws when an update (`updateSchemaProperty`, `addSchemaProperty`, a `propertyOverrides`
+ * entry) names a class in `type` or `items.type`. Only `@ToolProp` declares a nested class, and
+ * its schema is built from that declaration; a class an update names would be left in the schema
+ * unbuilt (it serializes to nothing), so the result would silently lose the property's shape.
+ */
+export function assertNoClassInUpdate(updates: any, where: string): void {
+  const named = [updates?.type, updates?.items?.type].find(isCustomClass);
+  if (!named) return;
+  throw new Error(
+    `schema-forge: ${where} names the class ${named.name || 'anonymous class'}, which an update ` +
+      'cannot add: only @ToolProp declares a nested class and builds its schema. Declare the ' +
+      `property with @ToolProp (items: { type: ${named.name || 'TheClass'} } for an array, or ` +
+      'the class as its TypeScript type), for example in a subclass.',
+  );
+}
+
+/**
  * Type inference helper
  */
 export function inferType<T>(_target: new (...args: any[]) => any): T {
