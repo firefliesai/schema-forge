@@ -280,6 +280,14 @@ function strictify(schema: any, rules: StrictRules, makeOptionalNullable: boolea
     result.additionalProperties = false;
     if (rules.allRequired) {
       const declaredRequired: string[] = result.required || [];
+      // An optional property whose schema is `false` can only be left out; listed in `required`
+      // it would make the object unsatisfiable. It is removed (`properties` is already a copy):
+      // `additionalProperties: false` still forbids the key, as the original schema did
+      for (const name of Object.keys(result.properties)) {
+        if (result.properties[name] === false && !declaredRequired.includes(name)) {
+          delete result.properties[name];
+        }
+      }
       const names = Object.keys(result.properties);
       if (makeOptionalNullable) {
         for (const name of names) {

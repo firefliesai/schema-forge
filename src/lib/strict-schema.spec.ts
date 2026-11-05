@@ -361,6 +361,24 @@ describe('both strict modes', () => {
     },
   );
 
+  it('OpenAI: removes an optional property whose schema is false instead of requiring it', () => {
+    const input = {
+      type: 'object',
+      properties: { a: { type: 'string' }, gone: false, kept: false },
+      required: ['kept'],
+    };
+    for (const handleOptionals of [false, true]) {
+      const result = prepareForOpenAIStructuredOutput(input, handleOptionals);
+      expect(result.properties).toStrictEqual({
+        a: handleOptionals ? { type: ['string', 'null'] } : { type: 'string' },
+        kept: false,
+      });
+      expect(result.required).toStrictEqual(['a', 'kept']);
+      expect(result.additionalProperties).toBe(false);
+    }
+    expect(input.properties.gone).toBe(false);
+  });
+
   it('closes the objects in a tuple form of items', () => {
     const result = prepareForAnthropicStrictTool({
       type: 'object',
