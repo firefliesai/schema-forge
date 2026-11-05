@@ -1,1083 +1,941 @@
 # Schema Forge
 
 [![npm version](https://img.shields.io/npm/v/@firefliesai/schema-forge.svg)](https://www.npmjs.com/package/@firefliesai/schema-forge)
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/license/Apache-2.0)
 
-Schema Forge is a powerful TypeScript library that transforms your TypeScript classes into JSON Schema definitions, with special support for LLM (Large Language Model) function calling formats including OpenAI, Anthropic Claude, and Google Gemini. It also provides direct converters to transform your existing JSON Schemas into LLM-compatible formats without requiring TypeScript classes.
+Schema Forge turns a TypeScript class into a [JSON Schema](https://json-schema.org/understanding-json-schema/reference). You mark the class's properties with decorators. Schema Forge then gives you either the plain JSON Schema, or a ready-made tool definition for the OpenAI, Anthropic (Claude) or Google Gemini APIs. A large language model (LLM) reads that tool definition to know which arguments it may send.
 
-- [Schema Forge](#schema-forge)
-  - [Features](#features)
-  - [Who Should Use This Library?](#who-should-use-this-library)
-    - [Ideal Use Cases](#ideal-use-cases)
-    - [Alternative Approaches](#alternative-approaches)
-  - [Installation](#installation)
-    - [Required Dependency: reflect-metadata](#required-dependency-reflect-metadata)
-    - [TypeScript Configuration](#typescript-configuration)
-  - [Quick Start](#quick-start)
-    - [Define a Class with Decorators](#define-a-class-with-decorators)
-    - [Generate JSON Schema](#generate-json-schema)
-    - [Generate LLM Function Definitions](#generate-llm-function-definitions)
-      - [OpenAI](#openai)
-      - [Anthropic Claude](#anthropic-claude)
-      - [Google Gemini](#google-gemini)
-  - [Advanced Usage](#advanced-usage)
-    - [Structured Output Formatting](#structured-output-formatting)
-    - [Property Overrides](#property-overrides)
-    - [Nested Objects and Arrays](#nested-objects-and-arrays)
-    - [When to Specify Types Explicitly](#when-to-specify-types-explicitly)
-    - [Class-Validator Integration](#class-validator-integration)
-    - [Using TypeScript Enums](#using-typescript-enums)
-    - [Dynamic Schema Updates](#dynamic-schema-updates)
-    - [Using Direct JSON Schema Converters](#using-direct-json-schema-converters)
-    - [Converting Between LLM Formats](#converting-between-llm-formats)
-    - [Common Options Pattern](#common-options-pattern)
-  - [API Reference](#api-reference)
-    - [Decorators](#decorators)
-      - [`@ToolMeta(options)`](#toolmetaoptions)
-      - [`@ToolProp(options)`](#toolpropoptions)
-    - [Core Functions](#core-functions)
-    - [LLM Format Functions](#llm-format-functions)
-      - [Class to LLM Format Converters](#class-to-llm-format-converters)
-      - [JSON Schema to LLM Format Converters](#json-schema-to-llm-format-converters)
-      - [LLM Format to JSON Schema Converters](#llm-format-to-json-schema-converters)
-    - [Schema Modification](#schema-modification)
-  - [License](#license)
-  - [Structured Output \& API Differences](#structured-output--api-differences)
-    - [Structured Output in Different LLM Providers](#structured-output-in-different-llm-providers)
-      - [OpenAI Structured Output](#openai-structured-output)
-      - [Google Gemini Structured Output](#google-gemini-structured-output)
-      - [Google API Options](#google-api-options)
-      - [Anthropic Claude](#anthropic-claude-1)
-    - [OpenAI Response API vs Chat Completions API](#openai-response-api-vs-chat-completions-api)
-  - [JSON Schema Support](#json-schema-support)
-    - [Supported JSON Schema Properties](#supported-json-schema-properties)
-      - [Current Limitations](#current-limitations)
-  - [Common Issues and Solutions](#common-issues-and-solutions)
-    - [Property has no initializer and is not definitely assigned](#property-has-no-initializer-and-is-not-definitely-assigned)
-    - [Optional Properties](#optional-properties)
-  - [Contributing](#contributing)
-
-
-## Features
-
-- 🔄 Convert TypeScript classes to JSON Schema with a simple decorator API
-- 🤖 Generate LLM-compatible function definitions for different AI platforms
-- 🔨 Direct JSON Schema to LLM format converters (use your own JSON Schema without TypeScript classes)
-- 🔄 Convert between LLM formats (e.g., OpenAI to Anthropic, Response API to Chat Completions)
-- 🔧 Customize schemas with property overrides and metadata
-- 🧩 Support for nested objects and complex property paths
-- 📝 Built-in structured output formatting for various LLM providers
-- 📦 TypeScript-first with full type safety and inference
-- 🪶 Lightweight with minimal dependencies (only requires reflect-metadata)
-- 🔗 Automatic class-validator integration: infers JSON Schema constraints from validation decorators when used
-
-## Who Should Use This Library?
-
-Schema Forge is designed for developers working with LLM function calling who want a type-safe approach to schema definition.
-
-### Ideal Use Cases
-
-- **You prefer class-based schema definitions**: If you like working with TypeScript classes and decorators for data structures
-- **You're already using decorator-based frameworks**: 
-  - Schema Forge integrates seamlessly with NestJS DTOs, allowing you to reuse existing class-based schemas
-  - If you're using TypeORM or similar ORMs with decorators, Schema Forge provides a consistent pattern across your codebase
-- **You want end-to-end type safety**: Schema Forge leverages TypeScript's type system to infer types automatically, and you can use the same class both for schema definition and for typing the parsed response from LLM function calls
-- **You need multi-LLM provider support**: When your application needs to work with multiple LLM providers and wants consistent schema handling
-
-### Alternative Approaches
-
-While Schema Forge works well for many scenarios (including within functions), you might consider alternatives if:
-
-- **You prefer purely functional schema definitions**: Libraries like [Zod](https://github.com/colinhacks/zod) or [TypeBox](https://github.com/sinclairzx81/typebox) offer a more functional approach to schema creation
-- **You prefer defining schemas without classes**: If you generally avoid class-based patterns in your codebase, functional schema builders might feel more natural
-- **Your project doesn't use decorators elsewhere**: If your codebase avoids decorators in general, introducing them just for LLM schemas might be inconsistent with your codebase style
-- **You need to build deeply nested schemas with dynamic property names at runtime**: Schema Forge works best with predefined class structures where nested property names are known at build time. For schemas where nested property paths are only known at runtime and need to be dynamically added, functional schema builders like [Zod](https://github.com/colinhacks/zod) or [TypeBox](https://github.com/sinclairzx81/typebox) might offer more flexibility
-  
-In summary, Schema Forge works well for projects of any size where class-based schema definitions are preferred, especially when you want to leverage the same classes for both schema generation and type safety in your response handling.
-
-## Installation
-
-```bash
-npm install @firefliesai/schema-forge
-```
-
-### Required Dependency: reflect-metadata
-
-Schema Forge relies on the `reflect-metadata` package to access metadata at runtime. This package is listed as a peer dependency:
-
-- **npm 7+** will automatically install peer dependencies
-- **npm <7**, **yarn**, and **pnpm** will not automatically install peer dependencies
-
-If you're not using npm 7+, you'll need to manually install reflect-metadata:
-
-```bash
-npm install reflect-metadata
-# or
-yarn add reflect-metadata
-# or
-pnpm add reflect-metadata
-```
-
-You must also import reflect-metadata **once** at the entry point of your application before using Schema Forge:
+The same class can also be the TypeScript type of those arguments, so you describe them in one place. What TypeScript does not keep at run time (whether a property is optional or nullable, the item type of an array, the allowed values of an enum) you add as an option ([4.1](#41-what-typescript-tells-schema-forge-and-what-you-must-add)).
 
 ```typescript
-// Import this once at the beginning of your app
 import 'reflect-metadata';
-
-// Option 1: Import individual exports (most common)
-import { ToolMeta, classToJsonSchema } from '@firefliesai/schema-forge';
-
-// Option 2: Import Schema object (alternative)
-// Schema object contains all exports (ToolMeta, ToolProp, classToJsonSchema, etc.)
-import { Schema } from '@firefliesai/schema-forge';
-```
-
-### TypeScript Configuration
-
-Make sure to enable experimental decorators in your `tsconfig.json`:
-
-```json
-{
-  "compilerOptions": {
-    "experimentalDecorators": true, // Required
-    "emitDecoratorMetadata": true,  // Required for schema-forge to extract type information
-    // ... other options
-  }
-}
-```
-
-## Quick Start
-
-> **Important**: The `@ToolMeta` decorator is required when using `classToOpenAITool`, `classToAnthropicTool`, or any LLM-specific converter function, but is optional when using just `classToJsonSchema`. If you only need to generate JSON Schema without LLM integration, you can omit the `@ToolMeta` decorator.
-
-> **Note on Type Specifications**: TypeScript's type system automatically infers most property types, but there are two cases where you must explicitly specify types in the `@ToolProp` decorator:
-> - **Arrays**: Use `items: { type: 'string' }` or `items: { type: CustomClass }` for arrays
-> - **Enums**: Use `enum: ['value1', 'value2']` or `enum: EnumType` for enumerated values
->
-> See examples below for details.
-
-### Define a Class with Decorators
-
-```typescript
-import { ToolMeta, ToolProp } from '@firefliesai/schema-forge';
+import {
+  ToolMeta,
+  ToolProp,
+  classToOpenAITool,
+} from '@firefliesai/schema-forge';
 
 @ToolMeta({
-  name: 'create_user',
-  description: 'Create a new user in the system'
+  name: 'get_weather',
+  description: 'Get the current weather for a city',
 })
-class UserInput {
-  @ToolProp({
-    description: 'The full name of the user'
-  })
-  name: string;
+class GetWeatherInput {
+  @ToolProp({ description: 'City name, for example "Paris"' })
+  city!: string;
 
   @ToolProp({
-    description: 'User email address',
+    description: 'Temperature unit',
+    enum: ['celsius', 'fahrenheit'],
+    isOptional: true,
   })
-  email: string;
-
-  @ToolProp({
-    description: 'User age in years',
-    isOptional: true
-  })
-  age?: number;
-
-  @ToolProp({
-    description: 'User role in the system',
-    enum: ['admin', 'user', 'guest']
-  })
-  role: string;
-}
-```
-
-### Generate JSON Schema
-
-```typescript
-import { classToJsonSchema } from '@firefliesai/schema-forge';
-
-// Basic usage
-const schema = classToJsonSchema(UserInput);
-console.log(schema);
-/*
-{
-  type: 'object',
-  properties: {
-    name: { type: 'string', description: 'The full name of the user' },
-    email: { type: 'string', description: 'User email address' },
-    age: { type: 'number', description: 'User age in years' },
-    role: { type: 'string', description: 'User role in the system', enum: ['admin', 'user', 'guest'] }
-  },
-  required: ['name', 'email', 'role']
-}
-*/
-
-// Using the JSON Schema with OpenAI directly
-const jsonSchema = classToJsonSchema(UserInput);
-const completion = await openai.chat.completions.create({
-  model: "gpt-4o-mini",
-  messages: [...messages],
-  tools: [
-    {
-      type: 'function',
-      function: {
-        name: "create_user", // You need to manually provide name
-        description: "Create a new user in the system", // You need to manually provide description
-        parameters: jsonSchema,
-      },
-    }
-  ]
-});
-
-// This is why classToOpenAITool() is more convenient as it handles the metadata for you
-```
-
-### Generate LLM Function Definitions
-
-#### OpenAI
-
-```typescript
-import { classToOpenAITool } from '@firefliesai/schema-forge';
-
-// Create an OpenAI tool definition
-const openaiTool = classToOpenAITool(UserInput);
-
-// Use in OpenAI API
-const completion = await openai.chat.completions.create({
-  model: "gpt-4o-mini",
-  messages: [...messages],
-  tools: [openaiTool],
-});
-
-// Parse the response directly to your TypeScript class type
-const data: UserInput = JSON.parse(completion.choices[0].message.tool_calls[0].function.arguments);
-```
-
-Schema Forge is also compatible with OpenAI's newest Response API:
-
-```typescript
-import OpenAI from "openai";
-const openai = new OpenAI();
-
-// Create a tool using Schema Forge
-const tool = classToOpenAIResponseApiTool(UserInput);
-
-// Use it with the Response API
-const response = await openai.responses.create({
-  model: "gpt-4o-mini",
-  input: "Create a user with name John Doe",
-  tools: [tool]
-});
-
-if (response.output[0].type === 'function_call') {
-  const data: UserInput = JSON.parse(response.output[0].arguments);
-  expect(data.name).toBe(findCapitalToolName);
-} 
-```
-
-#### Anthropic Claude
-
-```typescript
-import { classToAnthropicTool } from '@firefliesai/schema-forge';
-
-// Create an Anthropic tool definition
-const claudeTool = classToAnthropicTool(UserInput);
-
-// Use with Anthropic API
-const message = await anthropic.messages.create({
-  model: "claude-sonnet-4-6",
-  max_tokens: 1000,
-  messages: [...messages],
-  tools: [claudeTool],
-});
-
-if (message.content[0].type === 'tool_use') {
-  const data = message.content[0].input as UserInput;
-}
-```
-
-#### Google Gemini
-
-```typescript
-import { classToGeminiTool, classToGeminiOldTool, classToGeminiVertexTool } from '@firefliesai/schema-forge';
-
-/** Use with @google/genai */
-const geminiTool = classToGeminiTool(UserInput);
-const response = await geminiClient.models.generateContent({
-  model: 'gemini-2.0-flash-001',
-  contents: userMessage,
-  config: {
-    tools: [{ functionDeclarations: [geminiTool] }],
-  },
-});
-
-/** Use with Google @google/generative-ai */
-const geminiOldTool = classToGeminiOldTool(UserInput);
-const model = geminiOldClient.getGenerativeModel({
-  model: "gemini-2.0-flash-001",
-  tools: { functionDeclarations: [geminiOldTool] },
-});
-const result = await model.generateContent([userMessage]);
-
-/** Use with Google @google-cloud/vertexai */
-const geminiVertexTool = classToGeminiVertexTool(UserInput);
-const vertexModel = geminiOldClient.getGenerativeModel({
-  model: "gemini-2.0-flash-001",
-  tools: { functionDeclarations: [geminiVertexTool] },
-});
-const resp = await generativeModel.generateContent(prompt);
-```
-
-## Advanced Usage
-
-### Structured Output Formatting
-
-When you need structured output from LLMs, Schema Forge can prepare JSON schemas for this purpose:
-
-```typescript
-import { classToOpenAIResponseFormatJsonSchema } from '@firefliesai/schema-forge';
-
-/** chat completion api example **/
-// Create a response format for OpenAI structured output
-const responseFormat = classToOpenAIResponseFormatJsonSchema(UserOutput, {
-  forStructuredOutput: true,
-});
-
-// Use with OpenAI
-const result = await openai.chat.completions.create({
-  model: "gpt-4o-mini",
-  messages: [...messages],
-  response_format: responseFormat,
-});
-
-// Parse the response directly to your TypeScript class type
-const data: UserInput = JSON.parse(result.choices[0].message.content);
-
-/** new response api example **/
-const responseFormat = classToOpenAIResponseApiTextSchema (CapitalTool, {
-  forStructuredOutput: true,
-});
-
-const response = await openai.responses.create({
-  model: 'gpt-4o-mini',
-  /** it is equal to deprecated system role message */
-  instructions: 'You are a helpful assistant',
-  input: userMessage,
-  text: {
-    format: responseFormat,
-  },
-});
-
-if (
-  response.output[0].type === 'message' &&
-  response.output[0].content[0].type === 'output_text'
-) {
-  const data: CapitalTool = JSON.parse(response.output[0].content[0].text);
-  expect(data.name).toBeDefined();
-}
-```
-
-For Gemini:
-
-```typescript
-import { classToGeminiResponseSchema } from '@firefliesai/schema-forge';
-
-// Create a response schema for Gemini structured output
-const geminiSchema = classToGeminiResponseSchema(UserOutput);
-
-// Use with Gemini @google/generative-ai
-const model = genAI.getGenerativeModel({
-  model: "gemini-2.0-flash-001",
-  generationConfig: {
-    responseMimeType: "application/json",
-    responseSchema: geminiSchema,
-  },
-});
-```
-
-### Property Overrides
-
-You can temporarily override properties when generating schemas:
-
-```typescript
-import { classToJsonSchema } from '@firefliesai/schema-forge';
-
-const schema = classToJsonSchema(UserInput, {
-  propertyOverrides: {
-    'name': { description: 'Custom name description' },
-    'role.permissions': { description: 'Nested property override' }
-  }
-});
-```
-
-### Nested Objects and Arrays
-
-Schema Forge handles nested objects and arrays seamlessly:
-
-```typescript
-class Address {
-  @ToolProp({ description: 'Street address' })
-  street: string;
-
-  @ToolProp({ description: 'City name' })
-  city: string;
+  unit?: string;
 }
 
-class User {
-  @ToolProp({ description: 'User name' })
-  name: string;
-
-  @ToolProp({ description: 'User address' })
-  address: Address;
-
-  @ToolProp({ 
-    description: 'Previous addresses',
-    items: { type: Address }
-  })
-  previousAddresses: Address[];
-  
-  @ToolProp({
-    description: 'List of tags',
-    items: { type: 'string' }
-  })
-  tags: string[];
-  
-  @ToolProp({
-    description: 'List of scores',
-    items: { type: 'number' }
-  })
-  scores: number[];
-}
-```
-
-### When to Specify Types Explicitly
-
-Schema Forge uses TypeScript's reflection capabilities to automatically infer most property types, but there are two specific cases where you **must** provide explicit type information:
-
-1. **Arrays**: TypeScript's type reflection can determine that a property is an array, but it cannot identify the element type
-   ```typescript
-   // INCORRECT - will not properly identify element type
-   @ToolProp({ description: 'List of tags' })
-   tags: string[]; // TypeScript knows this is Array, but not that elements are strings
-   
-   // CORRECT - explicitly specify element type
-   @ToolProp({
-     description: 'List of tags',
-     items: { type: 'string' } // Required for primitive arrays
-   })
-   tags: string[];
-   
-   // CORRECT - for arrays of custom classes 
-   @ToolProp({
-     description: 'Previous addresses',
-     items: { type: Address } // Pass the class directly
-   })
-   previousAddresses: Address[];
-   ```
-
-2. **Enums**: TypeScript enums need explicit handling to generate proper schema enumeration values
-   ```typescript
-   enum UserRole { Admin = 'admin', User = 'user', Guest = 'guest' }
-   
-   // INCORRECT - will not include enum values in schema
-   @ToolProp({ description: 'User role' })
-   role: UserRole;
-   
-   // CORRECT - explicitly specify enum
-   @ToolProp({
-     description: 'User role',
-     enum: UserRole // Pass the enum directly
-   })
-   role: UserRole;
-   
-   // CORRECT - alternatively, provide values directly
-   @ToolProp({
-     description: 'User role',
-     enum: ['admin', 'user', 'guest']
-   })
-   role: string;
-   ```
-
-All other primitive types (string, number, boolean) and custom classes are automatically inferred without additional type specification.
-
-### Class-Validator Integration
-
-If you're using [class-validator](https://github.com/typestack/class-validator) decorators in your project, Schema Forge will automatically infer JSON Schema constraints from them. This means you can define validation rules once and have them reflected in your generated schemas.
-
-Supported class-validator decorators:
-
-| Decorator          | JSON Schema Property |
-| ------------------ | -------------------- |
-| `@ArrayMaxSize(n)` | `maxItems: n`        |
-| `@ArrayMinSize(n)` | `minItems: n`        |
-| `@ArrayUnique()`   | `uniqueItems: true`  |
-| `@ArrayNotEmpty()` | `minItems: 1`        |
-| `@Max(n)`          | `maximum: n`         |
-| `@Min(n)`          | `minimum: n`         |
-| `@IsInt()`         | `type: 'integer'`    |
-| `@MinLength(n)`    | `minLength: n`       |
-| `@MaxLength(n)`    | `maxLength: n`       |
-| `@IsUrl()`         | `format: 'uri'`      |
-| `@IsEmail()`       | `format: 'email'`    |
-| `@IsPositive()`    | `minimum: 1`         |
-
-Example:
-
-```typescript
-import { ToolProp } from '@firefliesai/schema-forge';
-import { Min, Max, IsInt, MinLength, MaxLength, IsUrl, IsPositive } from 'class-validator';
-
-class ProductInput {
-  @ToolProp({ description: 'Product name' })
-  @MinLength(2)
-  @MaxLength(100)
-  name: string;
-
-  @ToolProp({ description: 'Product price in cents' })
-  @IsInt()
-  @IsPositive()
-  price: number;
-
-  @ToolProp({ description: 'Stock quantity' })
-  @Min(0)
-  @Max(10000)
-  quantity: number;
-
-  @ToolProp({ description: 'Product page URL' })
-  @IsUrl()
-  url: string;
-}
-
-// The generated schema will include the constraints:
+const tool = classToOpenAITool(GetWeatherInput);
 // {
-//   properties: {
-//     name: { type: 'string', minLength: 2, maxLength: 100, ... },
-//     price: { type: 'integer', minimum: 1, ... },
-//     quantity: { type: 'number', minimum: 0, maximum: 10000, ... },
-//     url: { type: 'string', format: 'uri', ... }
+//   type: 'function',
+//   function: {
+//     name: 'get_weather',
+//     description: 'Get the current weather for a city',
+//     parameters: {
+//       type: 'object',
+//       properties: {
+//         city: {
+//           description: 'City name, for example "Paris"',
+//           type: 'string'
+//         },
+//         unit: {
+//           description: 'Temperature unit',
+//           enum: ['celsius', 'fahrenheit'],
+//           type: 'string'
+//         }
+//       },
+//       required: ['city']
+//     }
 //   }
 // }
 ```
 
-You can also specify these constraints directly in `@ToolProp` options without using class-validator:
+Pass `tool` in the `tools` list of an OpenAI request. When the model calls the tool, its arguments should match the schema; only strict mode guarantees it, and then for the schema that was sent ([3.3](#33-get-a-tool-for-an-llm-provider)).
 
-```typescript
-class ProductInput {
-  @ToolProp({ 
-    description: 'Product name',
-    minLength: 2,
-    maxLength: 100
-  })
-  name: string;
+## Contents
 
-  @ToolProp({ 
-    description: 'Product price in cents',
-    type: 'integer',
-    minimum: 1
-  })
-  price: number;
-}
+1. [What Schema Forge does](#1-what-schema-forge-does) (diagram 1: from a class to an LLM tool), and [why Schema Forge](#11-why-schema-forge)
+2. [Install and set up](#2-install-and-set-up)
+3. [Quick start](#3-quick-start)
+4. [Describing properties with `@ToolProp`](#4-describing-properties-with-toolprop)
+5. [Rules from class-validator](#5-rules-from-class-validator) (diagram 2: which source wins)
+6. [Schema options](#6-schema-options)
+7. [LLM provider formats](#7-llm-provider-formats)
+8. [Errors and warnings](#8-errors-and-warnings)
+9. [Migrating from 2.x](#9-migrating-from-2x)
+10. [How it works inside](#10-how-it-works-inside) (diagram 3: what happens when)
+11. [Limitations](#11-limitations)
+12. [API reference](#12-api-reference)
+13. [Troubleshooting](#13-troubleshooting)
+
+## 1. What Schema Forge does
+
+**Terms used in this README:**
+
+| Term | Meaning |
+| --- | --- |
+| Tool (the feature is called function calling) | A function your application offers to an LLM. You send the LLM the tool's name, a description and a JSON Schema of its arguments. The LLM answers with a call that has those arguments, and your code runs the function. |
+| Structured output | Asking the LLM to answer with JSON that matches a JSON Schema, instead of free text. |
+| Strict mode | A provider setting that makes the LLM's output follow the schema exactly. It accepts only part of JSON Schema and adds its own rules (see [OpenAI](#71-openai) and [Anthropic](#72-anthropic)). |
+| Decorator | A TypeScript annotation such as `@ToolProp()` written above a class or property. See [TypeScript decorators](https://www.typescriptlang.org/docs/handbook/decorators.html). |
+| Design type | The type TypeScript records for a property when `emitDecoratorMetadata` is on: `String`, `Number`, `Boolean`, `Date`, `Array`, a class, or `Object` when the type is something else (a union, an interface, …). |
+| class-validator | A separate library whose decorators (`@IsEmail()`, `@MaxLength(100)`, …) validate class instances. Schema Forge only reads these decorators to add rules to the schema; it never runs validation. |
+
+**Diagram 1: from a class to an LLM tool.** Steps ① and ② happen when the class is defined. Steps ③ and ④ happen when you call a Schema Forge function.
+
+```text
+ ① your class                      ② stored on the class
+┌───────────────────────────┐     ┌────────────────────────┐
+│ @ToolMeta (name, desc.)   │     │ Schema Forge metadata  │
+│ @ToolProp on properties   │ ──> │ (what you wrote, plus  │
+│ class-validator (optional)│     │ the design types)      │
+└───────────────────────────┘     └───────────┬────────────┘
+                                              │
+                                              v
+ ④ classTo<Provider>…()            ③ classToJsonSchema()
+┌───────────────────────────┐     ┌────────────────────────┐
+│ tool or response format   │     │ JSON Schema            │
+│ for OpenAI, Anthropic or  │ <── │ (checked; rules from   │
+│ Gemini                    │     │ class-validator added) │
+└───────────────────────────┘     └────────────────────────┘
 ```
 
-When both class-validator decorators and explicit `@ToolProp` options are present, the explicit options take precedence.
+| Step | What happens |
+| --- | --- |
+| ① Define the class | You add `@ToolMeta` to the class and `@ToolProp` to each property that belongs in the schema. |
+| ② Decorators run | `@ToolProp` records your options and the property's design type. It never throws. |
+| ③ Generate the schema | `classToJsonSchema` builds the schema, adds rules from class-validator, and throws if the schema would not describe the class (see [Errors](#8-errors-and-warnings)). |
+| ④ Format for a provider | A `classTo…` function wraps the schema in the shape one provider's API expects, and adapts it to what that provider accepts. |
 
-### Using TypeScript Enums
+### 1.1 Why Schema Forge
 
-Schema Forge works well with native TypeScript enums:
+**When to use it:** you already describe data with classes and decorators (for example the data transfer objects, or DTOs, of a NestJS application; NestJS is a Node.js server framework), you want one class to be both the schema and the TypeScript type, or you send the same tool to several LLM providers.
 
-```typescript
-enum UserRole {
-  Admin = 'admin',
-  User = 'user',
-  Guest = 'guest'
-}
+**When something else may fit better:** you prefer building schemas with functions instead of classes ([Zod](https://github.com/colinhacks/zod) or [TypeBox](https://github.com/sinclairzx81/typebox)), your code base does not use decorators, or property names are only known at run time.
 
-class User {
-  @ToolProp({ description: 'User name' })
-  name: string;
+**Design choices.** Schema Forge has one job: it turns a class into a JSON Schema, and a JSON Schema into tool formats for OpenAI, Anthropic and Gemini, and structured-output formats for OpenAI and Gemini. It does not validate or transform values, and it does not produce OpenAPI documents (the standard format that describes an HTTP API). It has no dependencies of its own; the only package it needs is `reflect-metadata`, which you install yourself (a peer dependency). It does not depend on any framework, so you can use it in a NestJS project or in plain TypeScript.
 
-  @ToolProp({ 
-    description: 'User primary role',
-    enum: UserRole
-  })
-  role: UserRole;
-  
-  @ToolProp({ 
-    description: 'User secondary roles',
-    enum: UserRole
-  })
-  secondaryRoles: UserRole[];
-}
+**Compared with [class-validator-jsonschema](https://github.com/epiphone/class-validator-jsonschema)**, which also turns decorated classes into JSON Schema (its version 5.2.0, checked November 2026):
+
+| | Schema Forge | class-validator-jsonschema |
+| --- | --- | --- |
+| Where the schema comes from | `@ToolProp` and the design types; class-validator decorators add rules when present | class-validator decorators, plus its own `@JSONSchema()` decorator for extra keywords |
+| Packages you must install | `reflect-metadata` (peer dependency) | class-validator and class-transformer (peer dependencies) |
+| Its own dependencies | none | openapi3-ts, lodash.merge, lodash.groupby, reflect-metadata, tslib |
+| What you get | JSON Schema, plus tools for OpenAI, Anthropic and Gemini and structured-output formats for OpenAI and Gemini, adapted to what each provider accepts (including OpenAI and Anthropic strict modes) | Schema objects for an OpenAPI document |
+| Which properties are in the schema | Only those with `@ToolProp` (or added with `addSchemaProperty`), so one class can be an API DTO and a tool input with different fields ([section 5.2](#52-class-validator-does-not-add-properties)) | Every property that has a class-validator decorator |
+
+**Why it also reads class-validator decorators.** Many classes that become tools already exist as validated DTOs, for example in NestJS. When a class has class-validator decorators, Schema Forge reads them, so a rule such as `@MaxLength(100)` is written once, and both the validator and the LLM see it. class-validator is still optional: it is an optional peer dependency, and without it everything else works the same ([section 5](#5-rules-from-class-validator)).
+
+## 2. Install and set up
+
+```bash
+npm install @firefliesai/schema-forge reflect-metadata
 ```
 
-### Dynamic Schema Updates
+| Package | Needed? | Version | Why |
+| --- | --- | --- | --- |
+| [`reflect-metadata`](https://github.com/microsoft/reflect-metadata) | Yes (peer dependency) | `^0.1.14` or `^0.2.0` | Stores what the decorators record. |
+| [`class-validator`](https://github.com/typestack/class-validator) | Optional (peer dependency) | `^0.14.0` or `^0.15.0` | Only if you want its rules in the schema ([section 5](#5-rules-from-class-validator)). |
 
-You can update schemas programmatically. Note that these changes are permanent and will affect all future schema generations for the class:
+Some package managers do not install peer dependencies on their own; the command above installs `reflect-metadata` explicitly for that reason.
 
-```typescript
-import { updateSchemaProperty, addSchemaProperty } from '@firefliesai/schema-forge';
+**Install a single copy of Schema Forge.** Each installed copy keeps its own metadata, so a property declared through one copy is invisible to another. If a library you use depends on a different version of `@firefliesai/schema-forge`, deduplicate it or force one version (npm `overrides`, pnpm `overrides`, yarn `resolutions`). When a property was declared only through the other copy, Schema Forge throws instead of leaving it out ([section 8](#8-errors-and-warnings)).
 
-// Update an existing property (permanent change)
-updateSchemaProperty(User, 'name', {
-  description: 'Updated description'
-});
+**TypeScript settings.** Turn on both options in `tsconfig.json`:
 
-// Add a new property (permanent change)
-addSchemaProperty(User, 'metadata.tags', {
-  type: 'array',
-  items: { type: 'string' },
-  description: 'User tags'
-});
-```
-
-### Using Direct JSON Schema Converters
-
-If you already have a JSON Schema definition (perhaps from another source or manually created), you can convert it directly to LLM-specific formats:
-
-```typescript
-import { 
-  jsonSchemaToOpenAITool, 
-  jsonSchemaToOpenAIResponseApiTool 
-} from '@firefliesai/schema-forge';
-
-// Custom JSON Schema
-const myJsonSchema = {
-  type: 'object',
-  properties: {
-    name: { type: 'string', description: 'User name' },
-    age: { type: 'number', description: 'Age in years' }
-  },
-  required: ['name']
-};
-
-// Convert to OpenAI Chat Completions API tool format
-const openaiTool = jsonSchemaToOpenAITool(
-  myJsonSchema,
-  { name: 'user_info', description: 'Get user information' },
-  { strict: true }
-);
-
-// Use with OpenAI Chat Completions API
-const completion = await openai.chat.completions.create({
-  model: "gpt-4o-mini",
-  messages: [...messages],
-  tools: [openaiTool],
-});
-
-// Convert to OpenAI Response API tool format
-// Note: strict is required for Response API and defaults to true
-const responseApiTool = jsonSchemaToOpenAIResponseApiTool(
-  myJsonSchema,
-  { name: 'user_info', description: 'Get user information' },
-  { strict: true }
-);
-
-// Use with OpenAI Response API
-const response = await openai.responses.create({
-  model: "gpt-4o-mini",
-  input: "What's the user information?",
-  tools: [responseApiTool]
-});
-```
-
-This approach is particularly useful when:
-- You have existing JSON Schemas that you want to use with LLMs
-- You're migrating from another schema system
-- You need to manually craft complex schemas that are difficult to express with decorators
-
-### Converting Between LLM Formats
-
-You can easily migrate between different LLM formats by extracting the JSON Schema and then converting it to another format:
-
-```typescript
-import { 
-  openAIToolToJsonSchema,
-  jsonSchemaToAnthropicTool,
-  classToOpenAITool
-} from '@firefliesai/schema-forge';
-
-// First, create or get an OpenAI tool format
-const openaiTool = classToOpenAITool(MyClass);
-// Or you might already have an existing openAITool from another source
-
-// Extract JSON Schema and metadata from OpenAI tool
-const { schema, metadata } = openAIToolToJsonSchema(openaiTool);
-
-// Convert to Anthropic Claude format
-const anthropicTool = jsonSchemaToAnthropicTool(schema, metadata);
-
-// Use with Anthropic
-const message = await anthropic.messages.create({
-  model: "claude-sonnet-4-6",
-  messages: [...],
-  tools: [anthropicTool],
-});
-```
-
-This is especially useful for:
-- Migrating from one LLM provider to another
-- Testing the same tool definition across multiple LLMs
-- Supporting multiple LLM providers with a single codebase
-
-### Common Options Pattern
-
-All schema generation functions accept a consistent options pattern, though some options are provider-specific:
-
-```typescript
-// For OpenAI (with structured output)
-const openaiOptions = {
-  propertyOverrides: {
-    'property': { description: 'Override' }
-  },
-  forStructuredOutput: true  // OpenAI-specific, sets strict automatically
-};
-
-// For Gemini (no structured output flag needed)
-const geminiOptions = {
-  propertyOverrides: {
-    'property': { description: 'Override' }
+```json
+{
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
   }
-  // No forStructuredOutput or strict needed for Gemini
+}
+```
+
+[`experimentalDecorators`](https://www.typescriptlang.org/tsconfig/#experimentalDecorators) enables the decorator syntax Schema Forge uses. [`emitDecoratorMetadata`](https://www.typescriptlang.org/tsconfig/#emitDecoratorMetadata) makes TypeScript record each property's design type, which Schema Forge reads.
+
+**Load `reflect-metadata` first.** Import it once, at the start of your program, before any class with decorators is loaded:
+
+```typescript
+import 'reflect-metadata';
+```
+
+The examples in this README use `name!: string`. The `!` tells TypeScript that the property is assigned elsewhere; it is needed when [`strictPropertyInitialization`](https://www.typescriptlang.org/tsconfig/#strictPropertyInitialization) is on.
+
+## 3. Quick start
+
+### 3.1 Define a class
+
+```typescript
+import 'reflect-metadata';
+import { ToolMeta, ToolProp } from '@firefliesai/schema-forge';
+
+@ToolMeta({ name: 'create_user', description: 'Create a user account' })
+class CreateUserInput {
+  @ToolProp({ description: 'Full name' })
+  name!: string;
+
+  @ToolProp({ description: 'Email address', format: 'email' })
+  email!: string;
+
+  @ToolProp({ description: 'Age in years', isOptional: true })
+  age?: number;
+
+  @ToolProp({
+    description: 'Role of the user',
+    enum: ['admin', 'member', 'guest'],
+  })
+  role!: string;
+}
+```
+
+- `@ToolMeta` gives the tool its name and description. The provider formats need it; plain JSON Schema does not.
+- `@ToolProp` puts a property in the schema. A property without `@ToolProp` is left out.
+- The type (`string`, `number`) comes from TypeScript. `isOptional: true` leaves the property out of `required`.
+
+### 3.2 Get the JSON Schema
+
+```typescript
+import { classToJsonSchema } from '@firefliesai/schema-forge';
+
+const schema = classToJsonSchema(CreateUserInput);
+// {
+//   type: 'object',
+//   properties: {
+//     name: { description: 'Full name', type: 'string' },
+//     email: { description: 'Email address', format: 'email', type: 'string' },
+//     age: { description: 'Age in years', type: 'number' },
+//     role: {
+//       description: 'Role of the user',
+//       enum: ['admin', 'member', 'guest'],
+//       type: 'string'
+//     }
+//   },
+//   required: ['name', 'email', 'role']
+// }
+```
+
+### 3.3 Get a tool for an LLM provider
+
+Each provider's API expects a slightly different shape. Pick the function for the SDK (software development kit: the provider's client library) you use:
+
+| You call | With | Schema Forge function | Put the result in |
+| --- | --- | --- | --- |
+| OpenAI Chat Completions API | `openai` | `classToOpenAITool` | `tools: [tool]` |
+| OpenAI Responses API | `openai` | `classToOpenAIResponseApiTool` | `tools: [tool]` |
+| Anthropic Messages API | `@anthropic-ai/sdk` | `classToAnthropicTool` | `tools: [tool]` |
+| Gemini API | [`@google/genai`](https://github.com/googleapis/js-genai) | `classToGeminiTool` | `config.tools: [{ functionDeclarations: [tool] }]` |
+| Gemini API, legacy SDK | [`@google/generative-ai`](https://github.com/google-gemini/deprecated-generative-ai-js) (deprecated by Google) | `classToGeminiOldTool` | `tools: [{ functionDeclarations: [tool] }]` |
+| Vertex AI | `@google-cloud/vertexai` | `classToGeminiVertexTool` | `tools: [{ functionDeclarations: [tool] }]` |
+
+The model names below are examples; use a current one.
+
+```typescript
+import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenAI } from '@google/genai';
+import {
+  classToAnthropicTool,
+  classToGeminiTool,
+  classToOpenAIResponseApiTool,
+  classToOpenAITool,
+} from '@firefliesai/schema-forge';
+
+const prompt = 'Create a user named Ada Lovelace, ada@example.com, role admin';
+
+// OpenAI, Chat Completions API
+const openai = new OpenAI();
+const completion = await openai.chat.completions.create({
+  model: 'gpt-4o-mini',
+  messages: [{ role: 'user', content: prompt }],
+  tools: [classToOpenAITool(CreateUserInput)],
+});
+const call = completion.choices[0].message.tool_calls?.[0];
+if (call?.type === 'function') {
+  const input: CreateUserInput = JSON.parse(call.function.arguments);
+}
+
+// OpenAI, Responses API
+const response = await openai.responses.create({
+  model: 'gpt-4o-mini',
+  input: prompt,
+  tools: [classToOpenAIResponseApiTool(CreateUserInput)],
+});
+const item = response.output[0];
+if (item.type === 'function_call') {
+  const input: CreateUserInput = JSON.parse(item.arguments);
+}
+
+// Anthropic
+const anthropic = new Anthropic();
+const message = await anthropic.messages.create({
+  model: 'claude-sonnet-4-6',
+  max_tokens: 1000,
+  messages: [{ role: 'user', content: prompt }],
+  tools: [classToAnthropicTool(CreateUserInput)],
+});
+const toolUse = message.content.find((block) => block.type === 'tool_use');
+if (toolUse?.type === 'tool_use') {
+  const input = toolUse.input as CreateUserInput;
+}
+
+// Gemini, @google/genai
+const gemini = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const result = await gemini.models.generateContent({
+  model: 'gemini-3.8-flash',
+  contents: prompt,
+  config: {
+    tools: [{ functionDeclarations: [classToGeminiTool(CreateUserInput)] }],
+  },
+});
+const input = result.functionCalls?.[0]?.args as unknown as
+  | CreateUserInput
+  | undefined;
+```
+
+The type annotation on `input` is a promise about the shape, not a check. In strict mode the provider guarantees that the arguments match the schema it received; rules that Schema Forge moved into a description are not enforced. Without strict mode, the model usually follows the schema, but nothing guarantees it. Your code should still validate what it runs (for example with class-validator).
+
+## 4. Describing properties with `@ToolProp`
+
+### 4.1 What TypeScript tells Schema Forge, and what you must add
+
+Schema Forge reads each property's design type. For some TypeScript types that is enough; for others the design type does not say what the value is, and you must add an option.
+
+| TypeScript property | Design type | Schema without extra options | What to add |
+| --- | --- | --- | --- |
+| `name!: string` | `String` | `{ type: 'string' }` | nothing |
+| `count!: number` | `Number` | `{ type: 'number' }` | `type: 'integer'` (or `@IsInt()`) for whole numbers |
+| `active!: boolean` | `Boolean` | `{ type: 'boolean' }` | nothing |
+| `createdAt!: Date` | `Date` | `{ type: 'string', format: 'date-time' }` | nothing |
+| `address!: Address` (a class with `@ToolProp` properties) | the class | a nested object with `Address`'s properties | nothing |
+| `role!: Role` (a TypeScript enum) | `String` or `Number` | `{ type: 'string' }` or `{ type: 'number' }`, without the allowed values | `enum: Role` |
+| `tags!: string[]` | `Array` | error: an array needs an item type | `items: { type: 'string' }` |
+| `addresses!: Address[]` | `Array` | error: an array needs an item type | `items: { type: Address }` |
+| `note?: string \| null` | `Object` | error: cannot determine the type | `type: 'string', nullable: true` |
+| `place?: Place \| null` | `Object` | error: cannot determine the type | `type: Place, nullable: true` (a class as `type` declares the nested class) |
+| `when?: Date \| null` | `Object` | error: cannot determine the type | `type: Date, nullable: true` (gives `format: 'date-time'`; `String`, `Number` and `Boolean` work the same way) |
+| `id!: string \| number` | `Object` | error: cannot determine the type | `anyOf: [{ type: 'string' }, { type: 'number' }]` |
+| `meta!: Record<string, string>` | `Object` | error: cannot determine the type | `type: 'object'` |
+
+`Object` is what TypeScript records for a union of different types (`string | number`; a union of string literals such as `'a' | 'b'` records `String`), a nullable type under [`strictNullChecks`](https://www.typescriptlang.org/tsconfig/#strictNullChecks), an interface, a generic, `any` and `unknown`. Schema Forge does not guess a type for such a property; generating the schema throws ([section 8](#8-errors-and-warnings)). A class-validator type decorator such as `@IsString()` can also supply the type ([section 5](#5-rules-from-class-validator)).
+
+### 4.2 Arrays, enums and nested classes
+
+```typescript
+enum Role {
+  Admin = 'admin',
+  Member = 'member',
+}
+
+class Address {
+  @ToolProp({ description: 'City name' })
+  city!: string;
+}
+
+class Team {
+  @ToolProp({ description: 'Tags', items: { type: 'string' } })
+  tags!: string[];
+
+  @ToolProp({ description: 'Main role', enum: Role })
+  role!: Role;
+
+  @ToolProp({ description: 'Roles of the team', enum: Role })
+  roles!: Role[];
+
+  @ToolProp({ description: 'Office address' })
+  office!: Address;
+
+  @ToolProp({ description: 'Other offices', items: { type: Address } })
+  branches!: Address[];
+}
+
+classToJsonSchema(Team).properties;
+// {
+//   tags: { description: 'Tags', items: { type: 'string' }, type: 'array' },
+//   role: {
+//     description: 'Main role',
+//     enum: ['admin', 'member'],
+//     type: 'string'
+//   },
+//   roles: {
+//     description: 'Roles of the team',
+//     type: 'array',
+//     items: { type: 'string', enum: ['admin', 'member'] }
+//   },
+//   office: {
+//     description: 'Office address',
+//     type: 'object',
+//     properties: { city: {…} },
+//     required: ['city']
+//   },
+//   branches: {
+//     description: 'Other offices',
+//     type: 'array',
+//     items: {
+//       type: 'object',
+//       properties: { city: {…} },
+//       required: ['city']
+//     }
+//   }
+// }
+```
+
+- `enum` takes a TypeScript enum or an array of values. On an array property it describes the items.
+- The type of an enum comes from its values: all strings give `string`, all numbers `number`, all booleans `boolean`, a mix gives a list such as `['string', 'number']`.
+- A class used as a property type is expanded into a nested object. A class cannot contain itself, directly or through another class ([section 11](#11-limitations)).
+
+### 4.3 Optional and nullable
+
+`isOptional` and `nullable` answer two different questions:
+
+| Option | Question it answers | Effect on the schema |
+| --- | --- | --- |
+| `isOptional: true` | May the caller leave the property out? | The property is not listed in `required`. It does not by itself allow `null`. |
+| `nullable: true` | May the value be `null`? | `null` becomes an allowed value: `type: 'string'` becomes `type: ['string', 'null']`, and an `enum` gains `null`. |
+
+Use both for a property that may be missing or `null`:
+
+```typescript
+class UpdateProfileInput {
+  @ToolProp({
+    description: 'New nickname, or null to remove it',
+    type: 'string',
+    nullable: true,
+    isOptional: true,
+  })
+  nickname?: string | null;
+}
+
+classToJsonSchema(UpdateProfileInput);
+// {
+//   type: 'object',
+//   properties: {
+//     nickname: { description: '…', type: ['string', 'null'] }
+//   }
+// }
+// (no `required` list: the only property is optional)
+```
+
+A schema that already accepts `null` (for example one with a `{ type: 'null' }` branch) is left as it is. Otherwise, with `anyOf` or `oneOf`, `nullable` adds a `{ type: 'null' }` branch; with `const`, `allOf`, or a composition next to another keyword such as `type` or `enum`, the whole property becomes `anyOf: [<property>, { type: 'null' }]`.
+
+### 4.4 All `@ToolProp` options
+
+| Option | Type | Meaning |
+| --- | --- | --- |
+| `description` | `string` | Text the LLM reads to understand the property. Recommended on every property. |
+| `type` | `'string' \| 'number' \| 'integer' \| 'boolean' \| 'array' \| 'object'`, a class, or `Date` / `String` / `Number` / `Boolean` | The JSON Schema type, when the design type is not enough. A class declares a nested class; `Date` also gives `format: 'date-time'` ([4.1](#41-what-typescript-tells-schema-forge-and-what-you-must-add)). |
+| `enum` | TypeScript enum or array of values | The allowed values. |
+| `items` | `{ type: 'string' \| 'number' \| 'integer' \| 'boolean' \| 'object' \| SomeClass, …constraints }` | The item schema of an array. |
+| `isOptional` | `boolean` | Leaves the property out of `required`. |
+| `nullable` | `boolean` | Allows `null` ([4.3](#43-optional-and-nullable)). |
+| `format`, `pattern`, `minLength`, `maxLength` | | String rules, as in [JSON Schema](https://json-schema.org/understanding-json-schema/reference/string). |
+| `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf` | | Number rules, as in [JSON Schema](https://json-schema.org/understanding-json-schema/reference/numeric). |
+| `minItems`, `maxItems`, `uniqueItems` | | Array rules, as in [JSON Schema](https://json-schema.org/understanding-json-schema/reference/array). |
+| `anyOf`, `oneOf`, `allOf`, `const` | | Combinations and fixed values, copied to the schema as given. The design type adds no `type` next to them; a `type`, `items` or `enum` you set is still applied. |
+| `title`, `default`, `examples`, `deprecated` | | Annotations, copied to the schema as given. |
+
+The output uses [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12) keywords. It has no `$schema` field, because the LLM APIs do not need one.
+
+`@ToolMeta({ name, description })` takes the tool's name and description. The provider formats read it; without it, the tool's name is an empty string.
+
+## 5. Rules from class-validator
+
+If your class also uses [class-validator](https://github.com/typestack/class-validator) decorators, Schema Forge adds the rules it can translate ([5.3](#53-translated-decorators)) to the schema. You write a rule once, and both the validator and the LLM see it.
+
+Schema Forge only reads class-validator's decorators to add rules to the JSON Schema; it never runs validation. To validate values, call class-validator's `validate()` yourself, or validate the arguments against the generated JSON Schema.
+
+```typescript
+import { IsEmail, IsInt, IsPositive, Max, MaxLength } from 'class-validator';
+
+class CreateOrderInput {
+  @ToolProp({ description: 'Customer email' })
+  @IsEmail()
+  email!: string;
+
+  @ToolProp({ description: 'Number of items' })
+  @IsInt()
+  @IsPositive()
+  @Max(100)
+  quantity!: number;
+
+  @ToolProp({ description: 'Note for the courier', isOptional: true })
+  @MaxLength(200)
+  note?: string;
+}
+
+classToJsonSchema(CreateOrderInput).properties;
+// {
+//   email: {
+//     description: 'Customer email',
+//     type: 'string',
+//     format: 'email'
+//   },
+//   quantity: {
+//     description: 'Number of items',
+//     type: 'integer',
+//     maximum: 100,
+//     exclusiveMinimum: 0
+//   },
+//   note: {
+//     description: 'Note for the courier',
+//     type: 'string',
+//     maxLength: 200
+//   }
+// }
+```
+
+The decorators may be written in any order; Schema Forge reads them when the schema is generated.
+
+### 5.1 Which source wins
+
+**Diagram 2: which source wins.** Each part of a property's schema comes from one of three sources. When two sources disagree, the higher one wins. Schema Forge prints a warning only when an explicit option and a class-validator rule disagree; class-validator replaces the design type without a warning.
+
+```text
+  highest  1. explicit options  @ToolProp({ … }), updateSchemaProperty(),
+                                propertyOverrides
+           2. class-validator   @IsInt(), @MaxLength(200), @IsEmail(), …
+  lowest   3. design type       what TypeScript recorded (String, Number, …)
+```
+
+For example, `@ToolProp({ type: 'number' })` with `@IsInt()` keeps `number` and warns. Without the explicit `type`, the property becomes `integer`.
+
+### 5.2 class-validator does not add properties
+
+class-validator only adds rules to properties that have `@ToolProp`. A property with class-validator decorators but no `@ToolProp` is not in the schema. This lets one class be an API DTO and a tool input with different fields, for example an `ownerId` that your API sets and the LLM must not send.
+
+Two related checks:
+
+- If a class has class-validator decorators but no `@ToolProp` at all, generating its schema throws, because the schema would be empty. This usually means the class was copied with `PickType`, `OmitType` or `PartialType` (from NestJS), which keep class-validator's metadata but not Schema Forge's.
+- To check in a test that a class exposes every validated property, use `findUndeclaredValidatedProperties`:
+
+```typescript
+import { findUndeclaredValidatedProperties } from '@firefliesai/schema-forge';
+
+expect(findUndeclaredValidatedProperties(CreateOrderInput)).toEqual([]);
+// If a property were validated but not declared, the list would name it,
+// for example:
+// [
+//   {
+//     path: 'shipping.ownerId',
+//     className: 'ShippingInput',
+//     property: 'ownerId'
+//   }
+// ]
+```
+
+### 5.3 Translated decorators
+
+A decorator with `{ each: true }` applies its rule to the items of an array (`@IsObject({ each: true })` is not translated; set `items` yourself). When you did not set `items` and those item rules give no type of their own, the item type is the one they accept:
+
+- The numeric rules (`@Min`, `@Max`, `@IsPositive`, `@IsNegative`, `@IsDivisibleBy`) accept only numbers, so the items are `number`.
+- The string rules (`@MinLength`, `@MaxLength`, `@Length`, `@Matches`, `@IsEmail`, `@IsUrl`, `@IsUUID`) accept only strings, so the items are `string`.
+- Rules of both kinds on the same items give no type.
+
+| class-validator decorator | JSON Schema |
+| --- | --- |
+| `@IsString()`, `@IsNumber()`, `@IsInt()`, `@IsBoolean()`, `@IsObject()` | `type: 'string'`, `'number'`, `'integer'`, `'boolean'`, `'object'` |
+| `@IsArray()` | `type: 'array'` |
+| `@ArrayMinSize(n)`, `@ArrayMaxSize(n)` | `minItems: n`, `maxItems: n` |
+| `@ArrayNotEmpty()` | `minItems: 1` |
+| `@ArrayUnique()` | `uniqueItems: true` |
+| `@ArrayContains([...])` | `items.enum` (primitive values only). This is not the same rule: class-validator means "contains these values", `items.enum` means "only these values" ([#44](https://github.com/firefliesai/schema-forge/issues/44)). |
+| `@Min(n)`, `@Max(n)` | `minimum: n`, `maximum: n` |
+| `@IsPositive()`, `@IsNegative()` | `exclusiveMinimum: 0`, `exclusiveMaximum: 0` |
+| `@IsDivisibleBy(n)` | `multipleOf` with the absolute value of `n` (not for `n = 0`) |
+| `@MinLength(n)`, `@MaxLength(n)`, `@Length(min, max)` | `minLength`, `maxLength` |
+| `@IsNotEmpty()` | `minLength: 1` on a string (or on string items with `{ each: true }`) |
+| `@IsEmail()`, `@IsUrl()`, `@IsUUID()` | `format: 'email'`, `'uri'`, `'uuid'` |
+| `@Matches(regex)` | `pattern`, if the regex has no flags other than `u` |
+| `@IsEnum(E)`, `@IsIn([...])` | `enum` |
+
+When several decorators set the same limit (for example `@Length(2, 10)` and `@MinLength(5)`), the strictest value is used. This includes `@IsNotEmpty()`: with `@MinLength(0)` the result is `minLength: 1`.
+
+`@IsOptional()`, `@ValidateIf()`, `@ValidateNested()`, `@IsDefined()`, `@Allow()`, `@IsDate()` and `@IsNotEmptyObject()` add nothing to the schema and print no warning. `@IsOptional()` does not make a property optional; use `isOptional: true`.
+
+### 5.4 Rules the schema cannot express
+
+Some rules have no JSON Schema keyword: `@IsTimeZone()`, `@IsISO8601()`, `@IsDateString()`, `@Matches(/x/i)` (a regex with flags) and your own validators. They are not in the schema, so the LLM does not see them. Schema Forge prints a warning for each such rule on each property (`console.warn`, starting with `[schema-forge]`, once per process). Describe the rule yourself in `description`, or with `format` or `pattern`. Only an explicit `format`, `pattern` or `enum` on the property turns these warnings off; a `description` does not.
+
+## 6. Schema options
+
+`classToJsonSchema(Class, options)` and every `classTo…` function accept these options:
+
+| Option | Default | Effect |
+| --- | --- | --- |
+| `additionalProperties: false` | not set | Adds `additionalProperties: false` to every object that declares properties: the root, nested classes, array items and `anyOf` / `oneOf` / `allOf` branches. Strict modes need closed objects, but `forStructuredOutput: true` closes them for you; use this option to close objects without strict mode. An object without declared properties (a `Record`) stays open, because closing it would accept only `{}`. |
+| `forStructuredOutput: true` | `false` (`true` for `classToOpenAIResponseApiTool`) | Adapts the schema to the provider's strict mode and sets `strict: true`: OpenAI's rules for the OpenAI functions ([7.1](#71-openai)), Anthropic's for `classToAnthropicTool` ([7.2](#72-anthropic)). `classToJsonSchema` returns only a schema, so it applies the OpenAI changes but sets no `strict` flag. The Gemini functions do not take this option. |
+| `propertyOverrides` | none | Changes properties for this call only, by path: `{ 'name': { description: '…' }, 'address.city': { … } }`. An override that describes a property holding a class as something else (another `type`, an `enum`, a `const`, a composition, or `items` that are not a class) replaces the class, whose schema is then not built. A property declared with `nullable: true` keeps allowing `null` unless the override sets `nullable: false`. |
+
+To change a class's schema for every later call, use `updateSchemaProperty` and `addSchemaProperty`. Paths may go into nested classes:
+
+```typescript
+import {
+  addSchemaProperty,
+  updateSchemaProperty,
+} from '@firefliesai/schema-forge';
+
+class Shipment {
+  @ToolProp({ description: 'Destination' })
+  destination!: Address;
+}
+
+updateSchemaProperty(Shipment, 'destination.city', {
+  description: 'Destination city',
+});
+addSchemaProperty(Shipment, 'destination.zip', {
+  type: 'string',
+  isOptional: true,
+});
+// Every later classToJsonSchema(Shipment) has destination.city's new
+// description and destination.zip. Address's own schema is not changed.
+```
+
+## 7. LLM provider formats
+
+Each `classTo…` function calls `classToJsonSchema` and then changes the result to fit one provider. The `jsonSchemaTo…` functions start from a JSON Schema you already have ([7.4](#74-existing-json-schemas-and-converting-between-formats)): the Gemini ones change it as described in [7.3](#73-gemini), while the OpenAI and Anthropic ones do not apply the strict-mode changes, even with `{ strict: true }`.
+
+### 7.1 OpenAI
+
+OpenAI has two APIs and two uses of a schema:
+
+| Purpose | Chat Completions API | Responses API |
+| --- | --- | --- |
+| Tool | `classToOpenAITool` | `classToOpenAIResponseApiTool` |
+| Structured output | `classToOpenAIResponseFormatJsonSchema` (for `response_format`) | `classToOpenAIResponseApiTextSchema` (for `text.format`) |
+
+See OpenAI's [function calling](https://developers.openai.com/api/docs/guides/function-calling) and [structured outputs](https://developers.openai.com/api/docs/guides/structured-outputs) guides, and [migrating to the Responses API](https://developers.openai.com/api/docs/guides/migrate-to-responses).
+
+**Strict mode.** OpenAI's strict mode requires `additionalProperties: false` on every object and every property in `required`; an optional property is written as a type that allows `null` (see [Supported schemas](https://developers.openai.com/api/docs/guides/structured-outputs#supported-schemas)). `forStructuredOutput: true` does this for you:
+
+| `forStructuredOutput: true` changes | Example |
+| --- | --- |
+| Sets `strict: true` on the tool or format | |
+| Adds `additionalProperties: false` to every object that declares properties | |
+| Lists every property in `required` | |
+| Makes each optional property nullable, the same way `nullable: true` does ([4.3](#43-optional-and-nullable)) | `age?: number` becomes `type: ['number', 'null']` |
+| Moves the keywords OpenAI strict mode rejects into the property's description | `@IsUrl()` gives `format: 'uri'`, which becomes `description: 'Website\n\n{format: "uri"}'` |
+
+These keywords are moved into the description:
+
+- a `format` other than `date-time`, `time`, `date`, `duration`, `email`, `hostname`, `ipv4`, `ipv6` and `uuid`;
+- `uniqueItems`, `contains`, `minContains`, `maxContains` and `unevaluatedItems` on arrays;
+- `minProperties`, `maxProperties`, `propertyNames` and `unevaluatedProperties` on objects;
+- a `pattern` that uses a lookahead or lookbehind (`(?=`, `(?!`, `(?<=`, `(?<!`), a named group (`(?<name>`), a backreference (`\1`, `\k<name>`), a word boundary (`\b`, `\B`), or any other group that starts with `(?` except `(?:` (for example an inline flag such as `(?i)`). OpenAI rejects a named group, and for the others it returns an empty response that stops at the token limit.
+
+These keywords stay, and OpenAI enforces them: `minLength`, `maxLength`, other patterns (non-capturing groups `(?:…)` and long ranges such as `{1,1000}` included), `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`, `minItems`, `maxItems` and `patternProperties`.
+
+`allOf`, `oneOf` and `not` stay as you wrote them, and so do `if` / `then` / `else`, `dependentRequired` and `dependentSchemas`. OpenAI strict mode rejects all of them at any depth, and its error names the property, so you see the problem instead of losing the rule. An object with no declared properties (a free-form object, such as a `Record`) cannot be closed, so generating the schema throws, naming the property ([11](#11-limitations)).
+
+These lists were checked against the live API (November 2026). OpenAI's guide says `minLength`, `maxLength`, `pattern`, `format`, number bounds, `multipleOf`, `minItems` and `maxItems` are not supported for fine-tuned models. On the base models, the API accepts and enforces them. A fine-tuned `gpt-4o-mini` model also accepted `minLength`, `pattern` and `minimum` in strict mode. If your fine-tuned model rejects one of them, remove it. For a rule written only in `@ToolProp`, set it to `undefined` in `propertyOverrides` (for example `{ name: { minLength: undefined } }`). For a rule that a class-validator decorator sets, even when `@ToolProp` sets it too, delete it from the generated schema before you send it: class-validator fills in a rule the override left empty.
+
+```typescript
+import {
+  classToOpenAIResponseFormatJsonSchema,
+} from '@firefliesai/schema-forge';
+
+const tool = classToOpenAITool(CreateUserInput, {
+  forStructuredOutput: true,
+});
+const format = classToOpenAIResponseFormatJsonSchema(CreateUserInput, {
+  forStructuredOutput: true,
+});
+const completion = await openai.chat.completions.create({
+  model: 'gpt-4o-mini',
+  messages: [{ role: 'user', content: prompt }],
+  response_format: format,
+});
+// A refusal or an empty reply carries no arguments; never parse a default
+const message = completion.choices[0].message;
+if (message.refusal) throw new Error(`Refused: ${message.refusal}`);
+if (!message.content) throw new Error('No structured output in the reply');
+const user: CreateUserInput = JSON.parse(message.content);
+```
+
+**The Responses API tool is strict by default.** `classToOpenAIResponseApiTool` applies the strict changes above and sets `strict: true` unless you pass `forStructuredOutput: false`. With `forStructuredOutput: false`, it sends the schema as declared, with `strict: false`: optional properties stay optional and every keyword stays. This matches the Responses API, which tries strict mode when `strict` is left out and keeps best-effort function calling when it is `false`.
+
+### 7.2 Anthropic
+
+`classToAnthropicTool` returns `{ name, description, input_schema }`. With `additionalProperties: false`, the root `input_schema` is closed too. See [defining tools](https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools).
+
+**Strict tool use.** `forStructuredOutput: true` turns on Anthropic's [strict tool use](https://platform.claude.com/docs/en/agents-and-tools/tool-use/strict-tool-use), whose rules differ from OpenAI's (see Anthropic's [JSON Schema limitations](https://platform.claude.com/docs/en/build-with-claude/structured-outputs#json-schema-limitations)):
+
+| `forStructuredOutput: true` changes | Why |
+| --- | --- |
+| Sets `strict: true` on the tool | Turns strict tool use on |
+| Adds `additionalProperties: false` to every object that declares properties | Anthropic requires it |
+| Keeps `required` as declared | Anthropic allows optional properties, so none becomes nullable |
+| Moves `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum` and `multipleOf` into the description | Anthropic rejects number bounds |
+| Moves `minLength` and `maxLength` into the description | Anthropic's guide lists string lengths as unsupported |
+| Moves `maxItems`, a `minItems` other than 0 or 1, `uniqueItems`, `contains`, `minContains` and `maxContains` into the description | Anthropic rejects these array rules |
+| Moves `patternProperties`, `propertyNames`, `minProperties`, `maxProperties` and `unevaluatedProperties` into the description | Anthropic rejects these object rules |
+| Moves a `format` other than `date-time`, `time`, `date`, `duration`, `email`, `hostname`, `uri`, `ipv4`, `ipv6` and `uuid` into the description | Anthropic supports only these formats |
+| Removes the `type` array next to an `enum` (a nullable or mixed-type enum), and drops the enum values that this type did not allow | Anthropic rejects the pair; the enum's values already say which types are allowed |
+
+A keyword moved into the description is written as `{keyword: value}`, for example `'Quantity\n\n{maximum: 100}'`, which is how Anthropic's own SDK keeps such rules visible to the model. String lengths are moved, as the guide says, even though the API accepted them on two models (checked November 2026). This way a tool keeps working if Anthropic starts rejecting them.
+
+A `pattern` is moved into the description when Anthropic would reject it with an HTTP 400 (Bad Request) error, that is when it uses:
+
+- a lookahead, lookbehind, named group, backreference, `\b`, `\B`, or another group that starts with `(?` except `(?:` (the same constructs as for OpenAI);
+- a `{n}`, `{n,}` or `{n,m}` quantifier on a broad set: `.`, a negated class such as `[^x]`, `\S`, `\D`, `\W`, or a class or group that holds one (even `^.{1,200}$` is rejected);
+- a quantifier bound above 256.
+
+Anthropic's guide lists large ranges as unsupported without giving a number. When checked (November 2026), `{1,2000}` alone and `{1,1000}` next to another quantifier were rejected, and bounds up to 500 passed, so 256 leaves a margin. Other patterns stay, `.+` and `[a-z]{1,256}` included. OpenAI accepted all of these quantifiers, so its patterns are not changed for them.
+
+`oneOf` and `not` stay as you wrote them; Anthropic strict mode rejects them, while `anyOf` and `allOf` are accepted (Anthropic's guide excludes `allOf` combined with `$ref`, which Schema Forge never emits). An object with no declared properties throws, as for OpenAI.
+
+Anthropic also limits a request to 20 strict tools, 24 optional properties and 16 properties with a union type (`anyOf` or a type array) across all strict schemas. Schema Forge does not count these.
+
+### 7.3 Gemini
+
+| SDK | Tool | Structured output (`responseSchema`) |
+| --- | --- | --- |
+| [`@google/genai`](https://github.com/googleapis/js-genai) (current) | `classToGeminiTool` | `classToGeminiResponseSchema` |
+| [`@google/generative-ai`](https://github.com/google-gemini/deprecated-generative-ai-js) (deprecated by Google) | `classToGeminiOldTool` | `classToGeminiOldResponseSchema` |
+| `@google-cloud/vertexai` | `classToGeminiVertexTool` | `classToGeminiVertexResponseSchema` |
+
+The Vertex AI functions are implemented but not tested against the real API.
+
+Gemini accepts only part of JSON Schema in these fields. See its [function calling guide](https://aistudio.google.com/docs/function-calling), and the fields of its `Schema` type in the [API reference](https://aistudio.google.com/api-reference/caching) (under `CachedContent` → `tools` → `functionDeclarations` → `parameters`). If a schema has any field that `Schema` does not have, Gemini rejects the whole request with an HTTP 400 error (`Unknown name "uniqueItems" … Cannot find field`). The Gemini functions change the schema to fit, as checked against the live API in November 2026:
+
+| JSON Schema from Schema Forge | Sent to Gemini |
+| --- | --- |
+| `type: ['string', 'null']` or a `{ type: 'null' }` branch | `type: 'string', nullable: true` |
+| `type: ['string', 'number']` (several types) | `anyOf` with one branch per type (next to an `anyOf` it throws, naming the property: Gemini has no single place for both) |
+| `additionalProperties` | removed |
+| `exclusiveMinimum` / `exclusiveMaximum` | `minimum` / `maximum` on an integer (`exclusiveMinimum: 0` becomes `minimum: 1`); otherwise added to the description |
+| a string `const` | a one-value `enum` |
+| an `enum` whose values are not all non-empty strings | added to the description (the `type` stays) |
+| any other field Gemini does not have, such as `multipleOf` (from `@IsDivisibleBy`), `uniqueItems`, `examples`, `deprecated`, `readOnly`, `contains`, `patternProperties`, `propertyNames`, or a `const` that is not a string | added to the description |
+
+"Added to the description" means the keyword and its value are appended to the property's description as `{keyword: value}`, so the model still reads the rule. `oneOf`, `allOf` and `not` are kept, and their branches are adapted like any other schema: the API accepts them, although its documentation does not list them. The API checks these fields before the request reaches a model, so the result was the same on every model tried (Gemini 2.5 Flash, 2.5 Pro and 3.8 Flash); whether a model follows `oneOf`, `allOf` or `not` is up to the model.
+
+Gemini does not need `forStructuredOutput`, so the Gemini functions do not take it.
+
+```typescript
+import { classToGeminiResponseSchema } from '@firefliesai/schema-forge';
+
+const structured = await gemini.models.generateContent({
+  model: 'gemini-3.8-flash',
+  contents: prompt,
+  config: {
+    responseMimeType: 'application/json',
+    responseSchema: classToGeminiResponseSchema(CreateUserInput),
+  },
+});
+// A blocked or empty reply has no text; never parse a default
+if (!structured.text) throw new Error('No structured output in the reply');
+const user: CreateUserInput = JSON.parse(structured.text);
+```
+
+### 7.4 Existing JSON Schemas, and converting between formats
+
+If you already have a JSON Schema, convert it without a class. The OpenAI converters pass the schema as it is. The Anthropic and Gemini converters keep only the root's `properties` and `required` (Anthropic also `additionalProperties: false`); other root keywords, such as the schema's own `description` or `maxProperties`, are dropped ([#37](https://github.com/firefliesai/schema-forge/issues/37)):
+
+```typescript
+import {
+  jsonSchemaToAnthropicTool,
+  jsonSchemaToOpenAITool,
+  openAIToolToJsonSchema,
+} from '@firefliesai/schema-forge';
+
+const searchSchema = {
+  type: 'object' as const,
+  properties: {
+    query: { type: 'string' as const, description: 'Search words' },
+  },
+  required: ['query'],
 };
+const openAITool = jsonSchemaToOpenAITool(searchSchema, {
+  name: 'search',
+  description: 'Search documents',
+});
 
-// Use appropriate options for different LLM formats
-const jsonSchema = classToJsonSchema(MyClass, openaiOptions);
-const openaiTool = classToOpenAITool(MyClass, openaiOptions);
-const responseApiTool = classToOpenAIResponseApiTool(MyClass, openaiOptions);
-const anthropicTool = classToAnthropicTool(MyClass, { propertyOverrides: openaiOptions.propertyOverrides });
-const geminiTool = classToGeminiTool(MyClass, geminiOptions);
-
-// You can also use the JSON Schema directly with converter functions
-const directOpenAITool = jsonSchemaToOpenAITool(
-  jsonSchema, 
-  { name: 'my_function', description: 'Function description' },
-  { strict: true }
-);
+// From an OpenAI tool back to JSON Schema, then to Anthropic
+const { schema, metadata } = openAIToolToJsonSchema(openAITool);
+const anthropicTool = jsonSchemaToAnthropicTool(schema, metadata);
 ```
 
-## API Reference
+These functions do not run the checks of [section 8](#8-errors-and-warnings), and for OpenAI and Anthropic the `strict` option only sets the flag. For strict mode, first call `prepareForOpenAIStructuredOutput(schema, true)` or `prepareForAnthropicStrictTool(schema)`, then pass `{ strict: true }`.
 
-### Decorators
+## 8. Errors and warnings
 
-#### `@ToolMeta(options)`
+### 8.1 When Schema Forge checks
 
-Class decorator for adding metadata to a class. This decorator is required when using `classToOpenAITool`, `classToAnthropicTool`, or `classToGeminiTool`, but is optional when using just `classToJsonSchema`.
+Schema Forge checks when a schema is generated: when you call `classToJsonSchema` or a `classTo…` function. It checks the class you pass and, recursively, the classes nested in it. Defining or decorating a class never throws.
 
-```typescript
-options = {
-  // Tool function name (optional but recommended)
-  // Most of the final converted LLM tool or response schema/format requires a name. Here are the exceptions: 
-  // - OpenAI Response API text.format: optional
-  // - @google/genai tool: optional
-  // - @google/genai responseSchema: omitted 
-  // - @google/generative-ai responseSchema: omitted
-  name?: string;       
-  description?: string; // Tool function description (optional but recommended for most LLM providers)
-}
+`updateSchemaProperty` and `addSchemaProperty` throw when called only for a mistake in their own arguments:
+
+- a path with `__proto__`, `constructor` or `prototype`;
+- a class named in `type` or `items.type`;
+- an `addSchemaProperty` call with neither `type` nor `enum`;
+- a path through an array property that has no `items` (a path into a nested class is checked later, when the schema is generated).
+
+So a class that has `@ToolProp` but is never turned into a schema (for example a database model whose shared field decorator adds `@ToolProp` to every field) cannot break your program when it loads.
+
+To find problems early, generate every tool's schema when your application starts, or in a test.
+
+### 8.2 Errors
+
+Problems found while the class is built (a missing type, a missing item type, no `@ToolProp`, a loop, another installed copy) are collected into one error, named after the class you passed. A problem in a nested class shows its path from that class. An invalid path, an update that names a class, and the strict-mode and Gemini errors are thrown on their own. For a class `Order` with a property `customer: Customer` (each problem is one line in the real message; it is wrapped here to fit):
+
+```text
+schema-forge: cannot generate a JSON Schema for Order:
+  - Order.note: cannot determine the JSON Schema type; TypeScript reports
+    design type Object (a union such as `T | null`, …). Set `type`, `items`
+    or `enum` in @ToolProp …
+  - Order.customer → Customer.tags: an array needs an item type. …
 ```
 
-#### `@ToolProp(options)`
+| Error message contains | Cause | Fix |
+| --- | --- | --- |
+| `cannot determine the JSON Schema type` | The design type is `Object` (a union, `T \| null`, an interface, a generic, `any`, `unknown`, `Record`), and no option or class-validator decorator gives a type; or there is no design type at all ([13](#13-troubleshooting)). | Set `type`, `items` or `enum` (and `nullable: true` if `null` is allowed), or add a type decorator such as `@IsString()`. |
+| `an array needs an item type` | An array property has no `items`, and no class-validator decorator with `{ each: true }` gives the items a type ([5.3](#53-translated-decorators)). | Set `items`. |
+| `the class declares no property with @ToolProp` | The class has class-validator decorators but no `@ToolProp` at all ([5.2](#52-class-validator-does-not-add-properties)). | Add `@ToolProp` to the properties the schema should have. |
+| `… names the class …, which an update cannot add` | `updateSchemaProperty`, `addSchemaProperty` or a `propertyOverrides` entry named a class in `type` or `items.type`. Only `@ToolProp` declares a nested class and builds its schema; an update would leave the class unbuilt, so the property would lose its shape. | Declare the property with `@ToolProp` (`items: { type: TheClass }` for an array, or the class as its TypeScript type), for example in a subclass. |
+| `refers to its own class` / `refers back to …, which contains it` | A class contains itself, directly (`children: Node[]` in `Node`) or through another class (`A.b: B` and `B.a: A`). | On the property that closes the loop, set `type: 'object'` (or `items: { type: 'object' }` for an array). It becomes an object without a fixed shape. |
+| `cannot be used as a property name or path segment` | A path given to `updateSchemaProperty`, `addSchemaProperty` or `propertyOverrides` contains `__proto__`, `constructor` or `prototype`, which would reach an object's prototype instead of a property. `updateSchemaProperty` and `addSchemaProperty` throw when called; `propertyOverrides` when the schema is generated. | Use a different property name. |
+| `strict mode cannot express` | A free-form object (no declared properties, such as a `Record`) in OpenAI or Anthropic strict mode ([11](#11-limitations)). | Declare its properties, or describe it as a string that holds JSON. |
+| `Gemini cannot express` | A type array with several non-null types next to an `anyOf` (for example a mixed-type `enum` beside an `anyOf`), sent to a Gemini function ([7.3](#73-gemini)). | Put the types into the `anyOf` branches. |
+| `cannot reach into "…": it is an array without items` | The path of an update, override or added property goes through an array property that has no `items`. | Set `items` on the array property. |
+| `Either type or enum must be specified` | `addSchemaProperty` was called with neither `type` nor `enum`. | Give it a `type` or an `enum`. |
+| `declared by another installed copy of @firefliesai/schema-forge` | Two copies of Schema Forge are installed, and a property was declared through the other copy, whose metadata this copy cannot read ([section 2](#2-install-and-set-up)). | Install a single copy (deduplicate, or force one version with your package manager's overrides), or declare the property with this copy's `@ToolProp`. |
 
-Property decorator for defining schema properties.
+### 8.3 Warnings
 
-```typescript
-options = {
-  description?: string;   // Property description (optional but recommended)
-  type?: string;          // Property type ('string', 'number', 'boolean', Custom Class decorated by schema-forge,  etc.) - inferred if not provided
-  enum?: any[] | object;  // Enum values - can be a TS enum or array of values
-  items?: object;         // For array properties - required for arrays of primitives or custom types
-  isOptional?: boolean;   // If true, property won't be in required array
-  // ...other JSON Schema properties
-}
+Warnings go to `console.warn`, start with `[schema-forge]`, and are printed once per message.
+
+| Warning | Meaning |
+| --- | --- |
+| `… from @ToolProp is kept; class-validator says …` (`… allows …` for an enum) | An explicit option and a class-validator rule disagree. The explicit option is used ([5.1](#51-which-source-wins)). |
+| `class-validator rule "…" has no JSON Schema equivalent` | The rule is not in the schema ([5.4](#54-rules-the-schema-cannot-express)). |
+
+## 9. Migrating from 2.x
+
+3.0.0 throws where 2.x produced a wrong schema, and translates more class-validator rules. Most classes produce the same schema as before. The full list of changes is the 3.0.0 entry of the [CHANGELOG](CHANGELOG.md).
+
+1. **Generate the schema of every class you convert** (for example by running your tests) and fix each error from [section 8.2](#82-errors). The most common one is a property typed `T | null` under `strictNullChecks`: 2.x produced `{ "type": "object" }` for it, which rejected every string or number sent for it.
+2. **Read the `[schema-forge]` warnings.** A conflict warning means an explicit option now wins over class-validator. A "no JSON Schema equivalent" warning names a rule the schema does not contain.
+3. **Compare the schemas.** Save the `classToJsonSchema` output of each class before and after the upgrade and compare them. The expected differences are listed under "Breaking changes" in the CHANGELOG: `exclusiveMinimum` for `@IsPositive`, the new translations, decorator order, enum types and compositions.
+4. **Check the installed copies.** If a library depends on another version of Schema Forge, install a single copy ([section 2](#2-install-and-set-up)). If that library applies `@ToolProp` for you (for example a shared field decorator), it must stop doing so, or move to 3.0.0, before your service upgrades: otherwise its properties are declared through the other copy, and generating the schema throws.
+5. **Update type checks.** `JSONSchemaProperty.type` may now be an array or `undefined`.
+6. **Stored metadata.** If your code reads `Reflect.getMetadata(JSON_SCHEMA_METADATA_KEY, …)` directly: a class-typed property no longer holds its nested class's properties there. They exist only in the generated schema.
+7. **class-validator.** If you use it, version 0.14 or 0.15 is required. Inference did not work with 0.13 in 2.x either.
+8. **Strict modes.** With `forStructuredOutput: true`, OpenAI tools and response formats now keep string lengths, the patterns and formats OpenAI supports, number bounds and array sizes, and OpenAI enforces them, so a model can no longer send a value outside them (a rule moved into a description is not enforced). `classToAnthropicTool` now applies Anthropic's own strict rules and sets `strict: true` instead of the OpenAI rules (optional properties stay optional). `classToOpenAIResponseApiTool` with `forStructuredOutput: false` now sends the schema as declared ([7.1](#71-openai), [7.2](#72-anthropic)). If you call `prepareForOpenAIStructuredOutput` on a schema you send to Anthropic, switch to `prepareForAnthropicStrictTool`: the OpenAI helper now keeps rules Anthropic strict mode rejects.
+
+## 10. How it works inside
+
+This section is for contributors and for readers who want to know why the rules above exist. You do not need it to use the library.
+
+**Diagram 3: what happens when.** Steps (1) and (2) run once, when the class is defined. Steps (3) to (8) run every time a schema is generated.
+
+```text
+ class definition
+┌──────────────────────────────────────────────────────────────────────────┐
+│ (1) @ToolProp records, per property: the options as written,             │
+│     which of them were explicit, the design type, a nested class         │
+│ (2) class-validator records its rules in its own store                   │
+└─────────────────────────────────────┬────────────────────────────────────┘
+                                      │
+                                      v
+ classToJsonSchema(Root, options)
+┌──────────────────────────────────────────────────────────────────────────┐
+│ (3) read Root's stored properties                                        │
+│ (4) look for properties another copy of the package declared             │
+│     -> problem                                                           │
+│ (5) for each property holding a class: build that class's schema,        │
+│     with the updates and overrides whose path goes into it               │
+│     ((3) to (7) again; a class already on the path -> recursion problem) │
+│ (6) apply the other recorded updates, then the other propertyOverrides   │
+│ (7) per property: add class-validator rules (explicit wins), nullable,   │
+│     check the type -> problems                                           │
+│ (8) problems? throw one error : apply options and return                 │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Note:** For arrays of primitive types (strings/numbers/boolean), you must explicitly set the items property:
+- **Why the checks wait for generation.** A property's class-validator decorators may run after `@ToolProp` (decorators run bottom-up), and a class may be decorated by a shared library without ever being used as a tool. Checking at generation time makes the result independent of decorator order, and means a class is only checked when a schema reaches it.
+- **Precedence (7).** `@ToolProp` records which options you set yourself. Inferred rules fill the gaps; a conflicting inferred rule only produces a warning.
+- **Nested classes (5).** `@ToolProp` stores a reference to a property's class, not its schema. The nested schema is built for each root, so a change to the nested class is always seen, and the path from the root is known for error messages and recursion checks.
+- **Updates into nested classes (5).** `updateSchemaProperty(Outer, 'address.city', …)` is recorded on `Outer`. When a schema of `Outer` is generated, the update is handed to the build of `Address`'s schema and applied there before `Address`'s properties are checked, exactly like an update of `Address`'s own `city`. A `propertyOverrides` entry such as `'address.city'` goes the same way, at any depth. So an update or override can give a nested property the type it lacks, and `Address` itself does not change. A subclass of `Outer` gets the update too, if its `address` property still holds the same class. Step (6) applies the rest: updates of the class's own properties, and paths into a property whose class is not built.
+- **Another installed copy (4).** Metadata is stored under JavaScript symbols created by each copy of the package (`Symbol('jsonSchema')`). Two copies create two different symbols with the same name, so one copy cannot read the other's properties. Schema Forge looks for a symbol with the same name that is not its own, and reports the properties only that copy declared, instead of leaving them out silently.
 
-```typescript
-@ToolProp({
-  description: 'List of tags',
-  items: { type: 'string' }
-})
-tags: string[];
-```
+## 11. Limitations
 
-For enum arrays, you only need to set the enum property:
+- **No recursive schemas.** Schema Forge does not emit `$ref` or `$defs`, so a class cannot contain itself; describe the closing property as `type: 'object'`.
+- **No object-level rules.** `minProperties`, `maxProperties`, `patternProperties` and `propertyNames` have no option.
+- **class-transformer is not read.** `@Type(() => X)` does not give array items; set `items`.
+- **`@IsOptional()` does not make a property optional.** Use `isOptional: true`.
+- **Strict modes cannot express a free-form object.** OpenAI and Anthropic strict modes reject an object that is not closed, and an object without declared properties (a `Record`) cannot be closed. So in strict mode, generating the schema throws and names the property. This happens with `forStructuredOutput: true`, with `classToOpenAIResponseApiTool` (strict unless `forStructuredOutput: false`), and in `prepareForOpenAIStructuredOutput` and `prepareForAnthropicStrictTool`. Declare its properties, or describe it as a string that holds JSON.
+- **The Vertex AI functions are not tested** against the real API.
 
-```typescript
-@ToolProp({
-  description: 'List of roles',
-  enum: ['admin', 'user', 'guest']
-})
-roles: string[];
-```
+## 12. API reference
 
-### Core Functions
+**Decorators**
 
-- `classToJsonSchema(target, options?)`: Converts a class to JSON Schema
-- `prepareForOpenAIStructuredOutput(schema)`: Enhances a schema for OpenAI structured output
+| Function | Description |
+| --- | --- |
+| `@ToolMeta({ name?, description? })` | Class decorator: the tool's name and description, used by the provider formats. |
+| `@ToolProp(options?)` | Property decorator: puts the property in the schema ([4.4](#44-all-toolprop-options)). |
 
-### LLM Format Functions
+**Generating a schema**
 
-#### Class to LLM Format Converters
+| Function | Description |
+| --- | --- |
+| `classToJsonSchema(Class, options?)` | The JSON Schema of a class ([section 6](#6-schema-options)). |
+| `prepareForOpenAIStructuredOutput(schema, handleOptionals?)` | The OpenAI strict-mode preparation of [7.1](#71-openai), on a schema you already have. `handleOptionals` defaults to `false`, as in 2.x: a property missing from `required` is then required anyway, and the model has to invent a value for it. Pass `true` when the schema's `required` is accurate, so such a property becomes nullable instead (the `classTo…` functions do). Pass `{ strict: true }` to the `jsonSchemaToOpenAI…` function as well. |
+| `prepareForAnthropicStrictTool(schema)` | The Anthropic strict-tool preparation of [7.2](#72-anthropic), on a schema you already have; pass `{ strict: true }` to `jsonSchemaToAnthropicTool` as well. |
+| `findUndeclaredValidatedProperties(Class)` | Properties with class-validator decorators but no `@ToolProp`, with their paths ([5.2](#52-class-validator-does-not-add-properties)). |
 
-- `classToOpenAITool(target, options?)`: Generates OpenAI function calling format for Chat Completions API
-- `classToOpenAIResponseApiTool(target, options?)`: Generates OpenAI tool format for Response API
-- `classToOpenAIResponseFormatJsonSchema(target, options?)`: Generates OpenAI response format for Chat Completions API
-- `classToOpenAIResponseApiTextSchema(target, options?)`: Generates OpenAI text format for Response API
-- `classToAnthropicTool(target, options?)`: Generates Anthropic Claude tool format
-- `classToGeminiTool(target, options?)`: Generates Google Gemini tool format for new `@google/genai` API
-- `classToGeminiResponseSchema(target, options?)`: Generates Gemini response schema for new `@google/genai` API
-- `classToGeminiOldTool(target, options?)`: Generates Google Gemini tool format for legacy `@google/generative-ai` API
-- `classToGeminiOldResponseSchema(target, options?)`: Generates Gemini response schema for legacy `@google/generative-ai` API
-- `classToGeminiVertexTool(target, options?)`: Generates Google Gemini tool format for `@google-cloud/vertexai` API *(Note: functionality implemented but not verified with real API calls)*
-- `classToGeminiVertexResponseSchema(target, options?)`: Generates Gemini response schema for `@google-cloud/vertexai` API *(Note: functionality implemented but not verified with real API calls)*
+**Changing a class's schema permanently**
 
-#### JSON Schema to LLM Format Converters
+| Function | Description |
+| --- | --- |
+| `updateSchemaProperty(Class, path, updates)` | Changes a property; the path may go into nested classes. |
+| `addSchemaProperty(Class, path, options)` | Adds a property; the path may go into nested classes. |
 
-- `jsonSchemaToOpenAITool(schema, metadata, options?)`: Converts JSON Schema to OpenAI tool format for Chat Completions API
-- `jsonSchemaToOpenAIResponseApiTool(schema, metadata, options)`: Converts JSON Schema to OpenAI tool format for Response API (note: `strict` parameter is required)
-- `jsonSchemaToOpenAIResponseFormat(schema, metadata, options?)`: Converts JSON Schema to OpenAI response format for Chat Completions API
-- `jsonSchemaToOpenAIResponseApiTextSchema(schema, metadata, options?)`: Converts JSON Schema to OpenAI text format for Response API
-- `jsonSchemaToAnthropicTool(schema, metadata)`: Converts JSON Schema to Anthropic Claude tool format
-- `jsonSchemaToGeminiTool(schema, metadata)`: Converts JSON Schema to Google Gemini tool format for new `@google/genai` API
-- `jsonSchemaToGeminiResponseSchema(schema, metadata)`: Converts JSON Schema to Gemini response schema format for new `@google/genai` API
-- `jsonSchemaToGeminiOldTool(schema, metadata)`: Converts JSON Schema to Google Gemini old tool format for legacy `@google/generative-ai` API
-- `jsonSchemaToGeminiOldResponseSchema(schema, metadata)`: Converts JSON Schema to Gemini old response schema format for legacy `@google/generative-ai` API
-- `jsonSchemaToGeminiVertexTool(schema, metadata)`: Converts JSON Schema to Gemini tool format for `@google-cloud/vertexai` API *(Note: functionality implemented but not verified with real API calls)*
-- `jsonSchemaToGeminiVertexResponseSchema(schema, metadata)`: Converts JSON Schema to Gemini response schema format for `@google-cloud/vertexai` API *(Note: functionality implemented but not verified with real API calls)*
- 
-#### LLM Format to JSON Schema Converters
+**From a class to a provider format** (all take `(Class, options?)`)
 
-- `openAIToolToJsonSchema(openAITool)`: Extracts JSON Schema and metadata from an OpenAI Chat Completions API tool
-- `openAIResponseApiToolToJsonSchema(openAITool)`: Extracts JSON Schema and metadata from an OpenAI Response API tool
+| Function | Returns |
+| --- | --- |
+| `classToOpenAITool` | OpenAI Chat Completions tool |
+| `classToOpenAIResponseApiTool` | OpenAI Responses API tool (strict by default) |
+| `classToOpenAIResponseFormatJsonSchema` | OpenAI Chat Completions `response_format` |
+| `classToOpenAIResponseApiTextSchema` | OpenAI Responses API `text.format` |
+| `classToAnthropicTool` | Anthropic tool (strict tool use with `forStructuredOutput: true`) |
+| `classToGeminiTool`, `classToGeminiResponseSchema` | `@google/genai` function declaration, response schema |
+| `classToGeminiOldTool`, `classToGeminiOldResponseSchema` | `@google/generative-ai` function declaration, response schema |
+| `classToGeminiVertexTool`, `classToGeminiVertexResponseSchema` | `@google-cloud/vertexai` function declaration, response schema |
 
-### Schema Modification
+**From a JSON Schema to a provider format.** The OpenAI and Anthropic converters take `(schema, { name, description? }, { strict? })`. The Gemini tool converters take `(schema, { name, description? })`, and the Gemini response-schema converters take `(schema, { description? })`. `strict: true` only sets the flag ([7.4](#74-existing-json-schemas-and-converting-between-formats)).
 
-- `updateSchemaProperty(target, propertyPath, updates)`: Updates a property in a schema
-- `addSchemaProperty(target, propertyPath, options)`: Adds a new property to a schema
+`jsonSchemaToOpenAITool`, `jsonSchemaToOpenAIResponseApiTool` (its `options.strict` is required), `jsonSchemaToOpenAIResponseFormat`, `jsonSchemaToOpenAIResponseApiTextSchema`, `jsonSchemaToAnthropicTool` (for strict tool use, call `prepareForAnthropicStrictTool` first, then pass `{ strict: true }`), `jsonSchemaToGeminiTool`, `jsonSchemaToGeminiResponseSchema`, `jsonSchemaToGeminiOldTool`, `jsonSchemaToGeminiOldResponseSchema`, `jsonSchemaToGeminiVertexTool`, `jsonSchemaToGeminiVertexResponseSchema`.
+
+**From a provider format back to JSON Schema**
+
+`openAIToolToJsonSchema(tool)` and `openAIResponseApiToolToJsonSchema(tool)` return `{ schema, metadata }`.
+
+**Other exports.** `inferClassValidatorProperties(prototype, propertyName)` returns what Schema Forge reads from one property's class-validator decorators. `Schema` is an object holding the main functions above (an older import style), and `classToLLMTool` is an older name for `classToOpenAITool`.
+
+## 13. Troubleshooting
+
+**`Property 'name' has no initializer and is not definitely assigned in the constructor. ts(2564)`** — `strictPropertyInitialization` is on. Write `name!: string` ([section 2](#2-install-and-set-up)).
+
+**The error says "no design type (is emitDecoratorMetadata enabled?)"** — turn on `emitDecoratorMetadata`, and make sure your build tool emits decorator metadata. [esbuild does not support it](https://esbuild.github.io/content-types/#no-type-system), so tools that compile TypeScript with esbuild do not either, unless you add a plugin that emits decorator metadata.
+
+**A property is missing from the schema** — it has no `@ToolProp` ([5.2](#52-class-validator-does-not-add-properties)), or it was declared through another installed copy of Schema Forge, which 3.0.0 reports as an error ([section 8.2](#82-errors)).
+
+**An optional property rejects `null`** — `isOptional` does not allow `null`; add `nullable: true` ([4.3](#43-optional-and-nullable)).
 
 ## License
 
-Apache 2.0
-
-## Structured Output & API Differences
-
-### Structured Output in Different LLM Providers
-
-Schema Forge supports structured output formats for various LLM providers, but each has different requirements and limitations:
-
-#### OpenAI Structured Output
-
-OpenAI supports two main methods for structured output:
-
-1. **Response Format Method (Recommended)**
-   - Uses `response_format` in Chat Completions API or `text.format` in Response API
-   - Requires `additionalProperties: false` and all properties must be in `required` array
-   - Requires `strict: true`.
-   - Many JSON Schema features are not supported (minimum, maximum, minItems, etc.)
-   - These requirements are handled by schema-forge automatically, as long as `forStructuredOutput: true` is set.
-   - Example:
-     ```typescript
-     // Chat Completions API
-     const responseFormat = classToOpenAIResponseFormatJsonSchema(MyClass, { 
-       forStructuredOutput: true
-       // strict is set automatically when forStructuredOutput is true
-     });
-     
-     // Response API
-     const textFormat = classToOpenAIResponseApiTextSchema(MyClass, {
-       forStructuredOutput: true
-       // strict is set automatically when forStructuredOutput is true
-     });
-     ```
-
-2. **Function Calling Method**
-   - Uses `tools` with schema enforcement (handled by schema-forge's `forStructuredOutput`) and `parallel_tool_calls: false` (that people need to specify in OpenAI top level request body)
-   - Has the same JSON Schema limitations as above
-   - Less recommended by OpenAI but still works for structured output
-   - Example:
-     ```typescript
-     const tool = classToOpenAITool(MyClass, { forStructuredOutput: true });
-     // Use with parallel_tool_calls: false
-     ```
-
-**Important**: Schema Forge's `prepareForOpenAIStructuredOutput` utility is specifically designed for OpenAI's structured output requirements only. It adds `additionalProperties: false`, handles `required` fields, and removes unsupported schema properties. This function is not needed and should not be used for Gemini structured output, which has broader JSON Schema support.
-
-**Optional Property Handling for OpenAI**:
-
-Schema Forge automatically converts optional properties for OpenAI structured output:
-
-1. **OpenAI Optional Properties**: When using `forStructuredOutput: true` with OpenAI functions, `isOptional: true` properties are automatically converted to the `"type": ["string", "null"]` format that OpenAI recommends for optional fields.
-
-This works for both primitive and complex nested properties:
-
-```typescript
-class UserProfile {
-  @ToolProp()
-  id: string;  // Required property
-  
-  @ToolProp({ isOptional: true })
-  nickname?: string;  // Optional string automatically converted to ["string", "null"] with OpenAI
-  
-  @ToolProp({ isOptional: true })
-  address?: Address;  // Optional nested object handled correctly
-  
-  @ToolProp({ isOptional: true, items: { type: 'string' } })
-  tags?: string[];  // Optional array also handled correctly
-}
-```
-
-#### Google Gemini Structured Output
-
-Gemini has simpler structured output requirements:
-
-- Uses `responseMimeType: "application/json"` + `responseSchema`
-- Doesn't require special handling of `required` fields or `additionalProperties`
-- Supports more JSON Schema features than OpenAI (including `minimum`, `maximum`, etc.)
-- Properties can be marked nullable with `nullable: true` property
-- **IMPORTANT**: Unlike OpenAI, Gemini doesn't require `forStructuredOutput` flag or schema modifications
-- Example:
-  ```typescript
-  // Gemini structured output - no forStructuredOutput needed
-  const schema = classToGeminiResponseSchema(MyClass);
-  
-  // Use with Gemini API
-  const model = genAI.getGenerativeModel({
-    model: "gemini-2.0-flash-001",
-    generationConfig: {
-      responseMimeType: "application/json", // This enables structured output
-      responseSchema: schema,
-    },
-  });
-  ```
-
-#### Google API Options
-
-Google provides multiple API packages for working with Gemini models. Schema Forge supports all of them:
-
-1. **New Google AI Studio API (Recommended)**: `@google/genai`
-   - Latest API that supports both Google AI Studio and Vertex AI
-   - Use `classToGeminiTool` and `classToGeminiResponseSchema`
-   - Example: 
-     ```typescript
-     import { GoogleGenAI } from '@google/genai';
-     const genAI = new GoogleGenAI(apiKey);
-     const tool = classToGeminiTool(MyClass);
-     ```
-
-2. **Legacy Google AI Studio API**: `@google/generative-ai` 
-   - Older API being phased out, use only if needed
-   - Use `classToGeminiOldTool` and `classToGeminiOldResponseSchema`
-   - Example:
-     ```typescript
-     import { GoogleGenerativeAI } from '@google/generative-ai';
-     const genAI = new GoogleGenerativeAI(apiKey);
-     const tool = classToGeminiOldTool(MyClass);
-     ```
-
-3. **Google Vertex AI**: `@google-cloud/vertexai`
-   - Enterprise API for Google Cloud Platform
-   - Requires GCP project and location settings
-   - Use `classToGeminiVertexTool` and `classToGeminiVertexResponseSchema`
-   - **Note**: Vertex AI support is implemented but not verified with actual API calls yet
-   - **Important**: Google may eventually deprecate this API in favor of `@google/genai`
-   - Example:
-     ```typescript
-     import { VertexAI } from '@google-cloud/vertexai';
-     const vertexAI = new VertexAI({project, location});
-     const tool = classToGeminiVertexTool(MyClass); 
-     ```
-
-#### Anthropic Claude
-
-Claude doesn't have specific structured output support beyond tool calling.
-
-### OpenAI Response API vs Chat Completions API
-
-When using OpenAI's Response API, note that there are some key differences from the Chat Completions API:
-
-- In Response API, the `strict` parameter is **required** for tool functions 
-- Schema-forge uses `forStructuredOutput` to control the `strict` parameter - if `forStructuredOutput` is set, `strict` will be true; otherwise it defaults to true for the Response API (forge-schema sets it default as true, as Response API comment says it is default true but it is a TypeScript required property in API and no default value set)
-- The structure of tool functions differs between APIs:
-  - Chat Completions: `{ type: 'function', function: { name, description, parameters, strict? } }`
-  - Response API: `{ type: 'function', name, description, parameters, strict }`
-
-These differences are automatically handled by schema-forge's corresponding functions:
-
-```typescript
-// Chat Completions API - forStructuredOutput is optional
-const chatTool = classToOpenAITool(MyClass, { forStructuredOutput: true });
-
-// Response API - strict is required in the final Sent OpenAI Response API (defaults to true if forStructuredOutput not specified)
-const responseTool = classToOpenAIResponseApiTool(MyClass);
-```
-
-## JSON Schema Support
-
-Schema Forge is aligned with JSON Schema Draft 2020-12, but does not output the `$schema` field in generated schemas to maintain consistency with LLM API examples and to minimize payload size.
-
-### Supported JSON Schema Properties
-
-The `@ToolProp` decorator currently supports these JSON Schema properties:
-
-```typescript
-@ToolProp({
-  description: string,       // Provides description for the property
-  type: string,              // Explicit type (usually inferred)
-  enum: string[] | number[], // Enumeration values
-  items: object,             // For array properties
-  isOptional: boolean,       // Controls if property is in required array
-  // ...other basic JSON Schema properties
-})
-```
-
-#### Current Limitations
-
-Some JSON Schema properties are not yet directly supported through decorators, including:
-
-- Array constraints: `minItems`, `maxItems`, `uniqueItems`
-- String constraints: `minLength`, `maxLength`, `pattern`, `format`
-- Number constraints: `minimum`, `maximum`, `multipleOf`
-- Object constraints: `minProperties`, `maxProperties`
-
-The following JSON Schema features are also not yet supported, despite being supported by OpenAI structured output:
-
-- Recursive schemas using `$ref`
-- Complex schema composition with `anyOf`
-- `"type": "integer"`
-
-## Common Issues and Solutions
-
-### Property has no initializer and is not definitely assigned
-
-If you're using TypeScript with strict property initialization checks (`--strict` or `--strictPropertyInitialization`), you might encounter this kind of error:
-
-```
-Property 'sum' has no initializer and is not definitely assigned in the constructor.ts(2564)
-```
-
-**Solution**: Use the definite assignment assertion operator (`!:`) on your properties:
-
-```typescript
-class MathToolDto {
-  @ToolProp()
-  sum!: number; // Use the ! operator to tell TypeScript this will be assigned
-}
-```
-
-### Optional Properties
-
-For optional properties, use both the `isOptional` decorator option and TypeScript's optional property syntax:
-
-```typescript
-class UserData {
-  @ToolProp()
-  name!: string; // Required property with definite assignment
-  
-  @ToolProp({ isOptional: true })
-  age?: number; // Optional property using both ? syntax and isOptional
-}
-```
+[Apache 2.0](LICENSE)
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome. Please open an issue or a pull request on [GitHub](https://github.com/firefliesai/schema-forge).

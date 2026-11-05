@@ -23,7 +23,194 @@ import {
   SchemaType,
   Type,
 } from './types';
-import { prepareForOpenAIStructuredOutput } from './utils';
+import { noteInDescription } from './resolve';
+import { prepareForAnthropicStrictTool, prepareForOpenAIStructuredOutput } from './strict-schema';
+
+/**
+ * The fields Gemini's `Schema` accepts, checked against the live API (November 2026, tools and
+ * response schemas alike). Any other field is rejected with a 400 (`Unknown name "uniqueItems"
+ * … Cannot find field`), including `const`, `examples`, `deprecated`, `readOnly`,
+ * `exclusiveMinimum` / `exclusiveMaximum`, `multipleOf`, `uniqueItems`, `contains`,
+ * `patternProperties`, `propertyNames` and `additionalProperties`. The API parses the request
+ * before any model sees it, so the result was the same on Gemini 2.5 Flash, 2.5 Pro and 3.8 Flash;
+ * `oneOf`, `allOf` and `not` are accepted although the documentation does not list them.
+ */
+const GEMINI_SCHEMA_KEYS = new Set([
+  'type',
+  'format',
+  'title',
+  'description',
+  'nullable',
+  'enum',
+  'items',
+  'properties',
+  'required',
+  'propertyOrdering',
+  'minItems',
+  'maxItems',
+  'minProperties',
+  'maxProperties',
+  'minLength',
+  'maxLength',
+  'pattern',
+  'minimum',
+  'maximum',
+  'example',
+  'default',
+  'anyOf',
+  'oneOf',
+  'allOf',
+  'not',
+]);
+
+const GEMINI_COMPOSITION_KEYS = ['anyOf', 'oneOf', 'allOf'];
+
+/**
+ * Gemini takes an OpenAPI-style schema: `nullable: true` instead of a `"null"` type or a
+ * `{ type: "null" }` branch, a single `type`, string `enum` values only, and only the fields in
+ * `GEMINI_SCHEMA_KEYS`. A keyword Gemini would reject is not lost: it is added to the description
+ * as `{keyword: value}`, as the strict modes do (`additionalProperties` is dropped). Values such as
+ * `default`, `example`, `const` and `enum` are never walked as schemas. `path` names the property
+ * in error messages.
+ */
+function toGeminiSchema(node: any, path: string): any {
+  if (!node || typeof node !== 'object' || Array.isArray(node)) return node;
+  const out: any = {};
+  for (const [key, value] of Object.entries(node)) {
+    if (key === 'additionalProperties') continue;
+    if (key === 'properties') out[key] = toGeminiProperties(value, path);
+    else if (key === 'items') out[key] = toGeminiSchema(value, `${path}[]`);
+    else if (key === 'not') out[key] = toGeminiSchema(value, `${path}.not`);
+    else if (GEMINI_COMPOSITION_KEYS.includes(key) && Array.isArray(value)) {
+      out[key] = value.map((branch, index) => toGeminiSchema(branch, `${path}.${key}[${index}]`));
+    } else out[key] = value;
+  }
+  if (Array.isArray(out.type)) {
+    const types = out.type.filter((type: string) => type !== 'null');
+    if (types.length < out.type.length) {
+      out.nullable = true;
+      if (Array.isArray(out.enum)) out.enum = out.enum.filter((value: unknown) => value !== null);
+    }
+    if (types.length === 1) {
+      out.type = types[0];
+    } else {
+      // Gemini's `type` is a single value: one typed branch per type, each with its enum values.
+      // Those branches would need the `anyOf` slot, so a schema that already has an `anyOf` (only
+      // a hand-written one: `nullable` never puts one next to a type) cannot be expressed.
+      if (Array.isArray(out.anyOf)) {
+        throw new Error(
+          `schema-forge: Gemini cannot express "${path}": it has a type array ` +
+            `(${JSON.stringify(out.type)}) next to an anyOf, and Gemini's type is a single ` +
+            'value. Put the types into the anyOf branches instead.',
+        );
+      }
+      const values: unknown[] | undefined = out.enum;
+      out.anyOf = types.map((type: string) => ({
+        type,
+        ...(values && { enum: values.filter((value) => matchesJsonType(value, type)) }),
+      }));
+      delete out.type;
+      delete out.enum;
+    }
+  }
+  for (const key of ['anyOf', 'oneOf']) {
+    const branches = out[key];
+    if (!Array.isArray(branches) || !branches.some(isNullBranch)) continue;
+    const rest = branches.filter((branch: any) => !isNullBranch(branch));
+    out.nullable = true;
+    if (rest.length === 1) {
+      delete out[key];
+      const { description, ...value } = rest[0];
+      Object.assign(out, value, { nullable: true });
+      if (description) {
+        out.description = out.description ? `${out.description}\n\n${description}` : description;
+      }
+    } else {
+      out[key] = rest;
+    }
+  }
+  return toGeminiKeywords(out);
+}
+
+/**
+ * Keywords Gemini rejects with a 400, on a node and on the branches created for it:
+ * - `exclusiveMinimum` / `exclusiveMaximum`: an integer gets the equivalent `minimum` / `maximum`;
+ *   for other numbers the bound goes into the description.
+ * - `const`: a string becomes a one-value `enum`; any other value goes into the description.
+ * - `enum`: Gemini accepts only non-empty strings (`enum[0]: cannot be empty`), so an enum with
+ *   other values goes into the description, and the `type` stays.
+ * - Every other field not in `GEMINI_SCHEMA_KEYS` goes into the description.
+ */
+function toGeminiKeywords(node: any): any {
+  const moved: [string, unknown][] = [];
+  const integer = node.type === 'integer';
+  if (typeof node.exclusiveMinimum === 'number') {
+    if (integer) {
+      const bound = Math.floor(node.exclusiveMinimum) + 1;
+      node.minimum = typeof node.minimum === 'number' ? Math.max(node.minimum, bound) : bound;
+    } else {
+      moved.push(['exclusiveMinimum', node.exclusiveMinimum]);
+    }
+    delete node.exclusiveMinimum;
+  }
+  if (typeof node.exclusiveMaximum === 'number') {
+    if (integer) {
+      const bound = Math.ceil(node.exclusiveMaximum) - 1;
+      node.maximum = typeof node.maximum === 'number' ? Math.min(node.maximum, bound) : bound;
+    } else {
+      moved.push(['exclusiveMaximum', node.exclusiveMaximum]);
+    }
+    delete node.exclusiveMaximum;
+  }
+  if (node.const !== undefined) {
+    if (typeof node.const === 'string' && node.enum === undefined) {
+      node.enum = [node.const];
+      if (node.type === undefined) node.type = 'string';
+    } else {
+      moved.push(['const', node.const]);
+    }
+    delete node.const;
+  }
+  if (
+    Array.isArray(node.enum) &&
+    !node.enum.every((value: unknown) => typeof value === 'string' && value !== '')
+  ) {
+    moved.push(['enum', node.enum]);
+    delete node.enum;
+  }
+  for (const key of Object.keys(node)) {
+    if (GEMINI_SCHEMA_KEYS.has(key)) continue;
+    moved.push([key, node[key]]);
+    delete node[key];
+  }
+  noteInDescription(node, moved);
+  for (const key of GEMINI_COMPOSITION_KEYS) {
+    if (Array.isArray(node[key])) {
+      node[key] = node[key].map((branch: any) =>
+        branch && typeof branch === 'object' ? toGeminiKeywords(branch) : branch,
+      );
+    }
+  }
+  return node;
+}
+
+const matchesJsonType = (value: unknown, type: string): boolean =>
+  type === 'integer' ? Number.isInteger(value) : typeof value === type;
+
+const isNullBranch = (branch: any): boolean =>
+  !!branch &&
+  typeof branch === 'object' &&
+  branch.type === 'null' &&
+  Object.keys(branch).length === 1;
+
+function toGeminiProperties(properties: any, path = ''): Record<string, any> {
+  return Object.fromEntries(
+    Object.entries(properties || {}).map(([name, schema]) => [
+      name,
+      toGeminiSchema(schema, path ? `${path}.${name}` : name),
+    ]),
+  );
+}
 
 /**
  * Converts a JSON Schema to OpenAI tool format for Chat Completions API
@@ -172,14 +359,17 @@ export function jsonSchemaToOpenAIResponseApiTextSchema(
 export function jsonSchemaToAnthropicTool(
   schema: JSONSchemaDefinition,
   metadata: { name: string; description?: string },
+  options?: { strict?: boolean },
 ): AnthropicToolFunction {
   return {
     name: metadata.name,
     ...(metadata.description && { description: metadata.description }),
+    ...(options?.strict && { strict: true }),
     input_schema: {
       type: 'object',
       properties: schema.properties,
       required: schema.required || [],
+      ...(schema.additionalProperties === false && { additionalProperties: false }),
     },
   };
 }
@@ -210,7 +400,7 @@ export function jsonSchemaToGeminiTool(
     parameters: {
       type: Type.OBJECT, //'OBJECT',
       ...(metadata.description && { description: metadata.description }),
-      properties: schema.properties,
+      properties: toGeminiProperties(schema.properties),
       required: schema.required || [],
     },
   };
@@ -227,7 +417,7 @@ export function jsonSchemaToGeminiOldTool(
     parameters: {
       type: SchemaType.OBJECT,
       ...(metadata.description && { description: metadata.description }),
-      properties: schema.properties,
+      properties: toGeminiProperties(schema.properties),
       required: schema.required || [],
     },
   };
@@ -264,7 +454,7 @@ export function jsonSchemaToGeminiResponseSchema(
   return {
     type: Type.OBJECT,
     ...(metadata.description && { description: metadata.description }),
-    properties: schema.properties,
+    properties: toGeminiProperties(schema.properties),
     required: schema.required || [],
   };
 }
@@ -277,7 +467,7 @@ export function jsonSchemaToGeminiOldResponseSchema(
   return {
     type: SchemaType.OBJECT,
     ...(metadata.description && { description: metadata.description }),
-    properties: schema.properties,
+    properties: toGeminiProperties(schema.properties),
     required: schema.required || [],
   };
 }
@@ -321,6 +511,7 @@ export function classToOpenAITool<T extends object>(
   // Get basic JSON schema without OpenAI-specific processing
   let jsonSchema = classToJsonSchema(target, {
     propertyOverrides: options?.propertyOverrides,
+    additionalProperties: options?.additionalProperties,
   });
 
   // Apply OpenAI structured output processing if requested
@@ -366,17 +557,19 @@ export function classToOpenAIResponseApiTool<T extends object>(
 ): OpenAIResponseApiToolFunction {
   const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
 
-  // For Response API, use forStructuredOutput if provided, otherwise default to true
+  // Strict unless forStructuredOutput is false: the Responses API itself tries strict mode when
+  // `strict` is left out, and an explicit `strict: false` keeps best-effort function calling
   const strict = options?.forStructuredOutput ?? true;
 
-  // Get basic JSON schema
   let jsonSchema = classToJsonSchema(target, {
     propertyOverrides: options?.propertyOverrides,
+    additionalProperties: options?.additionalProperties,
   });
 
-  // Always apply OpenAI structured output processing for Response API
-  // with handling of optional properties if strict is true
-  jsonSchema = prepareForOpenAIStructuredOutput(jsonSchema, strict);
+  // Only a strict tool needs the strict shape; otherwise the schema is sent as declared
+  if (strict) {
+    jsonSchema = prepareForOpenAIStructuredOutput(jsonSchema, true);
+  }
 
   // Use the helper function to convert JSON schema to OpenAI Response API tool
   return jsonSchemaToOpenAIResponseApiTool(
@@ -417,6 +610,7 @@ export function classToOpenAIResponseFormatJsonSchema<T extends object>(
   // Get basic JSON schema
   let jsonSchema = classToJsonSchema(target, {
     propertyOverrides: options?.propertyOverrides,
+    additionalProperties: options?.additionalProperties,
   });
 
   // Apply OpenAI structured output processing if requested
@@ -474,6 +668,7 @@ export function classToOpenAIResponseApiTextSchema<T extends object>(
   // Get basic JSON schema
   let jsonSchema = classToJsonSchema(target, {
     propertyOverrides: options?.propertyOverrides,
+    additionalProperties: options?.additionalProperties,
   });
 
   // Apply OpenAI structured output processing if requested
@@ -522,6 +717,7 @@ export function classToGeminiTool<T extends object>(
   // Get basic JSON schema
   const jsonSchema = classToJsonSchema(target, {
     propertyOverrides: options?.propertyOverrides,
+    additionalProperties: options?.additionalProperties,
   });
 
   // Note: Gemini has broader JSON Schema support and doesn't require special processing
@@ -544,6 +740,7 @@ export function classToGeminiOldTool<T extends object>(
   // Get basic JSON schema
   const jsonSchema = classToJsonSchema(target, {
     propertyOverrides: options?.propertyOverrides,
+    additionalProperties: options?.additionalProperties,
   });
 
   // Note: Gemini has broader JSON Schema support and doesn't require special processing
@@ -587,13 +784,25 @@ export function classToAnthropicTool<T extends object>(
   options?: AnthropicToolOptions<T>,
 ): AnthropicToolFunction {
   const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
-  const jsonSchema = classToJsonSchema(target, options);
-
-  // Use the helper function to convert JSON schema to Anthropic tool format
-  return jsonSchemaToAnthropicTool(jsonSchema, {
-    name: classOptions.name || '',
-    description: classOptions.description,
+  let jsonSchema = classToJsonSchema(target, {
+    propertyOverrides: options?.propertyOverrides,
+    additionalProperties: options?.additionalProperties,
   });
+
+  // Anthropic strict tool use has its own rules (optional properties allowed, no number bounds)
+  const strict = !!options?.forStructuredOutput;
+  if (strict) {
+    jsonSchema = prepareForAnthropicStrictTool(jsonSchema);
+  }
+
+  return jsonSchemaToAnthropicTool(
+    jsonSchema,
+    {
+      name: classOptions.name || '',
+      description: classOptions.description,
+    },
+    { strict },
+  );
 }
 
 /**
@@ -640,6 +849,7 @@ export function classToGeminiResponseSchema<T extends object>(
   // Get basic JSON schema
   const jsonSchema = classToJsonSchema(target, {
     propertyOverrides: options?.propertyOverrides,
+    additionalProperties: options?.additionalProperties,
   });
 
   // Note: Gemini has broader JSON Schema support and doesn't require special processing
@@ -661,6 +871,7 @@ export function classToGeminiOldResponseSchema<T extends object>(
   // Get basic JSON schema
   const jsonSchema = classToJsonSchema(target, {
     propertyOverrides: options?.propertyOverrides,
+    additionalProperties: options?.additionalProperties,
   });
 
   // Note: Gemini has broader JSON Schema support and doesn't require special processing

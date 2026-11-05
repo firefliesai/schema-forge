@@ -20,19 +20,65 @@ export const REQUIRED_PROPS_METADATA_KEY = Symbol('requiredProperties');
 export type Constructor<T> = new (...args: any[]) => T;
 
 // Schema types
+export type JSONSchemaTypeName =
+  | 'string'
+  | 'number'
+  | 'integer'
+  | 'boolean'
+  | 'array'
+  | 'object'
+  | 'null';
+
 export interface SchemaItemType {
-  type?: 'string' | 'number' | 'boolean' | 'integer' | Constructor<any>;
+  type?: 'string' | 'number' | 'boolean' | 'integer' | 'object' | Constructor<any>;
   enum?: (string | number | boolean)[];
-  format?: 'date-time' | 'uri' | 'email' | string;
+  format?: 'date-time' | 'uri' | 'email' | 'uuid' | string;
+  pattern?: string;
   minimum?: number;
   maximum?: number;
+  exclusiveMinimum?: number;
+  exclusiveMaximum?: number;
+  multipleOf?: number;
   minLength?: number;
   maxLength?: number;
 }
 
+/**
+ * Validation keywords shared by property options and generated property schemas.
+ */
+export interface SchemaConstraints {
+  format?: 'date-time' | 'uri' | 'email' | 'uuid' | string;
+  pattern?: string;
+  minimum?: number;
+  maximum?: number;
+  exclusiveMinimum?: number;
+  exclusiveMaximum?: number;
+  multipleOf?: number;
+  minLength?: number;
+  maxLength?: number;
+  minItems?: number;
+  maxItems?: number;
+  uniqueItems?: boolean;
+}
+
+/**
+ * Annotation and composition keywords passed through unchanged.
+ */
+export interface SchemaPassThrough {
+  title?: string;
+  default?: unknown;
+  examples?: unknown[];
+  deprecated?: boolean;
+  const?: unknown;
+  /** When given, `type` is not forced: the composition describes the value. */
+  anyOf?: Record<string, unknown>[];
+  oneOf?: Record<string, unknown>[];
+  allOf?: Record<string, unknown>[];
+}
+
 export interface BaseSchemaProperty {
   description?: string;
-  enum?: string[] | number[] | object;
+  enum?: (string | number | boolean)[] | object;
   items?: SchemaItemType | JSONSchemaDefinition;
   properties?: {
     [key: string]: JSONSchemaProperty;
@@ -40,29 +86,30 @@ export interface BaseSchemaProperty {
   required?: string[];
 }
 
-export interface PropertyOptions extends BaseSchemaProperty {
+export interface PropertyOptions extends BaseSchemaProperty, SchemaConstraints, SchemaPassThrough {
+  /** Leaves the property out of `required`. Does not allow `null`; see `nullable`. */
   isOptional?: boolean;
-  type?: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'integer';
-  format?: 'date-time' | 'uri' | 'email' | string;
-  minimum?: number;
-  maximum?: number;
-  minLength?: number;
-  maxLength?: number;
-  minItems?: number;
-  maxItems?: number;
-  uniqueItems?: boolean;
+  /**
+   * Allows `null` as a value: `type` becomes `[type, "null"]` (and `null` joins `enum`).
+   * Independent of `isOptional`.
+   */
+  nullable?: boolean;
+  /**
+   * The JSON Schema type, or a class: `type: Address` declares the property as that nested class,
+   * as its design type would (the way to write `address: Address | null` under `strictNullChecks`,
+   * with `nullable: true`). In `updateSchemaProperty`, `addSchemaProperty` and `propertyOverrides`
+   * a class is rejected: only `@ToolProp` declares a nested class.
+   */
+  type?: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'integer' | Constructor<any>;
 }
 
-export interface JSONSchemaProperty extends BaseSchemaProperty {
-  type: string;
-  format?: 'date-time' | 'uri' | 'email' | string;
-  minimum?: number;
-  maximum?: number;
-  minLength?: number;
-  maxLength?: number;
-  minItems?: number;
-  maxItems?: number;
-  uniqueItems?: boolean;
+export interface JSONSchemaProperty
+  extends BaseSchemaProperty,
+    SchemaConstraints,
+    SchemaPassThrough {
+  /** Absent when the property is described by `anyOf` / `oneOf` / `allOf`. */
+  type?: JSONSchemaTypeName | JSONSchemaTypeName[];
+  additionalProperties?: boolean;
   properties?: {
     [key: string]: JSONSchemaProperty;
   };
@@ -193,10 +240,13 @@ export interface GeminiVertexResponseSchema {
 export interface AnthropicToolFunction {
   name: string;
   description?: string;
+  /** Anthropic strict tool use: the model's input is constrained to `input_schema`. */
+  strict?: boolean;
   input_schema: {
     type: 'object';
     properties: Record<string, any>;
     required?: string[];
+    additionalProperties?: boolean;
   };
 }
 
@@ -216,7 +266,10 @@ export interface JsonSchemaOptions<T> {
   }>;
 
   /**
-   * Whether to prepare the schema for OpenAI specific structured output
+   * Adapts the schema to the provider's strict mode and sets `strict: true`: OpenAI's rules for
+   * the OpenAI functions and `classToJsonSchema`, Anthropic's for `classToAnthropicTool`. Only the
+   * keywords the provider rejects are removed, and each is added to the description.
+   * `classToOpenAIResponseApiTool` defaults to `true`; the others to `false`.
    */
   forStructuredOutput?: boolean;
 
@@ -228,6 +281,13 @@ export interface JsonSchemaOptions<T> {
    * @deprecated Use forStructuredOutput instead
    */
   structuredOutputFormat?: StructuredOutputFormat;
+
+  /**
+   * `false` adds `additionalProperties: false` to every object that declares properties, at every
+   * level (closed objects), which strict structured-output modes require. A free-form object with
+   * no declared properties stays open. Unset leaves objects open, as before.
+   */
+  additionalProperties?: boolean;
 }
 
 // Options for OpenAI tool functions - same as JsonSchemaOptions
