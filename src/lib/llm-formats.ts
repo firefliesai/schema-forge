@@ -24,7 +24,7 @@ import {
   Type,
 } from './types';
 import { noteInDescription } from './resolve';
-import { prepareForOpenAIStructuredOutput } from './utils';
+import { prepareForAnthropicStrictTool, prepareForOpenAIStructuredOutput } from './strict-schema';
 
 /**
  * The fields Gemini's `Schema` accepts, checked against the live API (November 2026, tools and
@@ -359,10 +359,12 @@ export function jsonSchemaToOpenAIResponseApiTextSchema(
 export function jsonSchemaToAnthropicTool(
   schema: JSONSchemaDefinition,
   metadata: { name: string; description?: string },
+  options?: { strict?: boolean },
 ): AnthropicToolFunction {
   return {
     name: metadata.name,
     ...(metadata.description && { description: metadata.description }),
+    ...(options?.strict && { strict: true }),
     input_schema: {
       type: 'object',
       properties: schema.properties,
@@ -555,18 +557,19 @@ export function classToOpenAIResponseApiTool<T extends object>(
 ): OpenAIResponseApiToolFunction {
   const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
 
-  // For Response API, use forStructuredOutput if provided, otherwise default to true
+  // Strict unless forStructuredOutput is false: the Responses API itself tries strict mode when
+  // `strict` is left out, and an explicit `strict: false` keeps best-effort function calling
   const strict = options?.forStructuredOutput ?? true;
 
-  // Get basic JSON schema
   let jsonSchema = classToJsonSchema(target, {
     propertyOverrides: options?.propertyOverrides,
     additionalProperties: options?.additionalProperties,
   });
 
-  // Always apply OpenAI structured output processing for Response API
-  // with handling of optional properties if strict is true
-  jsonSchema = prepareForOpenAIStructuredOutput(jsonSchema, strict);
+  // Only a strict tool needs the strict shape; otherwise the schema is sent as declared
+  if (strict) {
+    jsonSchema = prepareForOpenAIStructuredOutput(jsonSchema, true);
+  }
 
   // Use the helper function to convert JSON schema to OpenAI Response API tool
   return jsonSchemaToOpenAIResponseApiTool(
@@ -781,13 +784,25 @@ export function classToAnthropicTool<T extends object>(
   options?: AnthropicToolOptions<T>,
 ): AnthropicToolFunction {
   const classOptions = Reflect.getMetadata('jsonSchema:options', target) || {};
-  const jsonSchema = classToJsonSchema(target, options);
-
-  // Use the helper function to convert JSON schema to Anthropic tool format
-  return jsonSchemaToAnthropicTool(jsonSchema, {
-    name: classOptions.name || '',
-    description: classOptions.description,
+  let jsonSchema = classToJsonSchema(target, {
+    propertyOverrides: options?.propertyOverrides,
+    additionalProperties: options?.additionalProperties,
   });
+
+  // Anthropic strict tool use has its own rules (optional properties allowed, no number bounds)
+  const strict = !!options?.forStructuredOutput;
+  if (strict) {
+    jsonSchema = prepareForAnthropicStrictTool(jsonSchema);
+  }
+
+  return jsonSchemaToAnthropicTool(
+    jsonSchema,
+    {
+      name: classOptions.name || '',
+      description: classOptions.description,
+    },
+    { strict },
+  );
 }
 
 /**

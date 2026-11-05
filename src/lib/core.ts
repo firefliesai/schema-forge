@@ -18,13 +18,13 @@ import {
   JsonSchemaOptions,
   REQUIRED_PROPS_METADATA_KEY,
 } from './types';
+import { prepareForOpenAIStructuredOutput } from './strict-schema';
 import {
   assertNoClassInUpdate,
   cloneMetadata,
   cloneUpdate,
   isCustomClass,
   normalizeTypeConstructor,
-  prepareForOpenAIStructuredOutput,
 } from './utils';
 
 type ClassType = new (...args: any[]) => any;

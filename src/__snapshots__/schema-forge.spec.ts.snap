@@ -986,6 +986,7 @@ exports[`schema-forge test 10 Date type support with format date-time: 10-5 Date
       "properties": {
         "endDate": {
           "description": "Event end date and time",
+          "format": "date-time",
           "type": [
             "string",
             "null",
@@ -997,6 +998,7 @@ exports[`schema-forge test 10 Date type support with format date-time: 10-5 Date
         },
         "startDate": {
           "description": "Event start date and time",
+          "format": "date-time",
           "type": "string",
         },
       },

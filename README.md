@@ -82,7 +82,7 @@ Pass `tool` in the `tools` list of an OpenAI request. When the model calls it, i
 | --- | --- |
 | Tool (also called function calling) | A function your application offers to an LLM. You send the LLM its name, a description and a JSON Schema of its arguments; the LLM answers with a call that has those arguments, and your code runs it. |
 | Structured output | Asking the LLM to answer with JSON that matches a JSON Schema, instead of free text. |
-| Strict mode | A provider setting that makes the LLM's output follow the schema exactly. It accepts only part of JSON Schema and adds its own rules (see [OpenAI strict mode](#71-openai)). |
+| Strict mode | A provider setting that makes the LLM's output follow the schema exactly. It accepts only part of JSON Schema and adds its own rules (see [OpenAI](#71-openai) and [Anthropic](#72-anthropic)). |
 | Decorator | A TypeScript annotation such as `@ToolProp()` written above a class or property. See [TypeScript decorators](https://www.typescriptlang.org/docs/handbook/decorators.html). |
 | Design type | The type TypeScript records for a property when `emitDecoratorMetadata` is on: `String`, `Number`, `Boolean`, `Date`, `Array`, a class, or `Object` when the type is something else (a union, an interface, …). |
 | class-validator | A separate library whose decorators (`@IsEmail()`, `@MaxLength(100)`, …) validate class instances. Schema Forge only reads these decorators to add rules to the schema; it never runs validation. |
@@ -550,7 +550,7 @@ Some rules have no JSON Schema keyword: `@IsTimeZone()`, `@IsISO8601()`, `@IsDat
 | Option | Default | Effect |
 | --- | --- | --- |
 | `additionalProperties: false` | not set | Adds `additionalProperties: false` to every object that declares properties: the root, nested classes, array items and `anyOf` / `oneOf` / `allOf` branches. Strict modes need it. An object without declared properties (a `Record`) stays open, because closing it would accept only `{}`. |
-| `forStructuredOutput: true` | `false` | Applies the OpenAI strict-mode schema changes ([7.1](#71-openai)). The OpenAI functions also set `strict: true`; `classToJsonSchema` and `classToAnthropicTool` only change the schema. The Gemini functions do not take this option. |
+| `forStructuredOutput: true` | `false` (`true` for `classToOpenAIResponseApiTool`) | Adapts the schema to the provider's strict mode and sets `strict: true`: OpenAI's rules for the OpenAI functions ([7.1](#71-openai)), Anthropic's for `classToAnthropicTool` ([7.2](#72-anthropic)). `classToJsonSchema` applies the OpenAI changes to the schema only. The Gemini functions do not take this option. |
 | `propertyOverrides` | none | Changes properties for this call only, by path: `{ 'name': { description: '…' }, 'address.city': { … } }`. An override that describes a property holding a class as something else (another `type`, an `enum`, a `const`, a composition, or `items` that are not a class) replaces the class, whose schema is then not built. A property that allows `null` keeps allowing it unless the override sets `nullable: false`. |
 
 To change a class's schema for every later call, use `updateSchemaProperty` and `addSchemaProperty`. Paths may go into nested classes:
@@ -599,10 +599,12 @@ See OpenAI's [function calling](https://developers.openai.com/api/docs/guides/fu
 | Sets `strict: true` on the tool or format | |
 | Adds `additionalProperties: false` to every object that declares properties | |
 | Lists every property in `required` | |
-| Makes each optional property nullable | `age?: number` becomes `type: ['number', 'null']` |
-| Removes these keywords: `minLength`, `maxLength`, `pattern`, `format` (strings); `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf` (numbers); `minItems`, `maxItems`, `uniqueItems` (arrays) | |
+| Makes each optional property nullable: `null` is added to its `type`, to its `enum`, or as an `anyOf` branch | `age?: number` becomes `type: ['number', 'null']` |
+| Moves the keywords OpenAI strict mode rejects into the property's description | `@IsUrl()` gives `format: 'uri'`, which becomes `description: 'Website\n\n{format: "uri"}'` |
 
-The keyword removal is older than OpenAI's current rules, which accept several of these keywords; it is kept for compatibility.
+The keywords moved into the description are a `format` other than `date-time`, `time`, `date`, `duration`, `email`, `hostname`, `ipv4`, `ipv6` and `uuid`; `uniqueItems`, `contains`, `minContains`, `maxContains` and `unevaluatedItems` on arrays; and `minProperties`, `maxProperties`, `propertyNames` and `unevaluatedProperties` on objects. A `pattern` is moved too when it uses a lookahead or lookbehind (`(?=`, `(?!`, `(?<=`, `(?<!`), a named group (`(?<name>`), a backreference (`\1`, `\k<name>`) or a word boundary (`\b`, `\B`): OpenAI rejects a named group, and for the others it returns an empty response that stops at the token limit. Everything else stays, and OpenAI enforces it: `minLength`, `maxLength`, other patterns (non-capturing groups `(?:…)` and long ranges such as `{1,1000}` included), `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`, `minItems` and `maxItems`. `allOf`, `oneOf` and `not` stay as you wrote them; OpenAI strict mode rejects them at any depth, and its error names the property. An object with no declared properties (a free-form object, such as a `Record`) cannot be closed, so generating the schema throws, naming the property ([11](#11-limitations)).
+
+These lists were checked against the live API (November 2026). OpenAI's guide lists `minLength`, `maxLength`, `pattern`, `format`, number bounds, `multipleOf`, `minItems` and `maxItems` as not supported for fine-tuned models. The API accepts and enforces them on the base models, and a fine-tuned `gpt-4o-mini` model also accepted `minLength`, `pattern` and `minimum` in strict mode (checked November 2026); if your fine-tuned model rejects one of them, remove it with `propertyOverrides`.
 
 ```typescript
 import {
@@ -627,11 +629,29 @@ if (!message.content) throw new Error('No structured output in the reply');
 const user: CreateUserInput = JSON.parse(message.content);
 ```
 
-**The Responses API tool is strict by default.** `classToOpenAIResponseApiTool` always closes the objects that declare properties, lists every property in `required` and removes the keywords above. `strict: true` and the nullable step are on by default; `forStructuredOutput: false` sets `strict: false` and skips the nullable step, so optional properties are then required, and only properties declared `nullable` accept `null`.
+**The Responses API tool is strict by default.** `classToOpenAIResponseApiTool` applies the strict changes above and sets `strict: true` unless you pass `forStructuredOutput: false`. Then it sends the schema as declared, with `strict: false`: optional properties stay optional and every keyword stays. This matches the Responses API, which tries strict mode when `strict` is left out and keeps best-effort function calling when it is `false`.
 
 ### 7.2 Anthropic
 
-`classToAnthropicTool` returns `{ name, description, input_schema }`. With `additionalProperties: false`, the root `input_schema` is closed too. Anthropic's [strict tool use](https://platform.claude.com/docs/en/agents-and-tools/tool-use/strict-tool-use) is a separate `strict: true` flag that Schema Forge does not set. See [defining tools](https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools).
+`classToAnthropicTool` returns `{ name, description, input_schema }`. With `additionalProperties: false`, the root `input_schema` is closed too. See [defining tools](https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools).
+
+**Strict tool use.** `forStructuredOutput: true` turns on Anthropic's [strict tool use](https://platform.claude.com/docs/en/agents-and-tools/tool-use/strict-tool-use), whose rules differ from OpenAI's (see Anthropic's [JSON Schema limitations](https://platform.claude.com/docs/en/build-with-claude/structured-outputs#json-schema-limitations)):
+
+| `forStructuredOutput: true` changes | Why |
+| --- | --- |
+| Sets `strict: true` on the tool | Turns strict tool use on |
+| Adds `additionalProperties: false` to every object that declares properties | Anthropic requires it |
+| Keeps `required` as declared | Anthropic allows optional properties, so none becomes nullable |
+| Moves `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum` and `multipleOf` into the description | Anthropic rejects number bounds |
+| Moves `minLength` and `maxLength` into the description | Anthropic's guide lists string lengths as unsupported |
+| Moves `maxItems`, a `minItems` other than 0 or 1, `uniqueItems`, `contains`, `minContains` and `maxContains` into the description | Anthropic rejects these array rules |
+| Moves `patternProperties`, `propertyNames`, `minProperties`, `maxProperties` and `unevaluatedProperties` into the description | Anthropic rejects these object rules |
+| Moves a `format` other than `date-time`, `time`, `date`, `duration`, `email`, `hostname`, `uri`, `ipv4`, `ipv6` and `uuid` into the description | Anthropic supports only these formats |
+| Removes the `type` array next to an `enum` (a nullable or mixed-type enum) | Anthropic rejects the pair; the enum's values already say which types are allowed |
+
+A keyword moved into the description is written as `{keyword: value}`, for example `'Quantity\n\n{maximum: 100}'`, which is how Anthropic's own SDK keeps such rules visible to the model. String lengths follow the guide even though the API accepted them on two models (checked November 2026), so a tool keeps working if Anthropic starts rejecting them. A `pattern` is moved into the description when it uses a construct Anthropic rejects with a 400: a lookahead or lookbehind, a named group, a backreference, or `\b` / `\B` (the same constructs as for OpenAI); a `{n}`, `{n,}` or `{n,m}` quantifier on a broad set (`.`, a negated class such as `[^x]`, `\S`, `\D`, `\W`, or a class or group holding one: even `^.{1,200}$` is rejected); or a quantifier bound above 256. Anthropic's guide lists large ranges as unsupported without giving a number; when checked (November 2026), `{1,2000}` alone and `{1,1000}` next to another quantifier were rejected and bounds up to 500 passed, so 256 leaves a margin. Other patterns stay, `.+` and `[a-z]{1,256}` included. OpenAI accepted all of these quantifiers, so its patterns are not changed for them. `oneOf` and `not` stay as you wrote them; Anthropic strict mode rejects them, while `anyOf` and `allOf` are accepted (Anthropic's guide excludes `allOf` combined with `$ref`, which Schema Forge never emits). An object with no declared properties throws, as for OpenAI.
+
+Anthropic also limits a request to 20 strict tools, 24 optional properties and 16 properties with a union type (`anyOf` or a type array) across all strict schemas. Schema Forge does not count these.
 
 ### 7.3 Gemini
 
@@ -755,6 +775,7 @@ Warnings go to `console.warn`, start with `[schema-forge]`, and are printed once
 5. **Update type checks.** `JSONSchemaProperty.type` may now be an array or `undefined`.
 6. **Stored metadata.** If your code reads `Reflect.getMetadata(JSON_SCHEMA_METADATA_KEY, …)` directly: a class-typed property no longer holds its nested class's properties there. They exist only in the generated schema.
 7. **class-validator.** If you use it, version 0.14 or 0.15 is required. Inference did not work with 0.13 in 2.x either.
+8. **Strict modes.** With `forStructuredOutput: true`, OpenAI tools now keep string lengths, `pattern`, the supported formats, number bounds and array sizes, and OpenAI enforces them, so a model can no longer send a value outside them. `classToAnthropicTool` now applies Anthropic's own strict rules and sets `strict: true` instead of the OpenAI rules (optional properties stay optional). `classToOpenAIResponseApiTool` with `forStructuredOutput: false` now sends the schema as declared ([7.1](#71-openai), [7.2](#72-anthropic)). If you call `prepareForOpenAIStructuredOutput` on a schema you send to Anthropic, switch to `prepareForAnthropicStrictTool`: the OpenAI helper now keeps rules Anthropic strict mode rejects.
 
 ## 10. How it works inside
 
@@ -798,7 +819,7 @@ This section is for contributors and for readers who want to know why the rules 
 - **No object-level rules.** `minProperties`, `maxProperties`, `patternProperties` and `propertyNames` have no option.
 - **class-transformer is not read.** `@Type(() => X)` does not give array items; set `items`.
 - **`@IsOptional()` does not make a property optional.** Use `isOptional: true`.
-- **Strict modes cannot express a free-form object.** An object without declared properties (a `Record`) cannot be closed, so OpenAI strict mode rejects it.
+- **Strict modes cannot express a free-form object.** An object without declared properties (a `Record`) cannot be closed, and OpenAI and Anthropic strict modes reject an object that is not, so in strict mode generating the schema throws, naming the property: with `forStructuredOutput: true`, with `classToOpenAIResponseApiTool` unless `forStructuredOutput: false` (it is strict by default), and in `prepareForOpenAIStructuredOutput` / `prepareForAnthropicStrictTool`. Declare its properties, or describe it as a string that holds JSON.
 - **The Vertex AI functions are not tested** against the real API.
 
 ## 12. API reference
@@ -815,7 +836,8 @@ This section is for contributors and for readers who want to know why the rules 
 | Function | Description |
 | --- | --- |
 | `classToJsonSchema(Class, options?)` | The JSON Schema of a class ([section 6](#6-schema-options)). |
-| `prepareForOpenAIStructuredOutput(schema, handleOptionals?)` | The OpenAI strict-mode preparation of [7.1](#71-openai), on a schema you already have. |
+| `prepareForOpenAIStructuredOutput(schema, handleOptionals?)` | The OpenAI strict-mode preparation of [7.1](#71-openai), on a schema you already have. `handleOptionals` defaults to `false`, as in 2.x: a property missing from `required` is then required anyway, and the model has to invent a value for it. Pass `true` when the schema's `required` is accurate, so such a property becomes nullable instead (the `classTo…` functions do). |
+| `prepareForAnthropicStrictTool(schema)` | The Anthropic strict-tool preparation of [7.2](#72-anthropic), on a schema you already have; pass `{ strict: true }` to `jsonSchemaToAnthropicTool` as well. |
 | `findUndeclaredValidatedProperties(Class)` | Properties with class-validator decorators but no `@ToolProp`, with their paths ([5.2](#52-only-toolprop-adds-a-property)). |
 
 **Changing a class's schema permanently**
@@ -833,14 +855,14 @@ This section is for contributors and for readers who want to know why the rules 
 | `classToOpenAIResponseApiTool` | OpenAI Responses API tool (strict by default) |
 | `classToOpenAIResponseFormatJsonSchema` | OpenAI Chat Completions `response_format` |
 | `classToOpenAIResponseApiTextSchema` | OpenAI Responses API `text.format` |
-| `classToAnthropicTool` | Anthropic tool |
+| `classToAnthropicTool` | Anthropic tool (strict tool use with `forStructuredOutput: true`) |
 | `classToGeminiTool`, `classToGeminiResponseSchema` | `@google/genai` function declaration, response schema |
 | `classToGeminiOldTool`, `classToGeminiOldResponseSchema` | `@google/generative-ai` function declaration, response schema |
 | `classToGeminiVertexTool`, `classToGeminiVertexResponseSchema` | `@google-cloud/vertexai` function declaration, response schema |
 
-**From a JSON Schema to a provider format** (they take `(schema, { name, description? }, options?)`, except that `jsonSchemaToAnthropicTool` takes no `options` and the three Gemini response-schema converters take `(schema, { description? })`)
+**From a JSON Schema to a provider format** (they take `(schema, { name, description? }, options?)`, except that the options of `jsonSchemaToAnthropicTool` are `{ strict? }` and the three Gemini response-schema converters take `(schema, { description? })`)
 
-`jsonSchemaToOpenAITool`, `jsonSchemaToOpenAIResponseApiTool` (its `options.strict` is required), `jsonSchemaToOpenAIResponseFormat`, `jsonSchemaToOpenAIResponseApiTextSchema`, `jsonSchemaToAnthropicTool`, `jsonSchemaToGeminiTool`, `jsonSchemaToGeminiResponseSchema`, `jsonSchemaToGeminiOldTool`, `jsonSchemaToGeminiOldResponseSchema`, `jsonSchemaToGeminiVertexTool`, `jsonSchemaToGeminiVertexResponseSchema`.
+`jsonSchemaToOpenAITool`, `jsonSchemaToOpenAIResponseApiTool` (its `options.strict` is required), `jsonSchemaToOpenAIResponseFormat`, `jsonSchemaToOpenAIResponseApiTextSchema`, `jsonSchemaToAnthropicTool` (pass `{ strict: true }` as the third argument for strict tool use), `jsonSchemaToGeminiTool`, `jsonSchemaToGeminiResponseSchema`, `jsonSchemaToGeminiOldTool`, `jsonSchemaToGeminiOldResponseSchema`, `jsonSchemaToGeminiVertexTool`, `jsonSchemaToGeminiVertexResponseSchema`.
 
 **From a provider format back to JSON Schema**
 
