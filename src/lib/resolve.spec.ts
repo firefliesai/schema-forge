@@ -1639,6 +1639,34 @@ describe('3.0.0 schema resolution', () => {
     expect(() => classToJsonSchema(Loop)).toThrow('Loop.self refers to its own class');
   });
 
+  it('takes a built-in constructor given as type as the JSON Schema type', () => {
+    // What TypeScript records for `when: Date | null` under strictNullChecks
+    class Event {}
+    Reflect.defineMetadata('design:type', Object, Event.prototype, 'when');
+    ToolProp({ type: Date, nullable: true })(Event.prototype, 'when');
+    Reflect.defineMetadata('design:type', Object, Event.prototype, 'label');
+    ToolProp({ type: String as any })(Event.prototype, 'label');
+    class Counted {
+      @ToolProp() n: number;
+      @ToolProp() flag: boolean;
+    }
+    updateSchemaProperty(Counted, 'n', { type: Number as any });
+    addSchemaProperty(Counted, 'on', { type: Boolean as any });
+
+    expect(classToJsonSchema(Event).properties).toStrictEqual({
+      when: { type: ['string', 'null'], format: 'date-time' },
+      label: { type: 'string' },
+    });
+    const counted = classToJsonSchema(Counted, {
+      propertyOverrides: { flag: { type: Boolean } } as any,
+    }).properties;
+    expect([counted.n.type, counted.flag.type, counted.on.type]).toStrictEqual([
+      'number',
+      'boolean',
+      'boolean',
+    ]);
+  });
+
   it('updateSchemaProperty counts as explicit', () => {
     class Updated {
       @IsInt() @ToolProp() n: number;

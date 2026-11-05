@@ -10,6 +10,30 @@ export function cloneMetadata(metadata: any): any {
 }
 
 /**
+ * Options whose `type` is a built-in constructor get the JSON Schema type it stands for, as
+ * `normalizeItemsType` does for items: `String` → `'string'`, `Number` → `'number'`, `Boolean` →
+ * `'boolean'`, `Date` → `'string'` with `format: 'date-time'` (unless a format is given). Left as
+ * a constructor, it would be dropped when the metadata is copied, and the property would lose its
+ * type.
+ */
+export function normalizeTypeConstructor<T>(options: T): T {
+  const value = options as any;
+  if (!value || typeof value !== 'object') return options;
+  const names = new Map<unknown, string>([
+    [String, 'string'],
+    [Number, 'number'],
+    [Boolean, 'boolean'],
+    [Date, 'string'],
+  ]);
+  if (!names.has(value.type)) return options;
+  return {
+    ...value,
+    type: names.get(value.type),
+    ...(value.type === Date && !value.format && { format: 'date-time' }),
+  };
+}
+
+/**
  * A deep copy of an update's options that keeps functions (`items: { type: String }`, an enum
  * object): applying an update shares its objects with the generated schema, which later steps
  * change in place (`additionalProperties: false`), so each generation starts from a copy.
