@@ -51,6 +51,7 @@ This release makes the generated schema match what the class actually allows, an
 
 ### Fixed
 
+- **`addSchemaProperty` keeps every option it is given**, such as `format`, `pattern`, number and length rules, and compositions, as `@ToolProp` does. 2.x kept only `type`, `enum`, `items` and `description` and dropped the rest without a warning.
 - The published package no longer contains compiled test files or test fixtures.
 - `propertyOverrides` and `updateSchemaProperty` no longer copy the `isOptional` option into the emitted property schema.
 - An override (`propertyOverrides`, or `updateSchemaProperty` of the property itself) that describes a property holding a class as another type, an enum, a const or a composition replaces the class: its schema is not built, so its properties and problems no longer reach the result. This holds at any depth (`'middle.broken': { type: 'string' }`).

@@ -1681,6 +1681,27 @@ describe('3.0.0 schema resolution', () => {
     ]);
   });
 
+  it('addSchemaProperty keeps every option it is given', () => {
+    class Added {
+      @ToolProp() id: string;
+    }
+    const anyOf = [{ type: 'string' }, { type: 'null' }];
+    addSchemaProperty(Added, 'link', { type: 'string', format: 'uri', maxLength: 10 });
+    addSchemaProperty(Added, 'when', { type: Date as any, isOptional: true });
+    addSchemaProperty(Added, 'count', { type: 'integer', minimum: 1, nullable: true });
+    addSchemaProperty(Added, 'note', { anyOf, type: 'string' } as any);
+
+    const schema = classToJsonSchema(Added);
+    expect(schema.properties).toStrictEqual({
+      id: { type: 'string' },
+      link: { type: 'string', format: 'uri', maxLength: 10 },
+      when: { type: 'string', format: 'date-time' },
+      count: { type: ['integer', 'null'], minimum: 1 },
+      note: { type: 'string', anyOf },
+    });
+    expect(schema.required).toStrictEqual(['id', 'link', 'count', 'note']);
+  });
+
   it('updateSchemaProperty counts as explicit', () => {
     class Updated {
       @IsInt() @ToolProp() n: number;

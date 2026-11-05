@@ -27,6 +27,7 @@ import {
   assertNoClassInUpdate,
   assertSafePropertyPath,
   cloneMetadata,
+  cloneUpdate,
   normalizeTypeConstructor,
   enumSchemaType,
   extractEnumValues,
@@ -517,25 +518,23 @@ export function addPropertyTo(
   }
 
   const propertyKey = paths[paths.length - 1];
-  current[propertyKey] = {
-    type: finalOptions.type,
-    description: finalOptions.description,
-  };
+  // Every other option (format, pattern, bounds, a composition, …) is kept, as in @ToolProp; a
+  // copy, since later steps change the schema in place
+  const property: Record<string, any> = cloneUpdate(finalOptions);
+  delete property.isOptional;
+  delete property.nullable;
 
   if (finalOptions.enum) {
-    const enumValues = extractEnumValues(finalOptions.enum);
-    current[propertyKey].enum = enumValues;
+    property.enum = extractEnumValues(finalOptions.enum);
   }
 
   if (finalOptions.items) {
     // Normalize constructor types (Date, String, Number, Boolean) to string literals
-    const normalizedItems = normalizeItemsType(finalOptions.items);
-    current[propertyKey] = {
-      type: 'array',
-      description: finalOptions.description,
-      items: normalizedItems,
-    };
+    property.type = 'array';
+    property.items = normalizeItemsType(finalOptions.items);
+    delete property.enum;
   }
+  current[propertyKey] = property;
 
   if (finalOptions.nullable) makeNullable(current[propertyKey]);
 
