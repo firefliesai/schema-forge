@@ -27,6 +27,7 @@ import {
   assertNoClassInUpdate,
   assertSafePropertyPath,
   cloneMetadata,
+  normalizeTypeConstructor,
   enumSchemaType,
   extractEnumValues,
   isCustomClass,
@@ -308,7 +309,8 @@ function deferUpdate(target: any, update: DeferredUpdate): void {
  * schemas are built then, and every check runs then. Decorating a class never throws, so classes
  * that no schema reaches can carry @ToolProp freely.
  */
-export function ToolProp(options: PropertyOptions = {}) {
+export function ToolProp(rawOptions: PropertyOptions = {}) {
+  const options = normalizeTypeConstructor(rawOptions);
   return function (target: any, propertyKey: string) {
     const type = Reflect.getMetadata('design:type', target, propertyKey);
     const design = designKindOf(type);
@@ -455,8 +457,9 @@ export function ToolMeta(
 export function updateSchemaProperty<T extends object>(
   target: new (...args: any[]) => T,
   propertyPath: PropertyPath<T>,
-  updates: Partial<PropertyOptions>,
+  rawUpdates: Partial<PropertyOptions>,
 ): void {
+  const updates = normalizeTypeConstructor(rawUpdates);
   const paths = (propertyPath as string).split('.');
   assertSafePropertyPath(paths);
   assertNoClassInUpdate(updates, `updateSchemaProperty(${target.name}, '${paths.join('.')}')`);
@@ -546,8 +549,9 @@ export function addPropertyTo(
 export function addSchemaProperty<T extends object>(
   target: new (...args: any[]) => T,
   propertyPath: string,
-  options: PropertyOptions,
+  rawOptions: PropertyOptions,
 ): void {
+  const options = normalizeTypeConstructor(rawOptions);
   if (!options.enum && !options.type) {
     throw new Error('Either type or enum must be specified');
   }

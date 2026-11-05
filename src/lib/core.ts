@@ -23,6 +23,7 @@ import {
   cloneMetadata,
   cloneUpdate,
   isCustomClass,
+  normalizeTypeConstructor,
   prepareForOpenAIStructuredOutput,
 } from './utils';
 
@@ -318,7 +319,7 @@ export function classToJsonSchema<T extends object>(
   ).map(([path, updates]) => {
     assertNoClassInUpdate(updates, `propertyOverrides['${path}']`);
     // A copy: the generated schema shares an override's objects and later steps change them
-    return { paths: path.split('.'), updates: cloneUpdate(updates) };
+    return { paths: path.split('.'), updates: cloneUpdate(normalizeTypeConstructor(updates)) };
   });
   const schema = buildClassSchema(target, problems, '', [], overrides);
 

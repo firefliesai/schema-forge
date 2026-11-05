@@ -304,6 +304,7 @@ Schema Forge reads each property's design type. For some TypeScript types that i
 | `addresses!: Address[]` | `Array` | error: an array needs an item type | `items: { type: Address }` |
 | `note?: string \| null` | `Object` | error: cannot determine the type | `type: 'string', nullable: true` |
 | `place?: Place \| null` | `Object` | error: cannot determine the type | `type: Place, nullable: true` (a class as `type` declares the nested class) |
+| `when?: Date \| null` | `Object` | error: cannot determine the type | `type: Date, nullable: true` (gives `format: 'date-time'`; `String`, `Number` and `Boolean` work the same way) |
 | `id!: string \| number` | `Object` | error: cannot determine the type | `anyOf: [{ type: 'string' }, { type: 'number' }]` |
 | `meta!: Record<string, string>` | `Object` | error: cannot determine the type | `type: 'object'` |
 
