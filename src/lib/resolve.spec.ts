@@ -1709,6 +1709,12 @@ describe('3.0.0 schema resolution', () => {
       items: { type: 'string', minLength: 1 },
       enum: [1, 2],
     });
+    // Items that allowed null keep allowing it next to an enum with null
+    addSchemaProperty(Added, 'marks', {
+      type: 'array',
+      items: { type: ['string', 'null'] } as any,
+      enum: ['a', null],
+    });
 
     const schema = classToJsonSchema(Added);
     expect(schema.properties).toStrictEqual({
@@ -1720,8 +1726,17 @@ describe('3.0.0 schema resolution', () => {
       // An enum on an array describes its items, as in @ToolProp
       tags: { type: 'array', items: { type: 'string', enum: ['a', 'b'] }, maxItems: 3 },
       levels: { type: 'array', items: { type: 'number', minLength: 1, enum: [1, 2] } },
+      marks: { type: 'array', items: { type: ['string', 'null'], enum: ['a', null] } },
     });
-    expect(schema.required).toStrictEqual(['id', 'link', 'count', 'note', 'tags', 'levels']);
+    expect(schema.required).toStrictEqual([
+      'id',
+      'link',
+      'count',
+      'note',
+      'tags',
+      'levels',
+      'marks',
+    ]);
   });
 
   it('updateSchemaProperty counts as explicit', () => {

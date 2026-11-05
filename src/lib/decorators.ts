@@ -532,10 +532,13 @@ export function addPropertyTo(
     // Normalize constructor types (Date, String, Number, Boolean) to string literals
     // An enum on an array describes its items, and its values give their type, as in @ToolProp
     property.type = 'array';
+    const givenItems = normalizeItemsType(finalOptions.items);
     property.items = {
-      ...normalizeItemsType(finalOptions.items),
+      ...givenItems,
       ...(property.enum && { type: enumSchemaType(property.enum), enum: property.enum }),
     };
+    // Items that allowed null keep allowing it, as an enum update on an array does
+    keepNullable(property.items, givenItems, {});
     delete property.enum;
   }
   current[propertyKey] = property;
