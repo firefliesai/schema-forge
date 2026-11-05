@@ -620,9 +620,11 @@ const completion = await openai.chat.completions.create({
   messages: [{ role: 'user', content: prompt }],
   response_format: format,
 });
-const user: CreateUserInput = JSON.parse(
-  completion.choices[0].message.content ?? '{}',
-);
+// A refusal or an empty reply carries no arguments; never parse a default
+const message = completion.choices[0].message;
+if (message.refusal) throw new Error(`Refused: ${message.refusal}`);
+if (!message.content) throw new Error('No structured output in the reply');
+const user: CreateUserInput = JSON.parse(message.content);
 ```
 
 **The Responses API tool is strict by default.** `classToOpenAIResponseApiTool` applies the strict changes above and sets `strict: true` unless you pass `forStructuredOutput: false`. Then it sends the schema as declared, with `strict: false`: optional properties stay optional and every keyword stays. This matches the Responses API, which tries strict mode when `strict` is left out and keeps best-effort function calling when it is `false`.
@@ -686,7 +688,9 @@ const structured = await gemini.models.generateContent({
     responseSchema: classToGeminiResponseSchema(CreateUserInput),
   },
 });
-const user: CreateUserInput = JSON.parse(structured.text ?? '{}');
+// A blocked or empty reply has no text; never parse a default
+if (!structured.text) throw new Error('No structured output in the reply');
+const user: CreateUserInput = JSON.parse(structured.text);
 ```
 
 ### 7.4 Existing JSON Schemas, and converting between formats
