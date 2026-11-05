@@ -52,6 +52,7 @@ export {
   type InferredArrayItems,
   type InferredSchemaProperties,
 } from './class-validator-integration';
+export { findUndeclaredValidatedProperties, type UndeclaredValidatedProperty } from './resolve';
 
 // Legacy import name for backwards compatibility
 export { classToOpenAITool as classToLLMTool } from './llm-formats';

@@ -10,6 +10,45 @@ export function cloneMetadata(metadata: any): any {
 }
 
 /**
+ * Options whose `type` is a built-in constructor get the JSON Schema type it stands for, as
+ * `normalizeItemsType` does for items: `String` → `'string'`, `Number` → `'number'`, `Boolean` →
+ * `'boolean'`, `Date` → `'string'` with `format: 'date-time'` (unless a format is given). Left as
+ * a constructor, it would be dropped when the metadata is copied, and the property would lose its
+ * type.
+ */
+export function normalizeTypeConstructor<T>(options: T): T {
+  const value = options as any;
+  if (!value || typeof value !== 'object') return options;
+  const names = new Map<unknown, string>([
+    [String, 'string'],
+    [Number, 'number'],
+    [Boolean, 'boolean'],
+    [Date, 'string'],
+  ]);
+  if (!names.has(value.type)) return options;
+  return {
+    ...value,
+    type: names.get(value.type),
+    ...(value.type === Date && !value.format && { format: 'date-time' }),
+  };
+}
+
+/**
+ * A deep copy of an update's options that keeps functions (`items: { type: String }`, an enum
+ * object): applying an update shares its objects with the generated schema, which later steps
+ * change in place (`additionalProperties: false`), so each generation starts from a copy.
+ */
+export function cloneUpdate<T>(value: T): T {
+  if (Array.isArray(value)) return value.map(cloneUpdate) as unknown as T;
+  if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [key, cloneUpdate(entry)]),
+    ) as T;
+  }
+  return value;
+}
+
+/**
  * Prepares a JSON Schema object for OpenAI structured output compatibility.
  *
  * This function:
@@ -95,7 +134,7 @@ export function prepareForOpenAIStructuredOutput(obj: any, handleOptionals = fal
     (Array.isArray(newObj.type) && newObj.type.includes('number'))
   ) {
     // Remove unsupported number properties
-    ['minimum', 'maximum', 'multipleOf'].forEach((prop) => {
+    ['minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum', 'multipleOf'].forEach((prop) => {
       if (prop in newObj) delete newObj[prop];
     });
   } else if (
@@ -141,6 +180,39 @@ export function prepareForOpenAIStructuredOutput(obj: any, handleOptionals = fal
 }
 
 /**
+ * Throws when a property path given by a caller (`updateSchemaProperty`, `addSchemaProperty`,
+ * `propertyOverrides`) has a segment that, used as an object key, would reach an object's
+ * prototype instead of a property schema.
+ */
+export function assertSafePropertyPath(paths: readonly string[]): void {
+  for (const segment of paths) {
+    if (segment === '__proto__' || segment === 'constructor' || segment === 'prototype') {
+      throw new Error(
+        `schema-forge: "${segment}" cannot be used as a property name or path segment ` +
+          `(in "${paths.join('.')}").`,
+      );
+    }
+  }
+}
+
+/**
+ * Throws when an update (`updateSchemaProperty`, `addSchemaProperty`, a `propertyOverrides`
+ * entry) names a class in `type` or `items.type`. Only `@ToolProp` declares a nested class, and
+ * its schema is built from that declaration; a class an update names would be left in the schema
+ * unbuilt (it serializes to nothing), so the result would silently lose the property's shape.
+ */
+export function assertNoClassInUpdate(updates: any, where: string): void {
+  const named = [updates?.type, updates?.items?.type].find(isCustomClass);
+  if (!named) return;
+  throw new Error(
+    `schema-forge: ${where} names the class ${named.name || 'anonymous class'}, which an update ` +
+      'cannot add: only @ToolProp declares a nested class and builds its schema. Declare the ' +
+      `property with @ToolProp (items: { type: ${named.name || 'TheClass'} } for an array, or ` +
+      'the class as its TypeScript type), for example in a subclass.',
+  );
+}
+
+/**
  * Type inference helper
  */
 export function inferType<T>(_target: new (...args: any[]) => any): T {
@@ -180,29 +252,19 @@ export function extractEnumValues(enumType: any): any[] {
 }
 
 /**
- * Gets the corresponding JSON Schema type for a TypeScript type
+ * The JSON Schema type of an enum, from all of its values: `string`, `number` or `boolean`, or a
+ * type array when the values mix types (`null` values are ignored).
  */
-export function getJsonSchemaType(type: any): string {
-  if (isCustomClass(type)) {
-    return 'object';
+export function enumSchemaType(values: unknown[]): any {
+  const types: string[] = [];
+  for (const value of values) {
+    if (value === null) continue;
+    const type =
+      typeof value === 'string' ? 'string' : typeof value === 'boolean' ? 'boolean' : 'number';
+    if (!types.includes(type)) types.push(type);
   }
-
-  switch (type) {
-    case String:
-      return 'string';
-    case Number:
-      return 'number';
-    case Boolean:
-      return 'boolean';
-    case Array:
-      return 'array';
-    case Object:
-      return 'object';
-    case Date:
-      return 'string';
-    default:
-      return 'string';
-  }
+  if (types.length === 0) return 'string';
+  return types.length === 1 ? types[0] : types;
 }
 
 /**
