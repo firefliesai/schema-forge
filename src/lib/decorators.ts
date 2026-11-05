@@ -532,7 +532,8 @@ export function addPropertyTo(
     // Normalize constructor types (Date, String, Number, Boolean) to string literals
     // An enum on an array describes its items, and its values give their type, as in @ToolProp
     property.type = 'array';
-    const givenItems = normalizeItemsType(finalOptions.items);
+    // From the copy, so the schema never shares objects with the caller's options
+    const givenItems = normalizeItemsType(property.items);
     property.items = {
       ...givenItems,
       ...(property.enum && { type: enumSchemaType(property.enum), enum: property.enum }),

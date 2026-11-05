@@ -1739,6 +1739,19 @@ describe('3.0.0 schema resolution', () => {
     ]);
   });
 
+  it('addSchemaProperty does not share item objects with the caller', () => {
+    class Shared {
+      @ToolProp() id: string;
+    }
+    const items = { type: 'object', properties: { a: { type: 'string' } } } as any;
+    addSchemaProperty(Shared, 'rows', { type: 'array', items });
+    // A later change to the caller's object must not reach the stored schema
+    items.properties.a.type = 'number';
+
+    const rows = classToJsonSchema(Shared).properties.rows as any;
+    expect(rows.items.properties.a.type).toBe('string');
+  });
+
   it('updateSchemaProperty counts as explicit', () => {
     class Updated {
       @IsInt() @ToolProp() n: number;
