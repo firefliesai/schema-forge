@@ -349,10 +349,15 @@ export function ToolProp(rawOptions: PropertyOptions = {}) {
     currentRequiredProps = [...new Set([...currentRequiredProps, ...ownRequiredProps])];
     currentSources = { ...currentSources, ...ownSources };
 
-    const isArray = type === Array || options.type === 'array' || options.items !== undefined;
     const hasComposition = Boolean(
       options.anyOf || options.oneOf || options.allOf || options.const !== undefined,
     );
+    // A composition describes the value, so the design type Array does not force `type: 'array'`
+    // next to it (as for a class or Date design type below)
+    const isArray =
+      (type === Array && !hasComposition) ||
+      options.type === 'array' ||
+      options.items !== undefined;
     let nestedClass: unknown = null;
 
     if (isArray) {

@@ -690,6 +690,20 @@ describe('3.0.0 schema resolution', () => {
       expect(() => classToJsonSchema(NoItems)).toThrow('NoItems.tags: an array needs an item type');
     });
 
+    it('takes a composition on an array property as given, without forcing type or items', () => {
+      const branches = [{ type: 'array', items: { type: 'string' } }, { type: 'null' }];
+      class Composed {
+        @ToolProp({ anyOf: branches }) values: string[];
+        @ToolProp({ type: 'array', anyOf: [{ maxItems: 2 }], items: { type: 'string' } })
+        pair: string[];
+      }
+
+      expect(classToJsonSchema(Composed).properties).toStrictEqual({
+        values: { anyOf: branches },
+        pair: { type: 'array', anyOf: [{ maxItems: 2 }], items: { type: 'string' } },
+      });
+    });
+
     it('accepts the explicit-object workaround for a self-reference', () => {
       class LinkedNode {
         @ToolProp() label: string;
