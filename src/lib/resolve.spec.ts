@@ -1552,6 +1552,93 @@ describe('3.0.0 schema resolution', () => {
     );
   });
 
+  it('keeps each generation separate from the recorded updates and the overrides', () => {
+    class Spot {
+      @ToolProp({ type: 'object' }) point: Record<string, unknown>;
+      @ToolProp({ type: 'object' }) other: Record<string, unknown>;
+    }
+    class Map {
+      @ToolProp() spot: Spot;
+    }
+    updateSchemaProperty(Map, 'spot.point', {
+      type: 'object',
+      properties: { inner: { type: 'object', properties: { v: { type: 'string' } } } },
+    } as any);
+    const override = {
+      'spot.other': {
+        type: 'object',
+        properties: { w: { type: 'object', properties: { z: { type: 'string' } } } },
+      },
+    };
+    const before = JSON.parse(JSON.stringify(override));
+
+    classToJsonSchema(Map, { additionalProperties: false, propertyOverrides: override as any });
+    // The caller's override is not changed by the generation either
+    expect(override).toStrictEqual(before);
+    // A later call without the option is not closed by the earlier one
+    const point = classToJsonSchema(Map).properties.spot.properties.point as any;
+    expect(point.properties.inner).toStrictEqual({
+      type: 'object',
+      properties: { v: { type: 'string' } },
+    });
+  });
+
+  it('builds the nested class when a later update describes the property as an object again', () => {
+    class Inner {
+      @ToolProp() v: string;
+    }
+    class Back {
+      @ToolProp() inner: Inner;
+    }
+    updateSchemaProperty(Back, 'inner', { type: 'string' });
+    updateSchemaProperty(Back, 'inner', { type: 'object' });
+    expect(classToJsonSchema(Back).properties.inner.properties).toStrictEqual({
+      v: { type: 'string' },
+    });
+
+    class Restored {
+      @ToolProp() inner: Inner;
+    }
+    updateSchemaProperty(Restored, 'inner', { type: 'string' });
+    const restored = classToJsonSchema(Restored, {
+      propertyOverrides: { inner: { type: 'object' } } as any,
+    }).properties.inner;
+    expect(restored.properties).toStrictEqual({ v: { type: 'string' } });
+    // and the last one still wins when it replaces
+    expect(classToJsonSchema(Restored).properties.inner).toStrictEqual({ type: 'string' });
+  });
+
+  it('takes a class given as type as the nested class, also for a nullable one', () => {
+    class Place {
+      @ToolProp() city: string;
+    }
+    class Home {
+      // As in 2.1.0: the class as `type` next to the same design type
+      @ToolProp({ type: Place }) place: Place;
+    }
+    expect(classToJsonSchema(Home).properties.place).toStrictEqual({
+      type: 'object',
+      properties: { city: { type: 'string' } },
+      required: ['city'],
+    });
+
+    // What TypeScript records for `place: Place | null` under strictNullChecks
+    class MaybeHome {}
+    Reflect.defineMetadata('design:type', Object, MaybeHome.prototype, 'place');
+    ToolProp({ type: Place, nullable: true })(MaybeHome.prototype, 'place');
+    expect(classToJsonSchema(MaybeHome).properties.place).toStrictEqual({
+      type: ['object', 'null'],
+      properties: { city: { type: 'string' } },
+      required: ['city'],
+    });
+
+    // A class `type` that refers back is still a recursion error, not a free-form object
+    class Loop {}
+    Reflect.defineMetadata('design:type', Object, Loop.prototype, 'self');
+    ToolProp({ type: Loop })(Loop.prototype, 'self');
+    expect(() => classToJsonSchema(Loop)).toThrow('Loop.self refers to its own class');
+  });
+
   it('updateSchemaProperty counts as explicit', () => {
     class Updated {
       @IsInt() @ToolProp() n: number;

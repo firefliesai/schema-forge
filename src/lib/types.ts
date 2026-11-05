@@ -94,7 +94,13 @@ export interface PropertyOptions extends BaseSchemaProperty, SchemaConstraints, 
    * Independent of `isOptional`.
    */
   nullable?: boolean;
-  type?: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'integer';
+  /**
+   * The JSON Schema type, or a class: `type: Address` declares the property as that nested class,
+   * as its design type would (the way to write `address: Address | null` under `strictNullChecks`,
+   * with `nullable: true`). In `updateSchemaProperty`, `addSchemaProperty` and `propertyOverrides`
+   * a class is rejected: only `@ToolProp` declares a nested class.
+   */
+  type?: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'integer' | Constructor<any>;
 }
 
 export interface JSONSchemaProperty

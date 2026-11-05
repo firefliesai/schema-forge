@@ -19,7 +19,7 @@ import {
   REQUIRED_PROPS_METADATA_KEY,
 } from './types';
 import { prepareForOpenAIStructuredOutput } from './strict-schema';
-import { assertNoClassInUpdate, cloneMetadata, isCustomClass } from './utils';
+import { assertNoClassInUpdate, cloneMetadata, cloneUpdate, isCustomClass } from './utils';
 
 type ClassType = new (...args: any[]) => any;
 
@@ -96,9 +96,18 @@ function nestedClassReplaced(
     ),
     ...overrides.flatMap((override) => (ofProperty(override.paths) ? [override.updates] : [])),
   ];
-  return own.some(
-    (update) => !!update && typeof update === 'object' && describesOtherwise(update, isArray),
+  // The last update that says what the property is decides, in the order they apply (recorded
+  // updates, then overrides): a later update back to the class's object type undoes a replacement
+  const describing = own.filter(
+    (update) =>
+      !!update &&
+      typeof update === 'object' &&
+      ['type', 'items', 'enum', 'const', 'anyOf', 'oneOf', 'allOf'].some(
+        (key) => update[key] !== undefined,
+      ),
   );
+  const last = describing[describing.length - 1];
+  return !!last && describesOtherwise(last, isArray);
 }
 
 /**
@@ -183,9 +192,10 @@ function buildClassSchema(
       ) {
         return [];
       }
+      // A copy: the generated schema shares the update's objects and later steps change them
       return update.kind === 'update'
-        ? [{ kind: 'update', paths, updates: update.updates }]
-        : [{ kind: 'add', paths, options: update.options }];
+        ? [{ kind: 'update', paths, updates: cloneUpdate(update.updates) }]
+        : [{ kind: 'add', paths, options: cloneUpdate(update.options) }];
     }),
     ...inherited,
   ];
@@ -302,7 +312,8 @@ export function classToJsonSchema<T extends object>(
     (options?.propertyOverrides ?? {}) as Record<string, Record<string, any>>,
   ).map(([path, updates]) => {
     assertNoClassInUpdate(updates, `propertyOverrides['${path}']`);
-    return { paths: path.split('.'), updates };
+    // A copy: the generated schema shares an override's objects and later steps change them
+    return { paths: path.split('.'), updates: cloneUpdate(updates) };
   });
   const schema = buildClassSchema(target, problems, '', [], overrides);
 
