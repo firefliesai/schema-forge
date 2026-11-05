@@ -1739,17 +1739,34 @@ describe('3.0.0 schema resolution', () => {
     ]);
   });
 
-  it('addSchemaProperty does not share item objects with the caller', () => {
+  it('addSchemaProperty and updateSchemaProperty do not share objects with the caller', () => {
+    class Inner {
+      @ToolProp() city: string;
+    }
     class Shared {
       @ToolProp() id: string;
+      @ToolProp() inner: Inner;
     }
     const items = { type: 'object', properties: { a: { type: 'string' } } } as any;
+    const levels = ['low', 'high'];
+    const deferred = { type: 'string', enum: ['x'] } as any;
+    const update = { enum: ['p', 'q'] } as any;
     addSchemaProperty(Shared, 'rows', { type: 'array', items });
-    // A later change to the caller's object must not reach the stored schema
+    addSchemaProperty(Shared, 'level', { type: 'string', enum: levels });
+    // Paths into a nested class are recorded and replayed when a schema is generated
+    addSchemaProperty(Shared, 'inner.zone', deferred);
+    updateSchemaProperty(Shared, 'inner.city', update);
+    // Later changes to the caller's objects must not reach the stored schema
     items.properties.a.type = 'number';
+    levels.push('mid');
+    deferred.enum.push('y');
+    update.enum.push('r');
 
-    const rows = classToJsonSchema(Shared).properties.rows as any;
-    expect(rows.items.properties.a.type).toBe('string');
+    const properties = classToJsonSchema(Shared).properties as any;
+    expect(properties.rows.items.properties.a.type).toBe('string');
+    expect(properties.level.enum).toStrictEqual(['low', 'high']);
+    expect(properties.inner.properties.zone.enum).toStrictEqual(['x']);
+    expect(properties.inner.properties.city.enum).toStrictEqual(['p', 'q']);
   });
 
   it('updateSchemaProperty counts as explicit', () => {

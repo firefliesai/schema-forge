@@ -465,7 +465,9 @@ export function updateSchemaProperty<T extends object>(
   propertyPath: PropertyPath<T>,
   rawUpdates: Partial<PropertyOptions>,
 ): void {
-  const updates = normalizeTypeConstructor(rawUpdates);
+  // A copy: the update is recorded and replayed later, so a later change to the caller's object
+  // must not reach it
+  const updates = cloneUpdate(normalizeTypeConstructor(rawUpdates));
   const paths = (propertyPath as string).split('.');
   assertSafePropertyPath(paths);
   assertNoClassInUpdate(updates, `updateSchemaProperty(${target.name}, '${paths.join('.')}')`);
@@ -525,7 +527,7 @@ export function addPropertyTo(
   delete property.nullable;
 
   if (finalOptions.enum) {
-    property.enum = extractEnumValues(finalOptions.enum);
+    property.enum = extractEnumValues(property.enum);
   }
 
   if (finalOptions.items) {
@@ -563,7 +565,9 @@ export function addSchemaProperty<T extends object>(
   propertyPath: string,
   rawOptions: PropertyOptions,
 ): void {
-  const options = normalizeTypeConstructor(rawOptions);
+  // A copy: the addition may be recorded and replayed later, so a later change to the caller's
+  // object must not reach it
+  const options = cloneUpdate(normalizeTypeConstructor(rawOptions));
   if (!options.enum && !options.type) {
     throw new Error('Either type or enum must be specified');
   }
