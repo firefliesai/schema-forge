@@ -690,6 +690,27 @@ describe('3.0.0 schema resolution', () => {
       expect(() => classToJsonSchema(NoItems)).toThrow('NoItems.tags: an array needs an item type');
     });
 
+    it('takes a composition on an array property as given, without forcing type or items', () => {
+      const branches = [{ type: 'array', items: { type: 'string' } }, { type: 'null' }];
+      class Composed {
+        @ToolProp({ anyOf: branches }) values: string[];
+        @ToolProp({ type: 'array', anyOf: [{ maxItems: 2 }], items: { type: 'string' } })
+        pair: string[];
+        @ToolProp({ allOf: [{ maxItems: 2 }], enum: ['a', 'b'] }) picks: string[];
+      }
+
+      expect(classToJsonSchema(Composed).properties).toStrictEqual({
+        values: { anyOf: branches },
+        pair: { type: 'array', anyOf: [{ maxItems: 2 }], items: { type: 'string' } },
+        // An enum still describes the items of an array property
+        picks: {
+          type: 'array',
+          allOf: [{ maxItems: 2 }],
+          items: { type: 'string', enum: ['a', 'b'] },
+        },
+      });
+    });
+
     it('accepts the explicit-object workaround for a self-reference', () => {
       class LinkedNode {
         @ToolProp() label: string;
@@ -1665,6 +1686,87 @@ describe('3.0.0 schema resolution', () => {
       'boolean',
       'boolean',
     ]);
+  });
+
+  it('addSchemaProperty keeps every option it is given', () => {
+    class Added {
+      @ToolProp() id: string;
+    }
+    const anyOf = [{ type: 'string' }, { type: 'null' }];
+    addSchemaProperty(Added, 'link', { type: 'string', format: 'uri', maxLength: 10 });
+    addSchemaProperty(Added, 'when', { type: Date as any, isOptional: true });
+    addSchemaProperty(Added, 'count', { type: 'integer', minimum: 1, nullable: true });
+    addSchemaProperty(Added, 'note', { anyOf, type: 'string' } as any);
+    addSchemaProperty(Added, 'tags', {
+      type: 'array',
+      items: { type: 'string' },
+      enum: ['a', 'b'],
+      maxItems: 3,
+    });
+    // The enum's values give the item type, as in @ToolProp, even when `items` says otherwise
+    addSchemaProperty(Added, 'levels', {
+      type: 'array',
+      items: { type: 'string', minLength: 1 },
+      enum: [1, 2],
+    });
+    // Items that allowed null keep allowing it next to an enum with null
+    addSchemaProperty(Added, 'marks', {
+      type: 'array',
+      items: { type: ['string', 'null'] } as any,
+      enum: ['a', null],
+    });
+
+    const schema = classToJsonSchema(Added);
+    expect(schema.properties).toStrictEqual({
+      id: { type: 'string' },
+      link: { type: 'string', format: 'uri', maxLength: 10 },
+      when: { type: 'string', format: 'date-time' },
+      count: { type: ['integer', 'null'], minimum: 1 },
+      note: { type: 'string', anyOf },
+      // An enum on an array describes its items, as in @ToolProp
+      tags: { type: 'array', items: { type: 'string', enum: ['a', 'b'] }, maxItems: 3 },
+      levels: { type: 'array', items: { type: 'number', minLength: 1, enum: [1, 2] } },
+      marks: { type: 'array', items: { type: ['string', 'null'], enum: ['a', null] } },
+    });
+    expect(schema.required).toStrictEqual([
+      'id',
+      'link',
+      'count',
+      'note',
+      'tags',
+      'levels',
+      'marks',
+    ]);
+  });
+
+  it('addSchemaProperty and updateSchemaProperty do not share objects with the caller', () => {
+    class Inner {
+      @ToolProp() city: string;
+    }
+    class Shared {
+      @ToolProp() id: string;
+      @ToolProp() inner: Inner;
+    }
+    const items = { type: 'object', properties: { a: { type: 'string' } } } as any;
+    const levels = ['low', 'high'];
+    const deferred = { type: 'string', enum: ['x'] } as any;
+    const update = { enum: ['p', 'q'] } as any;
+    addSchemaProperty(Shared, 'rows', { type: 'array', items });
+    addSchemaProperty(Shared, 'level', { type: 'string', enum: levels });
+    // Paths into a nested class are recorded and replayed when a schema is generated
+    addSchemaProperty(Shared, 'inner.zone', deferred);
+    updateSchemaProperty(Shared, 'inner.city', update);
+    // Later changes to the caller's objects must not reach the stored schema
+    items.properties.a.type = 'number';
+    levels.push('mid');
+    deferred.enum.push('y');
+    update.enum.push('r');
+
+    const properties = classToJsonSchema(Shared).properties as any;
+    expect(properties.rows.items.properties.a.type).toBe('string');
+    expect(properties.level.enum).toStrictEqual(['low', 'high']);
+    expect(properties.inner.properties.zone.enum).toStrictEqual(['x']);
+    expect(properties.inner.properties.city.enum).toStrictEqual(['p', 'q']);
   });
 
   it('updateSchemaProperty counts as explicit', () => {

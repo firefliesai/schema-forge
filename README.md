@@ -5,7 +5,7 @@
 
 Schema Forge turns a TypeScript class into a [JSON Schema](https://json-schema.org/understanding-json-schema/reference). You mark the class's properties with decorators. Schema Forge then gives you either the plain JSON Schema, or a ready-made tool definition for the OpenAI, Anthropic (Claude) or Google Gemini APIs. A large language model (LLM) reads that tool definition to know which arguments it may send.
 
-The same class can also be the TypeScript type of those arguments, so the schema and the type cannot drift apart.
+The same class can also be the TypeScript type of those arguments, so you describe them in one place. What TypeScript does not keep at run time (whether a property is optional or nullable, the item type of an array, the allowed values of an enum) you add as an option ([4.1](#41-what-typescript-tells-schema-forge-and-what-you-must-add)).
 
 ```typescript
 import 'reflect-metadata';
@@ -56,11 +56,11 @@ const tool = classToOpenAITool(GetWeatherInput);
 // }
 ```
 
-Pass `tool` in the `tools` list of an OpenAI request. When the model calls it, its arguments have the shape of `GetWeatherInput`.
+Pass `tool` in the `tools` list of an OpenAI request. When the model calls the tool, its arguments should match the schema; only strict mode guarantees it, and then for the schema that was sent ([3.3](#33-get-a-tool-for-an-llm-provider)).
 
 ## Contents
 
-1. [What Schema Forge does](#1-what-schema-forge-does) (diagram 1: from a class to an LLM tool)
+1. [What Schema Forge does](#1-what-schema-forge-does) (diagram 1: from a class to an LLM tool), and [why Schema Forge](#11-why-schema-forge)
 2. [Install and set up](#2-install-and-set-up)
 3. [Quick start](#3-quick-start)
 4. [Describing properties with `@ToolProp`](#4-describing-properties-with-toolprop)
@@ -80,7 +80,7 @@ Pass `tool` in the `tools` list of an OpenAI request. When the model calls it, i
 
 | Term | Meaning |
 | --- | --- |
-| Tool (also called function calling) | A function your application offers to an LLM. You send the LLM its name, a description and a JSON Schema of its arguments; the LLM answers with a call that has those arguments, and your code runs it. |
+| Tool (the feature is called function calling) | A function your application offers to an LLM. You send the LLM the tool's name, a description and a JSON Schema of its arguments. The LLM answers with a call that has those arguments, and your code runs the function. |
 | Structured output | Asking the LLM to answer with JSON that matches a JSON Schema, instead of free text. |
 | Strict mode | A provider setting that makes the LLM's output follow the schema exactly. It accepts only part of JSON Schema and adds its own rules (see [OpenAI](#71-openai) and [Anthropic](#72-anthropic)). |
 | Decorator | A TypeScript annotation such as `@ToolProp()` written above a class or property. See [TypeScript decorators](https://www.typescriptlang.org/docs/handbook/decorators.html). |
@@ -113,9 +113,25 @@ Pass `tool` in the `tools` list of an OpenAI request. When the model calls it, i
 | ③ Generate the schema | `classToJsonSchema` builds the schema, adds rules from class-validator, and throws if the schema would not describe the class (see [Errors](#8-errors-and-warnings)). |
 | ④ Format for a provider | A `classTo…` function wraps the schema in the shape one provider's API expects, and adapts it to what that provider accepts. |
 
-**When to use it:** you already describe data with classes and decorators (for example NestJS data transfer objects, also called DTOs), you want one class to be both the schema and the TypeScript type, or you send the same tool to several LLM providers.
+### 1.1 Why Schema Forge
+
+**When to use it:** you already describe data with classes and decorators (for example the data transfer objects, or DTOs, of a NestJS application; NestJS is a Node.js server framework), you want one class to be both the schema and the TypeScript type, or you send the same tool to several LLM providers.
 
 **When something else may fit better:** you prefer building schemas with functions instead of classes ([Zod](https://github.com/colinhacks/zod) or [TypeBox](https://github.com/sinclairzx81/typebox)), your code base does not use decorators, or property names are only known at run time.
+
+**Design choices.** Schema Forge has one job: it turns a class into a JSON Schema, and a JSON Schema into tool formats for OpenAI, Anthropic and Gemini, and structured-output formats for OpenAI and Gemini. It does not validate or transform values, and it does not produce OpenAPI documents (the standard format that describes an HTTP API). It has no dependencies of its own; the only package it needs is `reflect-metadata`, which you install yourself (a peer dependency). It does not depend on any framework, so you can use it in a NestJS project or in plain TypeScript.
+
+**Compared with [class-validator-jsonschema](https://github.com/epiphone/class-validator-jsonschema)**, which also turns decorated classes into JSON Schema (its version 5.2.0, checked November 2026):
+
+| | Schema Forge | class-validator-jsonschema |
+| --- | --- | --- |
+| Where the schema comes from | `@ToolProp` and the design types; class-validator decorators add rules when present | class-validator decorators, plus its own `@JSONSchema()` decorator for extra keywords |
+| Packages you must install | `reflect-metadata` (peer dependency) | class-validator and class-transformer (peer dependencies) |
+| Its own dependencies | none | openapi3-ts, lodash.merge, lodash.groupby, reflect-metadata, tslib |
+| What you get | JSON Schema, plus tools for OpenAI, Anthropic and Gemini and structured-output formats for OpenAI and Gemini, adapted to what each provider accepts (including OpenAI and Anthropic strict modes) | Schema objects for an OpenAPI document |
+| Which properties are in the schema | Only those with `@ToolProp` (or added with `addSchemaProperty`), so one class can be an API DTO and a tool input with different fields ([section 5.2](#52-class-validator-does-not-add-properties)) | Every property that has a class-validator decorator |
+
+**Why it also reads class-validator decorators.** Many classes that become tools already exist as validated DTOs, for example in NestJS. When a class has class-validator decorators, Schema Forge reads them, so a rule such as `@MaxLength(100)` is written once, and both the validator and the LLM see it. class-validator is still optional: it is an optional peer dependency, and without it everything else works the same ([section 5](#5-rules-from-class-validator)).
 
 ## 2. Install and set up
 
@@ -130,7 +146,7 @@ npm install @firefliesai/schema-forge reflect-metadata
 
 Some package managers do not install peer dependencies on their own; the command above installs `reflect-metadata` explicitly for that reason.
 
-**Install a single copy of Schema Forge.** Each installed copy keeps its own metadata, so a property declared through one copy is invisible to another. If a library you use depends on a different version of `@firefliesai/schema-forge`, deduplicate it or force one version (npm `overrides`, pnpm `overrides`, yarn `resolutions`). Schema Forge detects the other copy and throws instead of leaving properties out ([section 8](#8-errors-and-warnings)).
+**Install a single copy of Schema Forge.** Each installed copy keeps its own metadata, so a property declared through one copy is invisible to another. If a library you use depends on a different version of `@firefliesai/schema-forge`, deduplicate it or force one version (npm `overrides`, pnpm `overrides`, yarn `resolutions`). When a property was declared only through the other copy, Schema Forge throws instead of leaving it out ([section 8](#8-errors-and-warnings)).
 
 **TypeScript settings.** Turn on both options in `tsconfig.json`:
 
@@ -208,7 +224,7 @@ const schema = classToJsonSchema(CreateUserInput);
 
 ### 3.3 Get a tool for an LLM provider
 
-Each provider's API expects a slightly different shape. Pick the function for the SDK you use:
+Each provider's API expects a slightly different shape. Pick the function for the SDK (software development kit: the provider's client library) you use:
 
 | You call | With | Schema Forge function | Put the result in |
 | --- | --- | --- | --- |
@@ -284,7 +300,7 @@ const input = result.functionCalls?.[0]?.args as unknown as
   | undefined;
 ```
 
-The type annotation on `input` is a promise about the shape, not a check. In strict mode the provider guarantees that the arguments match the schema; otherwise it usually follows it. Your code should still validate what it runs (for example with class-validator).
+The type annotation on `input` is a promise about the shape, not a check. In strict mode the provider guarantees that the arguments match the schema it received; rules that Schema Forge moved into a description are not enforced. Without strict mode, the model usually follows the schema, but nothing guarantees it. Your code should still validate what it runs (for example with class-validator).
 
 ## 4. Describing properties with `@ToolProp`
 
@@ -308,7 +324,7 @@ Schema Forge reads each property's design type. For some TypeScript types that i
 | `id!: string \| number` | `Object` | error: cannot determine the type | `anyOf: [{ type: 'string' }, { type: 'number' }]` |
 | `meta!: Record<string, string>` | `Object` | error: cannot determine the type | `type: 'object'` |
 
-`Object` is what TypeScript records for a union, a nullable type under [`strictNullChecks`](https://www.typescriptlang.org/tsconfig/#strictNullChecks), an interface, a generic, `any` and `unknown`. Schema Forge does not guess a type for it; it throws when the schema is generated ([section 8](#8-errors-and-warnings)). A class-validator type decorator such as `@IsString()` can also supply the type ([section 5](#5-rules-from-class-validator)).
+`Object` is what TypeScript records for a union of different types (`string | number`; a union of string literals such as `'a' | 'b'` records `String`), a nullable type under [`strictNullChecks`](https://www.typescriptlang.org/tsconfig/#strictNullChecks), an interface, a generic, `any` and `unknown`. Schema Forge does not guess a type for such a property; generating the schema throws ([section 8](#8-errors-and-warnings)). A class-validator type decorator such as `@IsString()` can also supply the type ([section 5](#5-rules-from-class-validator)).
 
 ### 4.2 Arrays, enums and nested classes
 
@@ -381,7 +397,7 @@ classToJsonSchema(Team).properties;
 
 | Option | Question it answers | Effect on the schema |
 | --- | --- | --- |
-| `isOptional: true` | May the caller leave the property out? | The property is not listed in `required`. `null` is still rejected. |
+| `isOptional: true` | May the caller leave the property out? | The property is not listed in `required`. It does not by itself allow `null`. |
 | `nullable: true` | May the value be `null`? | `null` becomes an allowed value: `type: 'string'` becomes `type: ['string', 'null']`, and an `enum` gains `null`. |
 
 Use both for a property that may be missing or `null`:
@@ -407,14 +423,14 @@ classToJsonSchema(UpdateProfileInput);
 // (no `required` list: the only property is optional)
 ```
 
-With `anyOf` or `oneOf`, `nullable` adds a `{ type: 'null' }` branch. With `const`, `allOf`, or a composition next to a `type`, the whole property becomes `anyOf: [<property>, { type: 'null' }]`.
+A schema that already accepts `null` (for example one with a `{ type: 'null' }` branch) is left as it is. Otherwise, with `anyOf` or `oneOf`, `nullable` adds a `{ type: 'null' }` branch; with `const`, `allOf`, or a composition next to another keyword such as `type` or `enum`, the whole property becomes `anyOf: [<property>, { type: 'null' }]`.
 
 ### 4.4 All `@ToolProp` options
 
 | Option | Type | Meaning |
 | --- | --- | --- |
 | `description` | `string` | Text the LLM reads to understand the property. Recommended on every property. |
-| `type` | `'string' \| 'number' \| 'integer' \| 'boolean' \| 'array' \| 'object'` | The JSON Schema type, when the design type is not enough. |
+| `type` | `'string' \| 'number' \| 'integer' \| 'boolean' \| 'array' \| 'object'`, a class, or `Date` / `String` / `Number` / `Boolean` | The JSON Schema type, when the design type is not enough. A class declares a nested class; `Date` also gives `format: 'date-time'` ([4.1](#41-what-typescript-tells-schema-forge-and-what-you-must-add)). |
 | `enum` | TypeScript enum or array of values | The allowed values. |
 | `items` | `{ type: 'string' \| 'number' \| 'integer' \| 'boolean' \| 'object' \| SomeClass, …constraints }` | The item schema of an array. |
 | `isOptional` | `boolean` | Leaves the property out of `required`. |
@@ -422,7 +438,7 @@ With `anyOf` or `oneOf`, `nullable` adds a `{ type: 'null' }` branch. With `cons
 | `format`, `pattern`, `minLength`, `maxLength` | | String rules, as in [JSON Schema](https://json-schema.org/understanding-json-schema/reference/string). |
 | `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf` | | Number rules, as in [JSON Schema](https://json-schema.org/understanding-json-schema/reference/numeric). |
 | `minItems`, `maxItems`, `uniqueItems` | | Array rules, as in [JSON Schema](https://json-schema.org/understanding-json-schema/reference/array). |
-| `anyOf`, `oneOf`, `allOf`, `const` | | Combinations and fixed values, copied to the schema as given. No `type` is added next to them. |
+| `anyOf`, `oneOf`, `allOf`, `const` | | Combinations and fixed values, copied to the schema as given. The design type adds no `type` next to them; a `type`, `items` or `enum` you set is still applied. |
 | `title`, `default`, `examples`, `deprecated` | | Annotations, copied to the schema as given. |
 
 The output uses [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12) keywords. It has no `$schema` field, because the LLM APIs do not need one.
@@ -431,7 +447,7 @@ The output uses [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-1
 
 ## 5. Rules from class-validator
 
-If your class also uses [class-validator](https://github.com/typestack/class-validator) decorators, Schema Forge adds their rules to the schema. You write a rule once, and both the validator and the LLM see it.
+If your class also uses [class-validator](https://github.com/typestack/class-validator) decorators, Schema Forge adds the rules it can translate ([5.3](#53-translated-decorators)) to the schema. You write a rule once, and both the validator and the LLM see it.
 
 Schema Forge only reads class-validator's decorators to add rules to the JSON Schema; it never runs validation. To validate values, call class-validator's `validate()` yourself, or validate the arguments against the generated JSON Schema.
 
@@ -479,7 +495,7 @@ The decorators may be written in any order; Schema Forge reads them when the sch
 
 ### 5.1 Which source wins
 
-**Diagram 2: where each part of a property's schema comes from.** When two sources disagree, the higher one wins, and Schema Forge prints a warning about the conflict.
+**Diagram 2: which source wins.** Each part of a property's schema comes from one of three sources. When two sources disagree, the higher one wins. Schema Forge prints a warning only when an explicit option and a class-validator rule disagree; class-validator replaces the design type without a warning.
 
 ```text
   highest  1. explicit options  @ToolProp({ … }), updateSchemaProperty(),
@@ -490,13 +506,13 @@ The decorators may be written in any order; Schema Forge reads them when the sch
 
 For example, `@ToolProp({ type: 'number' })` with `@IsInt()` keeps `number` and warns. Without the explicit `type`, the property becomes `integer`.
 
-### 5.2 Only `@ToolProp` adds a property
+### 5.2 class-validator does not add properties
 
-class-validator only adds rules to properties that have `@ToolProp`. A property with class-validator decorators but no `@ToolProp` is not in the schema. This lets one class be an API DTO and a tool input with different fields, for example an `ownerId` that your API sets but the LLM must not.
+class-validator only adds rules to properties that have `@ToolProp`. A property with class-validator decorators but no `@ToolProp` is not in the schema. This lets one class be an API DTO and a tool input with different fields, for example an `ownerId` that your API sets and the LLM must not send.
 
 Two related checks:
 
-- A class whose properties all lack `@ToolProp`, while some have class-validator decorators, throws: its schema would be empty. This usually means the class was copied with `PickType`, `OmitType` or `PartialType` (from NestJS), which keep class-validator's metadata but not Schema Forge's.
+- If a class has class-validator decorators but no `@ToolProp` at all, generating its schema throws, because the schema would be empty. This usually means the class was copied with `PickType`, `OmitType` or `PartialType` (from NestJS), which keep class-validator's metadata but not Schema Forge's.
 - To check in a test that a class exposes every validated property, use `findUndeclaredValidatedProperties`:
 
 ```typescript
@@ -516,7 +532,11 @@ expect(findUndeclaredValidatedProperties(CreateOrderInput)).toEqual([]);
 
 ### 5.3 Translated decorators
 
-A decorator with `{ each: true }` applies its rule to the items of an array. When those item rules give no type of their own, the item type is the one they accept: the numeric rules (`@Min`, `@Max`, `@IsPositive`, `@IsNegative`, `@IsDivisibleBy`) accept only numbers, so the items are `number`; the string rules (`@MinLength`, `@MaxLength`, `@Length`, `@Matches`, `@IsEmail`, `@IsUrl`, `@IsUUID`) accept only strings, so the items are `string`. Rules of both kinds on the same items give no type.
+A decorator with `{ each: true }` applies its rule to the items of an array (`@IsObject({ each: true })` is not translated; set `items` yourself). When you did not set `items` and those item rules give no type of their own, the item type is the one they accept:
+
+- The numeric rules (`@Min`, `@Max`, `@IsPositive`, `@IsNegative`, `@IsDivisibleBy`) accept only numbers, so the items are `number`.
+- The string rules (`@MinLength`, `@MaxLength`, `@Length`, `@Matches`, `@IsEmail`, `@IsUrl`, `@IsUUID`) accept only strings, so the items are `string`.
+- Rules of both kinds on the same items give no type.
 
 | class-validator decorator | JSON Schema |
 | --- | --- |
@@ -525,7 +545,7 @@ A decorator with `{ each: true }` applies its rule to the items of an array. Whe
 | `@ArrayMinSize(n)`, `@ArrayMaxSize(n)` | `minItems: n`, `maxItems: n` |
 | `@ArrayNotEmpty()` | `minItems: 1` |
 | `@ArrayUnique()` | `uniqueItems: true` |
-| `@ArrayContains([...])` | `items.enum` (primitive values only) |
+| `@ArrayContains([...])` | `items.enum` (primitive values only). This is not the same rule: class-validator means "contains these values", `items.enum` means "only these values" ([#44](https://github.com/firefliesai/schema-forge/issues/44)). |
 | `@Min(n)`, `@Max(n)` | `minimum: n`, `maximum: n` |
 | `@IsPositive()`, `@IsNegative()` | `exclusiveMinimum: 0`, `exclusiveMaximum: 0` |
 | `@IsDivisibleBy(n)` | `multipleOf` with the absolute value of `n` (not for `n = 0`) |
@@ -541,7 +561,7 @@ When several decorators set the same limit (for example `@Length(2, 10)` and `@M
 
 ### 5.4 Rules the schema cannot express
 
-Some rules have no JSON Schema keyword: `@IsTimeZone()`, `@IsISO8601()`, `@IsDateString()`, `@Matches(/x/i)` (a regex with flags) and your own validators. They are not in the schema, so the LLM does not see them. Schema Forge prints one warning per rule (`console.warn`, starting with `[schema-forge]`). Describe the rule yourself with `format`, `pattern` or `description`. An explicit `format`, `pattern` or `enum` on the property also turns that warning off.
+Some rules have no JSON Schema keyword: `@IsTimeZone()`, `@IsISO8601()`, `@IsDateString()`, `@Matches(/x/i)` (a regex with flags) and your own validators. They are not in the schema, so the LLM does not see them. Schema Forge prints a warning for each such rule on each property (`console.warn`, starting with `[schema-forge]`, once per process). Describe the rule yourself in `description`, or with `format` or `pattern`. Only an explicit `format`, `pattern` or `enum` on the property turns these warnings off; a `description` does not.
 
 ## 6. Schema options
 
@@ -549,9 +569,9 @@ Some rules have no JSON Schema keyword: `@IsTimeZone()`, `@IsISO8601()`, `@IsDat
 
 | Option | Default | Effect |
 | --- | --- | --- |
-| `additionalProperties: false` | not set | Adds `additionalProperties: false` to every object that declares properties: the root, nested classes, array items and `anyOf` / `oneOf` / `allOf` branches. Strict modes need it. An object without declared properties (a `Record`) stays open, because closing it would accept only `{}`. |
-| `forStructuredOutput: true` | `false` (`true` for `classToOpenAIResponseApiTool`) | Adapts the schema to the provider's strict mode and sets `strict: true`: OpenAI's rules for the OpenAI functions ([7.1](#71-openai)), Anthropic's for `classToAnthropicTool` ([7.2](#72-anthropic)). `classToJsonSchema` applies the OpenAI changes to the schema only. The Gemini functions do not take this option. |
-| `propertyOverrides` | none | Changes properties for this call only, by path: `{ 'name': { description: '…' }, 'address.city': { … } }`. An override that describes a property holding a class as something else (another `type`, an `enum`, a `const`, a composition, or `items` that are not a class) replaces the class, whose schema is then not built. A property that allows `null` keeps allowing it unless the override sets `nullable: false`. |
+| `additionalProperties: false` | not set | Adds `additionalProperties: false` to every object that declares properties: the root, nested classes, array items and `anyOf` / `oneOf` / `allOf` branches. Strict modes need closed objects, but `forStructuredOutput: true` closes them for you; use this option to close objects without strict mode. An object without declared properties (a `Record`) stays open, because closing it would accept only `{}`. |
+| `forStructuredOutput: true` | `false` (`true` for `classToOpenAIResponseApiTool`) | Adapts the schema to the provider's strict mode and sets `strict: true`: OpenAI's rules for the OpenAI functions ([7.1](#71-openai)), Anthropic's for `classToAnthropicTool` ([7.2](#72-anthropic)). `classToJsonSchema` returns only a schema, so it applies the OpenAI changes but sets no `strict` flag. The Gemini functions do not take this option. |
+| `propertyOverrides` | none | Changes properties for this call only, by path: `{ 'name': { description: '…' }, 'address.city': { … } }`. An override that describes a property holding a class as something else (another `type`, an `enum`, a `const`, a composition, or `items` that are not a class) replaces the class, whose schema is then not built. A property declared with `nullable: true` keeps allowing `null` unless the override sets `nullable: false`. |
 
 To change a class's schema for every later call, use `updateSchemaProperty` and `addSchemaProperty`. Paths may go into nested classes:
 
@@ -579,7 +599,7 @@ addSchemaProperty(Shipment, 'destination.zip', {
 
 ## 7. LLM provider formats
 
-Each `classTo…` function calls `classToJsonSchema` and then changes the result to fit one provider. The `jsonSchemaTo…` functions do the same for a JSON Schema you already have ([7.4](#74-existing-json-schemas-and-converting-between-formats)).
+Each `classTo…` function calls `classToJsonSchema` and then changes the result to fit one provider. The `jsonSchemaTo…` functions start from a JSON Schema you already have ([7.4](#74-existing-json-schemas-and-converting-between-formats)): the Gemini ones change it as described in [7.3](#73-gemini), while the OpenAI and Anthropic ones do not apply the strict-mode changes, even with `{ strict: true }`.
 
 ### 7.1 OpenAI
 
@@ -599,12 +619,21 @@ See OpenAI's [function calling](https://developers.openai.com/api/docs/guides/fu
 | Sets `strict: true` on the tool or format | |
 | Adds `additionalProperties: false` to every object that declares properties | |
 | Lists every property in `required` | |
-| Makes each optional property nullable: `null` is added to its `type`, to its `enum`, or as an `anyOf` branch | `age?: number` becomes `type: ['number', 'null']` |
+| Makes each optional property nullable, the same way `nullable: true` does ([4.3](#43-optional-and-nullable)) | `age?: number` becomes `type: ['number', 'null']` |
 | Moves the keywords OpenAI strict mode rejects into the property's description | `@IsUrl()` gives `format: 'uri'`, which becomes `description: 'Website\n\n{format: "uri"}'` |
 
-The keywords moved into the description are a `format` other than `date-time`, `time`, `date`, `duration`, `email`, `hostname`, `ipv4`, `ipv6` and `uuid`; `uniqueItems`, `contains`, `minContains`, `maxContains` and `unevaluatedItems` on arrays; and `minProperties`, `maxProperties`, `propertyNames` and `unevaluatedProperties` on objects. A `pattern` is moved too when it uses a lookahead or lookbehind (`(?=`, `(?!`, `(?<=`, `(?<!`), a named group (`(?<name>`), a backreference (`\1`, `\k<name>`) or a word boundary (`\b`, `\B`): OpenAI rejects a named group, and for the others it returns an empty response that stops at the token limit. Everything else stays, and OpenAI enforces it: `minLength`, `maxLength`, other patterns (non-capturing groups `(?:…)` and long ranges such as `{1,1000}` included), `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`, `minItems` and `maxItems`. `allOf`, `oneOf` and `not` stay as you wrote them; OpenAI strict mode rejects them at any depth, and its error names the property. An object with no declared properties (a free-form object, such as a `Record`) cannot be closed, so generating the schema throws, naming the property ([11](#11-limitations)).
+These keywords are moved into the description:
 
-These lists were checked against the live API (November 2026). OpenAI's guide lists `minLength`, `maxLength`, `pattern`, `format`, number bounds, `multipleOf`, `minItems` and `maxItems` as not supported for fine-tuned models. The API accepts and enforces them on the base models, and a fine-tuned `gpt-4o-mini` model also accepted `minLength`, `pattern` and `minimum` in strict mode (checked November 2026); if your fine-tuned model rejects one of them, remove it with `propertyOverrides`.
+- a `format` other than `date-time`, `time`, `date`, `duration`, `email`, `hostname`, `ipv4`, `ipv6` and `uuid`;
+- `uniqueItems`, `contains`, `minContains`, `maxContains` and `unevaluatedItems` on arrays;
+- `minProperties`, `maxProperties`, `propertyNames` and `unevaluatedProperties` on objects;
+- a `pattern` that uses a lookahead or lookbehind (`(?=`, `(?!`, `(?<=`, `(?<!`), a named group (`(?<name>`), a backreference (`\1`, `\k<name>`), a word boundary (`\b`, `\B`), or any other group that starts with `(?` except `(?:` (for example an inline flag such as `(?i)`). OpenAI rejects a named group, and for the others it returns an empty response that stops at the token limit.
+
+These keywords stay, and OpenAI enforces them: `minLength`, `maxLength`, other patterns (non-capturing groups `(?:…)` and long ranges such as `{1,1000}` included), `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`, `minItems`, `maxItems` and `patternProperties`.
+
+`allOf`, `oneOf` and `not` stay as you wrote them, and so do `if` / `then` / `else`, `dependentRequired` and `dependentSchemas`. OpenAI strict mode rejects all of them at any depth, and its error names the property, so you see the problem instead of losing the rule. An object with no declared properties (a free-form object, such as a `Record`) cannot be closed, so generating the schema throws, naming the property ([11](#11-limitations)).
+
+These lists were checked against the live API (November 2026). OpenAI's guide says `minLength`, `maxLength`, `pattern`, `format`, number bounds, `multipleOf`, `minItems` and `maxItems` are not supported for fine-tuned models. On the base models, the API accepts and enforces them. A fine-tuned `gpt-4o-mini` model also accepted `minLength`, `pattern` and `minimum` in strict mode. If your fine-tuned model rejects one of them, remove it. For a rule written only in `@ToolProp`, set it to `undefined` in `propertyOverrides` (for example `{ name: { minLength: undefined } }`). For a rule that a class-validator decorator sets, even when `@ToolProp` sets it too, delete it from the generated schema before you send it: class-validator fills in a rule the override left empty.
 
 ```typescript
 import {
@@ -629,7 +658,7 @@ if (!message.content) throw new Error('No structured output in the reply');
 const user: CreateUserInput = JSON.parse(message.content);
 ```
 
-**The Responses API tool is strict by default.** `classToOpenAIResponseApiTool` applies the strict changes above and sets `strict: true` unless you pass `forStructuredOutput: false`. Then it sends the schema as declared, with `strict: false`: optional properties stay optional and every keyword stays. This matches the Responses API, which tries strict mode when `strict` is left out and keeps best-effort function calling when it is `false`.
+**The Responses API tool is strict by default.** `classToOpenAIResponseApiTool` applies the strict changes above and sets `strict: true` unless you pass `forStructuredOutput: false`. With `forStructuredOutput: false`, it sends the schema as declared, with `strict: false`: optional properties stay optional and every keyword stays. This matches the Responses API, which tries strict mode when `strict` is left out and keeps best-effort function calling when it is `false`.
 
 ### 7.2 Anthropic
 
@@ -647,9 +676,19 @@ const user: CreateUserInput = JSON.parse(message.content);
 | Moves `maxItems`, a `minItems` other than 0 or 1, `uniqueItems`, `contains`, `minContains` and `maxContains` into the description | Anthropic rejects these array rules |
 | Moves `patternProperties`, `propertyNames`, `minProperties`, `maxProperties` and `unevaluatedProperties` into the description | Anthropic rejects these object rules |
 | Moves a `format` other than `date-time`, `time`, `date`, `duration`, `email`, `hostname`, `uri`, `ipv4`, `ipv6` and `uuid` into the description | Anthropic supports only these formats |
-| Removes the `type` array next to an `enum` (a nullable or mixed-type enum) | Anthropic rejects the pair; the enum's values already say which types are allowed |
+| Removes the `type` array next to an `enum` (a nullable or mixed-type enum), and drops the enum values that this type did not allow | Anthropic rejects the pair; the enum's values already say which types are allowed |
 
-A keyword moved into the description is written as `{keyword: value}`, for example `'Quantity\n\n{maximum: 100}'`, which is how Anthropic's own SDK keeps such rules visible to the model. String lengths follow the guide even though the API accepted them on two models (checked November 2026), so a tool keeps working if Anthropic starts rejecting them. A `pattern` is moved into the description when it uses a construct Anthropic rejects with a 400: a lookahead or lookbehind, a named group, a backreference, or `\b` / `\B` (the same constructs as for OpenAI); a `{n}`, `{n,}` or `{n,m}` quantifier on a broad set (`.`, a negated class such as `[^x]`, `\S`, `\D`, `\W`, or a class or group holding one: even `^.{1,200}$` is rejected); or a quantifier bound above 256. Anthropic's guide lists large ranges as unsupported without giving a number; when checked (November 2026), `{1,2000}` alone and `{1,1000}` next to another quantifier were rejected and bounds up to 500 passed, so 256 leaves a margin. Other patterns stay, `.+` and `[a-z]{1,256}` included. OpenAI accepted all of these quantifiers, so its patterns are not changed for them. `oneOf` and `not` stay as you wrote them; Anthropic strict mode rejects them, while `anyOf` and `allOf` are accepted (Anthropic's guide excludes `allOf` combined with `$ref`, which Schema Forge never emits). An object with no declared properties throws, as for OpenAI.
+A keyword moved into the description is written as `{keyword: value}`, for example `'Quantity\n\n{maximum: 100}'`, which is how Anthropic's own SDK keeps such rules visible to the model. String lengths are moved, as the guide says, even though the API accepted them on two models (checked November 2026). This way a tool keeps working if Anthropic starts rejecting them.
+
+A `pattern` is moved into the description when Anthropic would reject it with an HTTP 400 (Bad Request) error, that is when it uses:
+
+- a lookahead, lookbehind, named group, backreference, `\b`, `\B`, or another group that starts with `(?` except `(?:` (the same constructs as for OpenAI);
+- a `{n}`, `{n,}` or `{n,m}` quantifier on a broad set: `.`, a negated class such as `[^x]`, `\S`, `\D`, `\W`, or a class or group that holds one (even `^.{1,200}$` is rejected);
+- a quantifier bound above 256.
+
+Anthropic's guide lists large ranges as unsupported without giving a number. When checked (November 2026), `{1,2000}` alone and `{1,1000}` next to another quantifier were rejected, and bounds up to 500 passed, so 256 leaves a margin. Other patterns stay, `.+` and `[a-z]{1,256}` included. OpenAI accepted all of these quantifiers, so its patterns are not changed for them.
+
+`oneOf` and `not` stay as you wrote them; Anthropic strict mode rejects them, while `anyOf` and `allOf` are accepted (Anthropic's guide excludes `allOf` combined with `$ref`, which Schema Forge never emits). An object with no declared properties throws, as for OpenAI.
 
 Anthropic also limits a request to 20 strict tools, 24 optional properties and 16 properties with a union type (`anyOf` or a type array) across all strict schemas. Schema Forge does not count these.
 
@@ -663,7 +702,7 @@ Anthropic also limits a request to 20 strict tools, 24 optional properties and 1
 
 The Vertex AI functions are implemented but not tested against the real API.
 
-Gemini accepts only part of JSON Schema in these fields (see its [function calling guide](https://aistudio.google.com/docs/function-calling), and the fields of its `Schema` type in the [API reference](https://aistudio.google.com/api-reference/caching), listed under `CachedContent` → `tools` → `functionDeclarations` → `parameters`). It rejects the whole request with a 400 (`Unknown name "uniqueItems" … Cannot find field`) when a schema has any field its `Schema` type does not have. The Gemini functions change the schema to fit, as checked against the live API in November 2026:
+Gemini accepts only part of JSON Schema in these fields. See its [function calling guide](https://aistudio.google.com/docs/function-calling), and the fields of its `Schema` type in the [API reference](https://aistudio.google.com/api-reference/caching) (under `CachedContent` → `tools` → `functionDeclarations` → `parameters`). If a schema has any field that `Schema` does not have, Gemini rejects the whole request with an HTTP 400 error (`Unknown name "uniqueItems" … Cannot find field`). The Gemini functions change the schema to fit, as checked against the live API in November 2026:
 
 | JSON Schema from Schema Forge | Sent to Gemini |
 | --- | --- |
@@ -675,7 +714,7 @@ Gemini accepts only part of JSON Schema in these fields (see its [function calli
 | an `enum` whose values are not all non-empty strings | added to the description (the `type` stays) |
 | any other field Gemini does not have, such as `multipleOf` (from `@IsDivisibleBy`), `uniqueItems`, `examples`, `deprecated`, `readOnly`, `contains`, `patternProperties`, `propertyNames`, or a `const` that is not a string | added to the description |
 
-"Added to the description" means the keyword and its value are appended to the property's description as `{keyword: value}`, so the model still reads the rule. `oneOf`, `allOf` and `not` are sent as they are: the API accepts them, although its documentation does not list them. The API checks these fields before the request reaches a model, so the result was the same on every model tried (Gemini 2.5 Flash, 2.5 Pro and 3.8 Flash); whether a model follows `oneOf`, `allOf` or `not` is up to the model.
+"Added to the description" means the keyword and its value are appended to the property's description as `{keyword: value}`, so the model still reads the rule. `oneOf`, `allOf` and `not` are kept, and their branches are adapted like any other schema: the API accepts them, although its documentation does not list them. The API checks these fields before the request reaches a model, so the result was the same on every model tried (Gemini 2.5 Flash, 2.5 Pro and 3.8 Flash); whether a model follows `oneOf`, `allOf` or `not` is up to the model.
 
 Gemini does not need `forStructuredOutput`, so the Gemini functions do not take it.
 
@@ -697,7 +736,7 @@ const user: CreateUserInput = JSON.parse(structured.text);
 
 ### 7.4 Existing JSON Schemas, and converting between formats
 
-If you already have a JSON Schema, convert it without a class:
+If you already have a JSON Schema, convert it without a class. The OpenAI converters pass the schema as it is. The Anthropic and Gemini converters keep only the root's `properties` and `required` (Anthropic also `additionalProperties: false`); other root keywords, such as the schema's own `description` or `maxProperties`, are dropped ([#37](https://github.com/firefliesai/schema-forge/issues/37)):
 
 ```typescript
 import {
@@ -723,19 +762,28 @@ const { schema, metadata } = openAIToolToJsonSchema(openAITool);
 const anthropicTool = jsonSchemaToAnthropicTool(schema, metadata);
 ```
 
-These functions only reshape the schema. They do not run the checks of [section 8](#8-errors-and-warnings).
+These functions do not run the checks of [section 8](#8-errors-and-warnings), and for OpenAI and Anthropic the `strict` option only sets the flag. For strict mode, first call `prepareForOpenAIStructuredOutput(schema, true)` or `prepareForAnthropicStrictTool(schema)`, then pass `{ strict: true }`.
 
 ## 8. Errors and warnings
 
 ### 8.1 When Schema Forge checks
 
-Schema Forge checks when a schema is generated: when you call `classToJsonSchema` or a `classTo…` function. It checks the class you pass and, recursively, the classes nested in it. Defining or decorating a class never throws; `updateSchemaProperty` and `addSchemaProperty` only check their own arguments when called (a property path with `__proto__`, `constructor` or `prototype`, a class named in `type` or `items.type`). So a class that has `@ToolProp` but is never turned into a schema (for example a database model whose shared field decorator adds `@ToolProp` to every field) cannot break your program when it loads.
+Schema Forge checks when a schema is generated: when you call `classToJsonSchema` or a `classTo…` function. It checks the class you pass and, recursively, the classes nested in it. Defining or decorating a class never throws.
+
+`updateSchemaProperty` and `addSchemaProperty` throw when called only for a mistake in their own arguments:
+
+- a path with `__proto__`, `constructor` or `prototype`;
+- a class named in `type` or `items.type`;
+- an `addSchemaProperty` call with neither `type` nor `enum`;
+- a path through an array property that has no `items` (a path into a nested class is checked later, when the schema is generated).
+
+So a class that has `@ToolProp` but is never turned into a schema (for example a database model whose shared field decorator adds `@ToolProp` to every field) cannot break your program when it loads.
 
 To find problems early, generate every tool's schema when your application starts, or in a test.
 
 ### 8.2 Errors
 
-One error lists every problem found, named after the class you passed. A problem in a nested class shows its path from that class. For a class `Order` with a property `customer: Customer` (each problem is one line in the real message; it is wrapped here to fit):
+Problems found while the class is built (a missing type, a missing item type, no `@ToolProp`, a loop, another installed copy) are collected into one error, named after the class you passed. A problem in a nested class shows its path from that class. An invalid path, an update that names a class, and the strict-mode and Gemini errors are thrown on their own. For a class `Order` with a property `customer: Customer` (each problem is one line in the real message; it is wrapped here to fit):
 
 ```text
 schema-forge: cannot generate a JSON Schema for Order:
@@ -747,12 +795,16 @@ schema-forge: cannot generate a JSON Schema for Order:
 
 | Error message contains | Cause | Fix |
 | --- | --- | --- |
-| `cannot determine the JSON Schema type` | The design type is `Object` (a union, `T \| null`, an interface, a generic, `any`, `unknown`, `Record`), and no option or class-validator decorator gives a type. | Set `type`, `items` or `enum` (and `nullable: true` if `null` is allowed), or add a type decorator such as `@IsString()`. |
+| `cannot determine the JSON Schema type` | The design type is `Object` (a union, `T \| null`, an interface, a generic, `any`, `unknown`, `Record`), and no option or class-validator decorator gives a type; or there is no design type at all ([13](#13-troubleshooting)). | Set `type`, `items` or `enum` (and `nullable: true` if `null` is allowed), or add a type decorator such as `@IsString()`. |
 | `an array needs an item type` | An array property has no `items`, and no class-validator decorator with `{ each: true }` gives the items a type ([5.3](#53-translated-decorators)). | Set `items`. |
-| `the class declares no property with @ToolProp` | The class has class-validator decorators but no `@ToolProp` at all ([5.2](#52-only-toolprop-adds-a-property)). | Add `@ToolProp` to the properties the schema should have. |
+| `the class declares no property with @ToolProp` | The class has class-validator decorators but no `@ToolProp` at all ([5.2](#52-class-validator-does-not-add-properties)). | Add `@ToolProp` to the properties the schema should have. |
 | `… names the class …, which an update cannot add` | `updateSchemaProperty`, `addSchemaProperty` or a `propertyOverrides` entry named a class in `type` or `items.type`. Only `@ToolProp` declares a nested class and builds its schema; an update would leave the class unbuilt, so the property would lose its shape. | Declare the property with `@ToolProp` (`items: { type: TheClass }` for an array, or the class as its TypeScript type), for example in a subclass. |
 | `refers to its own class` / `refers back to …, which contains it` | A class contains itself, directly (`children: Node[]` in `Node`) or through another class (`A.b: B` and `B.a: A`). | On the property that closes the loop, set `type: 'object'` (or `items: { type: 'object' }` for an array). It becomes an object without a fixed shape. |
 | `cannot be used as a property name or path segment` | A path given to `updateSchemaProperty`, `addSchemaProperty` or `propertyOverrides` contains `__proto__`, `constructor` or `prototype`, which would reach an object's prototype instead of a property. `updateSchemaProperty` and `addSchemaProperty` throw when called; `propertyOverrides` when the schema is generated. | Use a different property name. |
+| `strict mode cannot express` | A free-form object (no declared properties, such as a `Record`) in OpenAI or Anthropic strict mode ([11](#11-limitations)). | Declare its properties, or describe it as a string that holds JSON. |
+| `Gemini cannot express` | A type array with several non-null types next to an `anyOf` (for example a mixed-type `enum` beside an `anyOf`), sent to a Gemini function ([7.3](#73-gemini)). | Put the types into the `anyOf` branches. |
+| `cannot reach into "…": it is an array without items` | The path of an update, override or added property goes through an array property that has no `items`. | Set `items` on the array property. |
+| `Either type or enum must be specified` | `addSchemaProperty` was called with neither `type` nor `enum`. | Give it a `type` or an `enum`. |
 | `declared by another installed copy of @firefliesai/schema-forge` | Two copies of Schema Forge are installed, and a property was declared through the other copy, whose metadata this copy cannot read ([section 2](#2-install-and-set-up)). | Install a single copy (deduplicate, or force one version with your package manager's overrides), or declare the property with this copy's `@ToolProp`. |
 
 ### 8.3 Warnings
@@ -761,7 +813,7 @@ Warnings go to `console.warn`, start with `[schema-forge]`, and are printed once
 
 | Warning | Meaning |
 | --- | --- |
-| `… from @ToolProp is kept; class-validator says …` | An explicit option and a class-validator rule disagree. The explicit option is used ([5.1](#51-which-source-wins)). |
+| `… from @ToolProp is kept; class-validator says …` (`… allows …` for an enum) | An explicit option and a class-validator rule disagree. The explicit option is used ([5.1](#51-which-source-wins)). |
 | `class-validator rule "…" has no JSON Schema equivalent` | The rule is not in the schema ([5.4](#54-rules-the-schema-cannot-express)). |
 
 ## 9. Migrating from 2.x
@@ -771,11 +823,11 @@ Warnings go to `console.warn`, start with `[schema-forge]`, and are printed once
 1. **Generate the schema of every class you convert** (for example by running your tests) and fix each error from [section 8.2](#82-errors). The most common one is a property typed `T | null` under `strictNullChecks`: 2.x produced `{ "type": "object" }` for it, which rejected every string or number sent for it.
 2. **Read the `[schema-forge]` warnings.** A conflict warning means an explicit option now wins over class-validator. A "no JSON Schema equivalent" warning names a rule the schema does not contain.
 3. **Compare the schemas.** Save the `classToJsonSchema` output of each class before and after the upgrade and compare them. The expected differences are listed under "Breaking changes" in the CHANGELOG: `exclusiveMinimum` for `@IsPositive`, the new translations, decorator order, enum types and compositions.
-4. **Check the installed copies.** If a library depends on another version of Schema Forge, install a single copy ([section 2](#2-install-and-set-up)).
+4. **Check the installed copies.** If a library depends on another version of Schema Forge, install a single copy ([section 2](#2-install-and-set-up)). If that library applies `@ToolProp` for you (for example a shared field decorator), it must stop doing so, or move to 3.0.0, before your service upgrades: otherwise its properties are declared through the other copy, and generating the schema throws.
 5. **Update type checks.** `JSONSchemaProperty.type` may now be an array or `undefined`.
 6. **Stored metadata.** If your code reads `Reflect.getMetadata(JSON_SCHEMA_METADATA_KEY, …)` directly: a class-typed property no longer holds its nested class's properties there. They exist only in the generated schema.
 7. **class-validator.** If you use it, version 0.14 or 0.15 is required. Inference did not work with 0.13 in 2.x either.
-8. **Strict modes.** With `forStructuredOutput: true`, OpenAI tools now keep string lengths, `pattern`, the supported formats, number bounds and array sizes, and OpenAI enforces them, so a model can no longer send a value outside them. `classToAnthropicTool` now applies Anthropic's own strict rules and sets `strict: true` instead of the OpenAI rules (optional properties stay optional). `classToOpenAIResponseApiTool` with `forStructuredOutput: false` now sends the schema as declared ([7.1](#71-openai), [7.2](#72-anthropic)). If you call `prepareForOpenAIStructuredOutput` on a schema you send to Anthropic, switch to `prepareForAnthropicStrictTool`: the OpenAI helper now keeps rules Anthropic strict mode rejects.
+8. **Strict modes.** With `forStructuredOutput: true`, OpenAI tools and response formats now keep string lengths, the patterns and formats OpenAI supports, number bounds and array sizes, and OpenAI enforces them, so a model can no longer send a value outside them (a rule moved into a description is not enforced). `classToAnthropicTool` now applies Anthropic's own strict rules and sets `strict: true` instead of the OpenAI rules (optional properties stay optional). `classToOpenAIResponseApiTool` with `forStructuredOutput: false` now sends the schema as declared ([7.1](#71-openai), [7.2](#72-anthropic)). If you call `prepareForOpenAIStructuredOutput` on a schema you send to Anthropic, switch to `prepareForAnthropicStrictTool`: the OpenAI helper now keeps rules Anthropic strict mode rejects.
 
 ## 10. How it works inside
 
@@ -807,10 +859,10 @@ This section is for contributors and for readers who want to know why the rules 
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Why the checks wait until (3).** A property's class-validator decorators may run after `@ToolProp` (decorators run bottom-up), and a class may be decorated by a shared library without ever being used as a tool. Checking at generation time makes the result independent of decorator order, and means a class is only checked when a schema reaches it.
+- **Why the checks wait for generation.** A property's class-validator decorators may run after `@ToolProp` (decorators run bottom-up), and a class may be decorated by a shared library without ever being used as a tool. Checking at generation time makes the result independent of decorator order, and means a class is only checked when a schema reaches it.
 - **Precedence (7).** `@ToolProp` records which options you set yourself. Inferred rules fill the gaps; a conflicting inferred rule only produces a warning.
 - **Nested classes (5).** `@ToolProp` stores a reference to a property's class, not its schema. The nested schema is built for each root, so a change to the nested class is always seen, and the path from the root is known for error messages and recursion checks.
-- **Updates into nested classes (5).** `updateSchemaProperty(Outer, 'address.city', …)` is recorded on `Outer`. When a schema of `Outer` is generated, the update is handed to the build of `Address`'s schema and applied there before `Address`'s properties are checked, exactly like an update of `Address`'s own `city`; a `propertyOverrides` entry such as `'address.city'` goes the same way, at any depth. So an update or override can give a nested property the type it lacks, and `Address` itself does not change. A subclass of `Outer` gets the update too, if its `address` property still holds the same class. Step (6) applies the rest: updates of the class's own properties, and paths into a property whose class is not built.
+- **Updates into nested classes (5).** `updateSchemaProperty(Outer, 'address.city', …)` is recorded on `Outer`. When a schema of `Outer` is generated, the update is handed to the build of `Address`'s schema and applied there before `Address`'s properties are checked, exactly like an update of `Address`'s own `city`. A `propertyOverrides` entry such as `'address.city'` goes the same way, at any depth. So an update or override can give a nested property the type it lacks, and `Address` itself does not change. A subclass of `Outer` gets the update too, if its `address` property still holds the same class. Step (6) applies the rest: updates of the class's own properties, and paths into a property whose class is not built.
 - **Another installed copy (4).** Metadata is stored under JavaScript symbols created by each copy of the package (`Symbol('jsonSchema')`). Two copies create two different symbols with the same name, so one copy cannot read the other's properties. Schema Forge looks for a symbol with the same name that is not its own, and reports the properties only that copy declared, instead of leaving them out silently.
 
 ## 11. Limitations
@@ -819,7 +871,7 @@ This section is for contributors and for readers who want to know why the rules 
 - **No object-level rules.** `minProperties`, `maxProperties`, `patternProperties` and `propertyNames` have no option.
 - **class-transformer is not read.** `@Type(() => X)` does not give array items; set `items`.
 - **`@IsOptional()` does not make a property optional.** Use `isOptional: true`.
-- **Strict modes cannot express a free-form object.** An object without declared properties (a `Record`) cannot be closed, and OpenAI and Anthropic strict modes reject an object that is not, so in strict mode generating the schema throws, naming the property: with `forStructuredOutput: true`, with `classToOpenAIResponseApiTool` unless `forStructuredOutput: false` (it is strict by default), and in `prepareForOpenAIStructuredOutput` / `prepareForAnthropicStrictTool`. Declare its properties, or describe it as a string that holds JSON.
+- **Strict modes cannot express a free-form object.** OpenAI and Anthropic strict modes reject an object that is not closed, and an object without declared properties (a `Record`) cannot be closed. So in strict mode, generating the schema throws and names the property. This happens with `forStructuredOutput: true`, with `classToOpenAIResponseApiTool` (strict unless `forStructuredOutput: false`), and in `prepareForOpenAIStructuredOutput` and `prepareForAnthropicStrictTool`. Declare its properties, or describe it as a string that holds JSON.
 - **The Vertex AI functions are not tested** against the real API.
 
 ## 12. API reference
@@ -836,9 +888,9 @@ This section is for contributors and for readers who want to know why the rules 
 | Function | Description |
 | --- | --- |
 | `classToJsonSchema(Class, options?)` | The JSON Schema of a class ([section 6](#6-schema-options)). |
-| `prepareForOpenAIStructuredOutput(schema, handleOptionals?)` | The OpenAI strict-mode preparation of [7.1](#71-openai), on a schema you already have. `handleOptionals` defaults to `false`, as in 2.x: a property missing from `required` is then required anyway, and the model has to invent a value for it. Pass `true` when the schema's `required` is accurate, so such a property becomes nullable instead (the `classTo…` functions do). |
+| `prepareForOpenAIStructuredOutput(schema, handleOptionals?)` | The OpenAI strict-mode preparation of [7.1](#71-openai), on a schema you already have. `handleOptionals` defaults to `false`, as in 2.x: a property missing from `required` is then required anyway, and the model has to invent a value for it. Pass `true` when the schema's `required` is accurate, so such a property becomes nullable instead (the `classTo…` functions do). Pass `{ strict: true }` to the `jsonSchemaToOpenAI…` function as well. |
 | `prepareForAnthropicStrictTool(schema)` | The Anthropic strict-tool preparation of [7.2](#72-anthropic), on a schema you already have; pass `{ strict: true }` to `jsonSchemaToAnthropicTool` as well. |
-| `findUndeclaredValidatedProperties(Class)` | Properties with class-validator decorators but no `@ToolProp`, with their paths ([5.2](#52-only-toolprop-adds-a-property)). |
+| `findUndeclaredValidatedProperties(Class)` | Properties with class-validator decorators but no `@ToolProp`, with their paths ([5.2](#52-class-validator-does-not-add-properties)). |
 
 **Changing a class's schema permanently**
 
@@ -860,23 +912,23 @@ This section is for contributors and for readers who want to know why the rules 
 | `classToGeminiOldTool`, `classToGeminiOldResponseSchema` | `@google/generative-ai` function declaration, response schema |
 | `classToGeminiVertexTool`, `classToGeminiVertexResponseSchema` | `@google-cloud/vertexai` function declaration, response schema |
 
-**From a JSON Schema to a provider format** (they take `(schema, { name, description? }, options?)`, except that the options of `jsonSchemaToAnthropicTool` are `{ strict? }` and the three Gemini response-schema converters take `(schema, { description? })`)
+**From a JSON Schema to a provider format.** The OpenAI and Anthropic converters take `(schema, { name, description? }, { strict? })`. The Gemini tool converters take `(schema, { name, description? })`, and the Gemini response-schema converters take `(schema, { description? })`. `strict: true` only sets the flag ([7.4](#74-existing-json-schemas-and-converting-between-formats)).
 
-`jsonSchemaToOpenAITool`, `jsonSchemaToOpenAIResponseApiTool` (its `options.strict` is required), `jsonSchemaToOpenAIResponseFormat`, `jsonSchemaToOpenAIResponseApiTextSchema`, `jsonSchemaToAnthropicTool` (pass `{ strict: true }` as the third argument for strict tool use), `jsonSchemaToGeminiTool`, `jsonSchemaToGeminiResponseSchema`, `jsonSchemaToGeminiOldTool`, `jsonSchemaToGeminiOldResponseSchema`, `jsonSchemaToGeminiVertexTool`, `jsonSchemaToGeminiVertexResponseSchema`.
+`jsonSchemaToOpenAITool`, `jsonSchemaToOpenAIResponseApiTool` (its `options.strict` is required), `jsonSchemaToOpenAIResponseFormat`, `jsonSchemaToOpenAIResponseApiTextSchema`, `jsonSchemaToAnthropicTool` (for strict tool use, call `prepareForAnthropicStrictTool` first, then pass `{ strict: true }`), `jsonSchemaToGeminiTool`, `jsonSchemaToGeminiResponseSchema`, `jsonSchemaToGeminiOldTool`, `jsonSchemaToGeminiOldResponseSchema`, `jsonSchemaToGeminiVertexTool`, `jsonSchemaToGeminiVertexResponseSchema`.
 
 **From a provider format back to JSON Schema**
 
 `openAIToolToJsonSchema(tool)` and `openAIResponseApiToolToJsonSchema(tool)` return `{ schema, metadata }`.
 
-**Other exports.** `Schema` is an object holding the main functions above (an older import style), and `classToLLMTool` is an older name for `classToOpenAITool`.
+**Other exports.** `inferClassValidatorProperties(prototype, propertyName)` returns what Schema Forge reads from one property's class-validator decorators. `Schema` is an object holding the main functions above (an older import style), and `classToLLMTool` is an older name for `classToOpenAITool`.
 
 ## 13. Troubleshooting
 
 **`Property 'name' has no initializer and is not definitely assigned in the constructor. ts(2564)`** — `strictPropertyInitialization` is on. Write `name!: string` ([section 2](#2-install-and-set-up)).
 
-**The error says "no design type (is emitDecoratorMetadata enabled?)"** — turn on `emitDecoratorMetadata`, and make sure your build tool emits decorator metadata. [esbuild does not support it](https://esbuild.github.io/content-types/#no-type-system), so neither do tools that compile TypeScript with esbuild.
+**The error says "no design type (is emitDecoratorMetadata enabled?)"** — turn on `emitDecoratorMetadata`, and make sure your build tool emits decorator metadata. [esbuild does not support it](https://esbuild.github.io/content-types/#no-type-system), so tools that compile TypeScript with esbuild do not either, unless you add a plugin that emits decorator metadata.
 
-**A property is missing from the schema** — it has no `@ToolProp` ([5.2](#52-only-toolprop-adds-a-property)), or it was declared through another installed copy of Schema Forge, which 3.0 reports as an error ([section 8.2](#82-errors)).
+**A property is missing from the schema** — it has no `@ToolProp` ([5.2](#52-class-validator-does-not-add-properties)), or it was declared through another installed copy of Schema Forge, which 3.0.0 reports as an error ([section 8.2](#82-errors)).
 
 **An optional property rejects `null`** — `isOptional` does not allow `null`; add `nullable: true` ([4.3](#43-optional-and-nullable)).
 

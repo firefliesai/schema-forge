@@ -27,6 +27,7 @@ import {
   assertNoClassInUpdate,
   assertSafePropertyPath,
   cloneMetadata,
+  cloneUpdate,
   normalizeTypeConstructor,
   enumSchemaType,
   extractEnumValues,
@@ -349,10 +350,15 @@ export function ToolProp(rawOptions: PropertyOptions = {}) {
     currentRequiredProps = [...new Set([...currentRequiredProps, ...ownRequiredProps])];
     currentSources = { ...currentSources, ...ownSources };
 
-    const isArray = type === Array || options.type === 'array' || options.items !== undefined;
     const hasComposition = Boolean(
       options.anyOf || options.oneOf || options.allOf || options.const !== undefined,
     );
+    // A composition describes the value, so the design type Array does not force `type: 'array'`
+    // next to it (as for a class or Date design type below); an `enum` still describes the items
+    const isArray =
+      (type === Array && (!hasComposition || options.enum !== undefined)) ||
+      options.type === 'array' ||
+      options.items !== undefined;
     let nestedClass: unknown = null;
 
     if (isArray) {
@@ -459,7 +465,9 @@ export function updateSchemaProperty<T extends object>(
   propertyPath: PropertyPath<T>,
   rawUpdates: Partial<PropertyOptions>,
 ): void {
-  const updates = normalizeTypeConstructor(rawUpdates);
+  // A copy: the update is recorded and replayed later, so a later change to the caller's object
+  // must not reach it
+  const updates = cloneUpdate(normalizeTypeConstructor(rawUpdates));
   const paths = (propertyPath as string).split('.');
   assertSafePropertyPath(paths);
   assertNoClassInUpdate(updates, `updateSchemaProperty(${target.name}, '${paths.join('.')}')`);
@@ -512,25 +520,31 @@ export function addPropertyTo(
   }
 
   const propertyKey = paths[paths.length - 1];
-  current[propertyKey] = {
-    type: finalOptions.type,
-    description: finalOptions.description,
-  };
+  // Every other option (format, pattern, bounds, a composition, …) is kept, as in @ToolProp; a
+  // copy, since later steps change the schema in place
+  const property: Record<string, any> = cloneUpdate(finalOptions);
+  delete property.isOptional;
+  delete property.nullable;
 
   if (finalOptions.enum) {
-    const enumValues = extractEnumValues(finalOptions.enum);
-    current[propertyKey].enum = enumValues;
+    property.enum = extractEnumValues(property.enum);
   }
 
   if (finalOptions.items) {
     // Normalize constructor types (Date, String, Number, Boolean) to string literals
-    const normalizedItems = normalizeItemsType(finalOptions.items);
-    current[propertyKey] = {
-      type: 'array',
-      description: finalOptions.description,
-      items: normalizedItems,
+    // An enum on an array describes its items, and its values give their type, as in @ToolProp
+    property.type = 'array';
+    // From the copy, so the schema never shares objects with the caller's options
+    const givenItems = normalizeItemsType(property.items);
+    property.items = {
+      ...givenItems,
+      ...(property.enum && { type: enumSchemaType(property.enum), enum: property.enum }),
     };
+    // Items that allowed null keep allowing it, as an enum update on an array does
+    keepNullable(property.items, givenItems, {});
+    delete property.enum;
   }
+  current[propertyKey] = property;
 
   if (finalOptions.nullable) makeNullable(current[propertyKey]);
 
@@ -551,7 +565,9 @@ export function addSchemaProperty<T extends object>(
   propertyPath: string,
   rawOptions: PropertyOptions,
 ): void {
-  const options = normalizeTypeConstructor(rawOptions);
+  // A copy: the addition may be recorded and replayed later, so a later change to the caller's
+  // object must not reach it
+  const options = cloneUpdate(normalizeTypeConstructor(rawOptions));
   if (!options.enum && !options.type) {
     throw new Error('Either type or enum must be specified');
   }
