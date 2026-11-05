@@ -117,6 +117,19 @@ Pass `tool` in the `tools` list of an OpenAI request. When the model calls it, i
 
 **When something else may fit better:** you prefer building schemas with functions instead of classes ([Zod](https://github.com/colinhacks/zod) or [TypeBox](https://github.com/sinclairzx81/typebox)), your code base does not use decorators, or property names are only known at run time.
 
+**Design choices.** Schema Forge does one job: it turns a class into a JSON Schema, and the schema into each provider's tool format. It does not validate or transform values, and it does not describe an HTTP API. It has no runtime dependencies; its only required peer dependency is `reflect-metadata`. So it fits next to a framework such as NestJS without tying your classes to it.
+
+**Compared with [class-validator-jsonschema](https://github.com/epiphone/class-validator-jsonschema)**, which also turns decorated classes into JSON Schema (its version 5.2.0, checked November 2026):
+
+| | Schema Forge | class-validator-jsonschema |
+| --- | --- | --- |
+| Where the schema comes from | `@ToolProp` and the design types; class-validator decorators add rules when present | class-validator decorators |
+| Packages you must install | `reflect-metadata` | class-validator and class-transformer (peer dependencies) |
+| What you get | JSON Schema, plus tools and response formats for OpenAI, Anthropic and Gemini, adapted to each provider's strict mode | JSON Schema objects for OpenAPI |
+| Which properties are in the schema | Only those with `@ToolProp`, so one class can be an API DTO and a tool input with different fields ([section 5.2](#52-only-toolprop-adds-a-property)) | The properties class-validator decorates |
+
+**Why it still reads class-validator.** Many classes that become tools already exist as validated DTOs, for example in NestJS. Reading their class-validator decorators means a rule such as `@MaxLength(100)` is written once, and both the validator and the LLM see it. It stays optional: class-validator is an optional peer dependency, Schema Forge only reads its decorators and never runs validation, and without it everything else works the same ([section 5](#5-rules-from-class-validator)).
+
 ## 2. Install and set up
 
 ```bash
