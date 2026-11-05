@@ -1703,6 +1703,12 @@ describe('3.0.0 schema resolution', () => {
       enum: ['a', 'b'],
       maxItems: 3,
     });
+    // The enum's values give the item type, as in @ToolProp, even when `items` says otherwise
+    addSchemaProperty(Added, 'levels', {
+      type: 'array',
+      items: { type: 'string', minLength: 1 },
+      enum: [1, 2],
+    });
 
     const schema = classToJsonSchema(Added);
     expect(schema.properties).toStrictEqual({
@@ -1713,8 +1719,9 @@ describe('3.0.0 schema resolution', () => {
       note: { type: 'string', anyOf },
       // An enum on an array describes its items, as in @ToolProp
       tags: { type: 'array', items: { type: 'string', enum: ['a', 'b'] }, maxItems: 3 },
+      levels: { type: 'array', items: { type: 'number', minLength: 1, enum: [1, 2] } },
     });
-    expect(schema.required).toStrictEqual(['id', 'link', 'count', 'note', 'tags']);
+    expect(schema.required).toStrictEqual(['id', 'link', 'count', 'note', 'tags', 'levels']);
   });
 
   it('updateSchemaProperty counts as explicit', () => {

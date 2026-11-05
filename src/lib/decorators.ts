@@ -530,11 +530,11 @@ export function addPropertyTo(
 
   if (finalOptions.items) {
     // Normalize constructor types (Date, String, Number, Boolean) to string literals
-    // An enum on an array describes its items, as in @ToolProp
+    // An enum on an array describes its items, and its values give their type, as in @ToolProp
     property.type = 'array';
     property.items = {
       ...normalizeItemsType(finalOptions.items),
-      ...(property.enum && { enum: property.enum }),
+      ...(property.enum && { type: enumSchemaType(property.enum), enum: property.enum }),
     };
     delete property.enum;
   }
