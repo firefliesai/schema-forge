@@ -3,9 +3,11 @@
  *
  * Strict modes (OpenAI structured outputs and strict function calling, Anthropic strict tool use)
  * accept only part of JSON Schema and reject a request that uses anything else. The keyword lists
- * below are the ones each API rejected when sent in a strict tool, checked against the live APIs;
- * where a provider's documentation and its API disagreed, the API decided. A keyword that has to go
- * is not lost: it is added to the property's description, as `{keyword: value}`, which is how
+ * below were checked against the live APIs (November 2026). A keyword the API rejected is moved
+ * even where the documentation allows it; a keyword the API accepted is kept, except where
+ * Anthropic's documentation lists it as unsupported (string lengths, large quantifier ranges),
+ * which is followed so a tool keeps working if Anthropic starts rejecting it. A keyword that has to
+ * go is not lost: it is added to the property's description, as `{keyword: value}`, which is how
  * Anthropic's own SDK keeps such rules visible to the model.
  */
 import { makeNullable, noteInDescription, typeIncludes } from './resolve';
