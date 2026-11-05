@@ -386,6 +386,14 @@ describe('both strict modes', () => {
     expect(() => classToAnthropicTool(WithRecord, { forStructuredOutput: true })).toThrow(
       'Anthropic strict mode cannot express "meta"',
     );
+    // The Responses API tool is strict by default
+    expect(() => classToOpenAIResponseApiTool(WithRecord)).toThrow(
+      'OpenAI strict mode cannot express "meta"',
+    );
+    expect(
+      classToOpenAIResponseApiTool(WithRecord, { forStructuredOutput: false }).parameters.properties
+        .meta,
+    ).toStrictEqual({ type: 'object' });
     // Without strict mode the object stays as declared
     expect(classToOpenAITool(WithRecord).function.parameters.properties.meta).toStrictEqual({
       type: 'object',

@@ -817,7 +817,7 @@ This section is for contributors and for readers who want to know why the rules 
 - **No object-level rules.** `minProperties`, `maxProperties`, `patternProperties` and `propertyNames` have no option.
 - **class-transformer is not read.** `@Type(() => X)` does not give array items; set `items`.
 - **`@IsOptional()` does not make a property optional.** Use `isOptional: true`.
-- **Strict modes cannot express a free-form object.** An object without declared properties (a `Record`) cannot be closed, and OpenAI and Anthropic strict modes reject an object that is not, so with `forStructuredOutput` (and in `prepareForOpenAIStructuredOutput` / `prepareForAnthropicStrictTool`) generating the schema throws, naming the property. Declare its properties, or describe it as a string that holds JSON.
+- **Strict modes cannot express a free-form object.** An object without declared properties (a `Record`) cannot be closed, and OpenAI and Anthropic strict modes reject an object that is not, so in strict mode generating the schema throws, naming the property: with `forStructuredOutput: true`, with `classToOpenAIResponseApiTool` unless `forStructuredOutput: false` (it is strict by default), and in `prepareForOpenAIStructuredOutput` / `prepareForAnthropicStrictTool`. Declare its properties, or describe it as a string that holds JSON.
 - **The Vertex AI functions are not tested** against the real API.
 
 ## 12. API reference
