@@ -1508,6 +1508,50 @@ describe('3.0.0 schema resolution', () => {
     });
   });
 
+  it('throws when an update names a class, which only @ToolProp can declare', () => {
+    // Left in the schema, the class would serialize to nothing: `items: {}`, or no type at all
+    class Line {
+      @ToolProp() sku: string;
+    }
+    class OtherLine {
+      @ToolProp() code: string;
+    }
+    class Order {
+      @ToolProp({ items: { type: Line } }) lines: Line[];
+      @ToolProp({ items: { type: 'string' } }) tags: string[];
+      @ToolProp() line: Line;
+    }
+    const names = /names the class OtherLine, which an update cannot add/;
+
+    for (const overrides of [
+      { lines: { items: { type: OtherLine } } },
+      { tags: { items: { type: OtherLine } } },
+      { line: { type: OtherLine } },
+    ]) {
+      expect(() => classToJsonSchema(Order, { propertyOverrides: overrides as any })).toThrow(
+        names,
+      );
+    }
+    expect(() =>
+      updateSchemaProperty(Order, 'lines', { items: { type: OtherLine } } as any),
+    ).toThrow(/updateSchemaProperty\(Order, 'lines'\) names the class OtherLine/);
+    expect(() =>
+      updateSchemaProperty(Order, 'tags', { items: { type: OtherLine } } as any),
+    ).toThrow(names);
+    expect(() =>
+      addSchemaProperty(Order, 'more', { type: 'array', items: { type: OtherLine } } as any),
+    ).toThrow(/addSchemaProperty\(Order, 'more'\) names the class OtherLine/);
+    // Nothing was recorded, and built-in constructors stay allowed
+    updateSchemaProperty(Order, 'tags', { items: { type: Date } } as any);
+    expect(classToJsonSchema(Order).properties.tags.items).toStrictEqual({
+      type: 'string',
+      format: 'date-time',
+    });
+    expect((classToJsonSchema(Order).properties.lines.items as any).properties).toHaveProperty(
+      'sku',
+    );
+  });
+
   it('updateSchemaProperty counts as explicit', () => {
     class Updated {
       @IsInt() @ToolProp() n: number;
