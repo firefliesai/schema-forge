@@ -354,9 +354,9 @@ export function ToolProp(rawOptions: PropertyOptions = {}) {
       options.anyOf || options.oneOf || options.allOf || options.const !== undefined,
     );
     // A composition describes the value, so the design type Array does not force `type: 'array'`
-    // next to it (as for a class or Date design type below)
+    // next to it (as for a class or Date design type below); an `enum` still describes the items
     const isArray =
-      (type === Array && !hasComposition) ||
+      (type === Array && (!hasComposition || options.enum !== undefined)) ||
       options.type === 'array' ||
       options.items !== undefined;
     let nestedClass: unknown = null;
@@ -530,8 +530,12 @@ export function addPropertyTo(
 
   if (finalOptions.items) {
     // Normalize constructor types (Date, String, Number, Boolean) to string literals
+    // An enum on an array describes its items, as in @ToolProp
     property.type = 'array';
-    property.items = normalizeItemsType(finalOptions.items);
+    property.items = {
+      ...normalizeItemsType(finalOptions.items),
+      ...(property.enum && { enum: property.enum }),
+    };
     delete property.enum;
   }
   current[propertyKey] = property;

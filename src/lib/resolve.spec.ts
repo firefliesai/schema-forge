@@ -696,11 +696,18 @@ describe('3.0.0 schema resolution', () => {
         @ToolProp({ anyOf: branches }) values: string[];
         @ToolProp({ type: 'array', anyOf: [{ maxItems: 2 }], items: { type: 'string' } })
         pair: string[];
+        @ToolProp({ allOf: [{ maxItems: 2 }], enum: ['a', 'b'] }) picks: string[];
       }
 
       expect(classToJsonSchema(Composed).properties).toStrictEqual({
         values: { anyOf: branches },
         pair: { type: 'array', anyOf: [{ maxItems: 2 }], items: { type: 'string' } },
+        // An enum still describes the items of an array property
+        picks: {
+          type: 'array',
+          allOf: [{ maxItems: 2 }],
+          items: { type: 'string', enum: ['a', 'b'] },
+        },
       });
     });
 
@@ -1690,6 +1697,12 @@ describe('3.0.0 schema resolution', () => {
     addSchemaProperty(Added, 'when', { type: Date as any, isOptional: true });
     addSchemaProperty(Added, 'count', { type: 'integer', minimum: 1, nullable: true });
     addSchemaProperty(Added, 'note', { anyOf, type: 'string' } as any);
+    addSchemaProperty(Added, 'tags', {
+      type: 'array',
+      items: { type: 'string' },
+      enum: ['a', 'b'],
+      maxItems: 3,
+    });
 
     const schema = classToJsonSchema(Added);
     expect(schema.properties).toStrictEqual({
@@ -1698,8 +1711,10 @@ describe('3.0.0 schema resolution', () => {
       when: { type: 'string', format: 'date-time' },
       count: { type: ['integer', 'null'], minimum: 1 },
       note: { type: 'string', anyOf },
+      // An enum on an array describes its items, as in @ToolProp
+      tags: { type: 'array', items: { type: 'string', enum: ['a', 'b'] }, maxItems: 3 },
     });
-    expect(schema.required).toStrictEqual(['id', 'link', 'count', 'note']);
+    expect(schema.required).toStrictEqual(['id', 'link', 'count', 'note', 'tags']);
   });
 
   it('updateSchemaProperty counts as explicit', () => {
