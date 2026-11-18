@@ -8,6 +8,17 @@ on:
     types: [opened, synchronize, reopened]
 
 jobs:
+  agent-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: bash scripts/agent-check.sh
+
   test:
     name: Test with Node ${{ matrix.node-version }} and reflect-metadata ${{ matrix.reflect-metadata-version }}
     runs-on: ubuntu-latest
@@ -43,6 +54,10 @@ jobs:
         run: npm list reflect-metadata
       - name: Run linting
         run: npm run lint
+      - name: Check formatting
+        run: npm run format:check
+      - name: Typecheck source and specs
+        run: npm run typecheck
       - name: Create empty .env file
         run: touch .env
       - name: Run tests
