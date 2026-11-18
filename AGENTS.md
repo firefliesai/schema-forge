@@ -36,7 +36,7 @@ Node 20 matches CI. Run commands at the repository root.
 | Lint | `npm run lint` |
 | Check formatting | `npm run format:check` |
 | Typecheck including specs | `npm run typecheck` |
-| Offline tests | `touch .env && npm run jest -- --runInBand --testPathIgnorePatterns='llm-tool.spec.ts|llm-schema-v3.spec.ts|node_modules|dist'` |
+| Offline tests | `touch .env && npm run jest -- --runInBand --testPathIgnorePatterns='llm-tool.spec.ts\|llm-schema-v3.spec.ts\|node_modules\|dist'` |
 | Full tests with provider credentials | `touch .env && npm test` |
 | Agent infrastructure | `bash scripts/agent-check.sh` |
 | Verify a change | Follow `.agents/skills/verify-schema-forge/SKILL.md` |
