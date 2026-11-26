@@ -27,7 +27,7 @@ structured-output formats. It generates schemas, not runtime validators or API c
 
 ## Commands
 
-Node 20 matches CI. Run commands at the repository root.
+Node 26.13.1 matches CI. Run commands at the repository root.
 
 | Task | Command |
 | --- | --- |
